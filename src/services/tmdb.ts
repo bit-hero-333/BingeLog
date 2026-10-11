@@ -4,6 +4,11 @@ import {
   SeasonInfo,
   EpisodeInfo,
   DetailedMediaInfo,
+  PersonSummary,
+  PersonFullDetails,
+  CompanyFullDetails,
+  GenreFullDetails,
+  EntityType,
 } from '@/types/media';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
@@ -14,6 +19,30 @@ interface TMDBResponse<T> {
   results: T[];
   total_pages: number;
   total_results: number;
+}
+
+interface RawPersonResponse {
+  id: number;
+  name: string;
+  biography?: string;
+  birthday?: string | null;
+  place_of_birth?: string | null;
+  deathday?: string | null;
+  known_for_department?: string;
+  profile_path?: string | null;
+  combined_credits?: {
+    cast?: (TMDBMediaItem & { character?: string })[];
+    crew?: (TMDBMediaItem & { job?: string; department?: string })[];
+  };
+}
+
+interface RawCompanyResponse {
+  id: number;
+  name: string;
+  description?: string;
+  headquarters?: string;
+  origin_country?: string;
+  logo_path?: string | null;
 }
 
 interface RawCreditsResponse {
@@ -193,20 +222,24 @@ export const TMDBService = {
         append_to_response: 'credits',
       });
 
-      const cast = (data.credits?.cast || []).slice(0, 10).map((c) => ({
+      const cast = (data.credits?.cast || []).slice(0, 50).map((c) => ({
         id: c.id,
         name: c.name,
         character: c.character,
         profilePath: c.profile_path,
       }));
 
-      const directors = (data.credits?.crew || [])
+      const directors: PersonSummary[] = (data.credits?.crew || [])
         .filter((c) => c.job === 'Director')
-        .map((c) => c.name);
+        .map((c) => ({ id: c.id, name: c.name, role: 'Director' }));
 
-      const creators = (data.created_by || []).map((c) => c.name);
+      const creators: PersonSummary[] = (data.created_by || []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        role: 'Creator',
+      }));
 
-      const writers = (data.credits?.crew || [])
+      const writers: PersonSummary[] = (data.credits?.crew || [])
         .filter(
           (c) =>
             c.department === 'Writing' ||
@@ -214,8 +247,8 @@ export const TMDBService = {
             c.job === 'Screenplay' ||
             c.job === 'Story'
         )
-        .slice(0, 3)
-        .map((c) => c.name);
+        .slice(0, 5)
+        .map((c) => ({ id: c.id, name: c.name, role: c.job || 'Writer' }));
 
       const studios = (data.production_companies || []).slice(0, 4).map((p) => ({
         id: p.id,
@@ -292,6 +325,145 @@ export const TMDBService = {
       }));
     } catch (e) {
       console.warn(`Failed to fetch season ${seasonNumber} episodes`, e);
+      return [];
+    }
+  },
+
+  async getPersonDetails(personId: number, apiKey: string): Promise<PersonFullDetails> {
+    try {
+      const data = await this.request<RawPersonResponse>(`/person/${personId}`, apiKey, {
+        append_to_response: 'combined_credits',
+      });
+
+      const rawItems = [
+        ...(data.combined_credits?.cast || []),
+        ...(data.combined_credits?.crew || []),
+      ];
+
+      const seen = new Set<number>();
+      const knownWorks: TMDBMediaItem[] = [];
+      for (const item of rawItems) {
+        if (!seen.has(item.id) && (item.poster_path || item.backdrop_path)) {
+          seen.add(item.id);
+          knownWorks.push({
+            ...item,
+            media_type: item.media_type || (item.title ? 'movie' : 'tv'),
+          });
+        }
+      }
+      knownWorks.sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
+
+      return {
+        id: data.id,
+        name: data.name,
+        biography: data.biography,
+        birthday: data.birthday,
+        placeOfBirth: data.place_of_birth,
+        deathday: data.deathday,
+        knownForDepartment: data.known_for_department,
+        profilePath: data.profile_path,
+        knownWorks: knownWorks.slice(0, 20),
+      };
+    } catch (e) {
+      console.warn(`Failed to fetch person details for ${personId}`, e);
+      return { id: personId, name: 'Person Details' };
+    }
+  },
+
+  async getCompanyDetails(companyId: number, apiKey: string): Promise<CompanyFullDetails> {
+    try {
+      const data = await this.request<RawCompanyResponse>(`/company/${companyId}`, apiKey);
+
+      const [moviesRes, tvRes] = await Promise.allSettled([
+        this.request<TMDBResponse<TMDBMediaItem>>('/discover/movie', apiKey, {
+          with_companies: companyId,
+          sort_by: 'popularity.desc',
+        }),
+        this.request<TMDBResponse<TMDBMediaItem>>('/discover/tv', apiKey, {
+          with_companies: companyId,
+          sort_by: 'popularity.desc',
+        }),
+      ]);
+
+      const movies = moviesRes.status === 'fulfilled' ? (moviesRes.value.results || []).map(m => ({ ...m, media_type: 'movie' as MediaType })) : [];
+      const tv = tvRes.status === 'fulfilled' ? (tvRes.value.results || []).map(t => ({ ...t, media_type: 'tv' as MediaType })) : [];
+
+      const combined = [...movies, ...tv].sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0)).slice(0, 20);
+
+      return {
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        headquarters: data.headquarters,
+        originCountry: data.origin_country,
+        logoPath: data.logo_path,
+        knownWorks: combined,
+      };
+    } catch (e) {
+      console.warn(`Failed to fetch company details for ${companyId}`, e);
+      return { id: companyId, name: 'Studio Details' };
+    }
+  },
+
+  async getGenreDetails(genreId: number, genreName: string, apiKey: string): Promise<GenreFullDetails> {
+    try {
+      const [moviesRes, tvRes] = await Promise.allSettled([
+        this.request<TMDBResponse<TMDBMediaItem>>('/discover/movie', apiKey, {
+          with_genres: genreId,
+          sort_by: 'popularity.desc',
+        }),
+        this.request<TMDBResponse<TMDBMediaItem>>('/discover/tv', apiKey, {
+          with_genres: genreId,
+          sort_by: 'popularity.desc',
+        }),
+      ]);
+
+      const movies = moviesRes.status === 'fulfilled' ? (moviesRes.value.results || []).map(m => ({ ...m, media_type: 'movie' as MediaType })) : [];
+      const tv = tvRes.status === 'fulfilled' ? (tvRes.value.results || []).map(t => ({ ...t, media_type: 'tv' as MediaType })) : [];
+
+      const combined = [...movies, ...tv].sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0)).slice(0, 20);
+
+      return {
+        id: genreId,
+        name: genreName,
+        knownWorks: combined,
+      };
+    } catch (e) {
+      console.warn(`Failed to fetch genre details for ${genreId}`, e);
+      return { id: genreId, name: genreName };
+    }
+  },
+
+  async discoverByEntity(
+    entityType: EntityType,
+    entityId: number,
+    apiKey: string,
+    page: number = 1
+  ): Promise<TMDBMediaItem[]> {
+    try {
+      const params: Record<string, string | number> = {
+        page,
+        sort_by: 'popularity.desc',
+      };
+      if (entityType === 'person') {
+        params.with_people = entityId;
+      } else if (entityType === 'company' || entityType === 'network') {
+        params.with_companies = entityId;
+      } else if (entityType === 'genre') {
+        params.with_genres = entityId;
+      }
+
+      const [moviesRes, tvRes] = await Promise.allSettled([
+        this.request<TMDBResponse<TMDBMediaItem>>('/discover/movie', apiKey, params),
+        this.request<TMDBResponse<TMDBMediaItem>>('/discover/tv', apiKey, params),
+      ]);
+
+      const movies = moviesRes.status === 'fulfilled' ? (moviesRes.value.results || []).map(m => ({ ...m, media_type: 'movie' as MediaType })) : [];
+      const tv = tvRes.status === 'fulfilled' ? (tvRes.value.results || []).map(t => ({ ...t, media_type: 'tv' as MediaType })) : [];
+
+      return [...movies, ...tv].sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
+    } catch (e) {
+      console.warn(`Failed to discover by entity ${entityType} ${entityId}`, e);
       return [];
     }
   },

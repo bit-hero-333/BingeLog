@@ -53,6 +53,13 @@ export interface SeasonInfo {
   episodes?: EpisodeInfo[];
 }
 
+export interface PersonSummary {
+  id: number;
+  name: string;
+  role?: string;
+  profilePath?: string | null;
+}
+
 export interface DetailedMediaInfo {
   runtime?: number;
   numberOfEpisodes?: number;
@@ -61,9 +68,9 @@ export interface DetailedMediaInfo {
   tagline?: string;
   genres?: GenreInfo[];
   cast?: CastMember[];
-  directors?: string[];
-  creators?: string[];
-  writers?: string[];
+  directors?: PersonSummary[];
+  creators?: PersonSummary[];
+  writers?: PersonSummary[];
   studios?: ProductionCompany[];
   networks?: NetworkInfo[];
   releaseDate?: string;
@@ -179,3 +186,92 @@ export const MAL_SCORES = [
   { score: 2, label: '(2) Horrible' },
   { score: 1, label: '(1) Appalling' },
 ];
+
+export type DensityPreset = 'compact' | 'default' | 'large';
+export type ElementScale = 'small' | 'medium' | 'large' | 'xlarge';
+
+export interface SizingConfig {
+  preset: DensityPreset;
+  textSize: ElementScale; // synopsis, descriptions, notes
+  castSize: ElementScale; // actor avatar size & card width
+  tagSize: ElementScale;  // badge pills & chips
+  rowDensity: ElementScale; // episode row heights & padding
+}
+
+export const DEFAULT_SIZING_CONFIG: SizingConfig = {
+  preset: 'default',
+  textSize: 'medium',
+  castSize: 'medium',
+  tagSize: 'medium',
+  rowDensity: 'medium',
+};
+
+export const SIZING_PRESETS: Record<DensityPreset, SizingConfig> = {
+  compact: {
+    preset: 'compact',
+    textSize: 'small',
+    castSize: 'small',
+    tagSize: 'small',
+    rowDensity: 'small',
+  },
+  default: {
+    preset: 'default',
+    textSize: 'medium',
+    castSize: 'medium',
+    tagSize: 'medium',
+    rowDensity: 'medium',
+  },
+  large: {
+    preset: 'large',
+    textSize: 'large',
+    castSize: 'large',
+    tagSize: 'large',
+    rowDensity: 'large',
+  },
+};
+
+export type EntityType = 'person' | 'company' | 'network' | 'genre';
+
+export interface EntitySelection {
+  type: EntityType;
+  id: number;
+  name: string;
+  role?: string;
+  logoPath?: string | null;
+  profilePath?: string | null;
+}
+
+export interface PersonFullDetails {
+  id: number;
+  name: string;
+  biography?: string;
+  birthday?: string | null;
+  placeOfBirth?: string | null;
+  deathday?: string | null;
+  knownForDepartment?: string;
+  profilePath?: string | null;
+  knownWorks?: TMDBMediaItem[];
+}
+
+export interface CompanyFullDetails {
+  id: number;
+  name: string;
+  description?: string;
+  headquarters?: string;
+  originCountry?: string;
+  logoPath?: string | null;
+  knownWorks?: TMDBMediaItem[];
+}
+
+export interface GenreFullDetails {
+  id: number;
+  name: string;
+  knownWorks?: TMDBMediaItem[];
+}
+
+export interface DiscoverFilter {
+  type: EntityType;
+  id: number;
+  name: string;
+}
+

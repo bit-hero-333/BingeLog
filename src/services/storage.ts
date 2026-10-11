@@ -1,10 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TrackedItem } from '@/types/media';
+import { TrackedItem, SizingConfig, DEFAULT_SIZING_CONFIG } from '@/types/media';
 
 const STORAGE_KEYS = {
   API_KEY: '@pmt_tmdb_api_key',
   TRACKED_ITEMS: '@pmt_tracked_items',
   SHOW_MEDIA_IMAGES: '@pmt_show_media_images',
+  SHOW_SEASON_EPISODE_IMAGES: '@pmt_show_season_episode_images',
+  SHOW_ACTOR_IMAGES: '@pmt_show_actor_images',
+  SHOW_ALL_CAST: '@pmt_show_all_cast',
+  SIZING_CONFIG: '@pmt_sizing_config',
 };
 
 export const StorageService = {
@@ -102,6 +106,93 @@ export const StorageService = {
       return true;
     } catch (e) {
       console.error('Failed to save show media images setting', e);
+      return false;
+    }
+  },
+
+  async getShowSeasonEpisodeImages(): Promise<boolean> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.SHOW_SEASON_EPISODE_IMAGES);
+      if (val === null) {
+        // Fallback to legacy SHOW_MEDIA_IMAGES or true
+        return await this.getShowMediaImages();
+      }
+      return val === 'true';
+    } catch (e) {
+      console.error('Failed to get show season/episode images setting', e);
+      return true;
+    }
+  },
+
+  async saveShowSeasonEpisodeImages(enabled: boolean): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SHOW_SEASON_EPISODE_IMAGES, enabled ? 'true' : 'false');
+      return true;
+    } catch (e) {
+      console.error('Failed to save show season/episode images setting', e);
+      return false;
+    }
+  },
+
+  async getShowActorImages(): Promise<boolean> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.SHOW_ACTOR_IMAGES);
+      if (val === null) return true;
+      return val === 'true';
+    } catch (e) {
+      console.error('Failed to get show actor images setting', e);
+      return true;
+    }
+  },
+
+  async saveShowActorImages(enabled: boolean): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SHOW_ACTOR_IMAGES, enabled ? 'true' : 'false');
+      return true;
+    } catch (e) {
+      console.error('Failed to save show actor images setting', e);
+      return false;
+    }
+  },
+
+  async getShowAllCast(): Promise<boolean> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.SHOW_ALL_CAST);
+      if (val === null) return false;
+      return val === 'true';
+    } catch (e) {
+      console.error('Failed to get show all cast setting', e);
+      return false;
+    }
+  },
+
+  async saveShowAllCast(enabled: boolean): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SHOW_ALL_CAST, enabled ? 'true' : 'false');
+      return true;
+    } catch (e) {
+      console.error('Failed to save show all cast setting', e);
+      return false;
+    }
+  },
+
+  async getSizingConfig(): Promise<SizingConfig> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.SIZING_CONFIG);
+      if (!val) return DEFAULT_SIZING_CONFIG;
+      return { ...DEFAULT_SIZING_CONFIG, ...JSON.parse(val) };
+    } catch (e) {
+      console.error('Failed to get sizing config', e);
+      return DEFAULT_SIZING_CONFIG;
+    }
+  },
+
+  async saveSizingConfig(config: SizingConfig): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SIZING_CONFIG, JSON.stringify(config));
+      return true;
+    } catch (e) {
+      console.error('Failed to save sizing config', e);
       return false;
     }
   },

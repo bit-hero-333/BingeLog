@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { StorageService } from '@/services/storage';
-import { TrackedItem, MediaType } from '@/types/media';
+import {
+  TrackedItem,
+  MediaType,
+  SizingConfig,
+  DEFAULT_SIZING_CONFIG,
+  DiscoverFilter,
+} from '@/types/media';
 
 interface MediaStats {
   total: number;
@@ -23,8 +29,22 @@ interface MediaContextType {
   getTrackedStatus: (id: number, mediaType: MediaType) => TrackedItem | undefined;
   stats: MediaStats;
   clearData: () => Promise<void>;
-  showMediaImages: boolean;
-  setShowMediaImages: (enabled: boolean) => Promise<boolean>;
+
+  // Display toggles
+  showSeasonEpisodeImages: boolean;
+  setShowSeasonEpisodeImages: (enabled: boolean) => Promise<boolean>;
+  showActorImages: boolean;
+  setShowActorImages: (enabled: boolean) => Promise<boolean>;
+  showAllCast: boolean;
+  setShowAllCast: (enabled: boolean) => Promise<boolean>;
+
+  // Granular sizing
+  sizingConfig: SizingConfig;
+  setSizingConfig: (config: SizingConfig) => Promise<boolean>;
+
+  // Active Discover filter
+  activeDiscoverFilter: DiscoverFilter | null;
+  setActiveDiscoverFilter: (filter: DiscoverFilter | null) => void;
 }
 
 const MediaContext = createContext<MediaContextType | undefined>(undefined);
@@ -32,20 +52,37 @@ const MediaContext = createContext<MediaContextType | undefined>(undefined);
 export function MediaProvider({ children }: { children: React.ReactNode }) {
   const [apiKey, setApiKeyState] = useState<string | null>(null);
   const [trackedItems, setTrackedItems] = useState<TrackedItem[]>([]);
-  const [showMediaImages, setShowMediaImagesState] = useState(true);
+  const [showSeasonEpisodeImages, setShowSeasonEpisodeImagesState] = useState(true);
+  const [showActorImages, setShowActorImagesState] = useState(true);
+  const [showAllCast, setShowAllCastState] = useState(false);
+  const [sizingConfig, setSizingConfigState] = useState<SizingConfig>(DEFAULT_SIZING_CONFIG);
+  const [activeDiscoverFilter, setActiveDiscoverFilter] = useState<DiscoverFilter | null>(null);
   const [isLoadingStorage, setIsLoadingStorage] = useState(true);
 
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [savedKey, savedItems, savedShowImages] = await Promise.all([
+        const [
+          savedKey,
+          savedItems,
+          savedSeasonEpImages,
+          savedActorImages,
+          savedAllCast,
+          savedSizing,
+        ] = await Promise.all([
           StorageService.getApiKey(),
           StorageService.getTrackedItems(),
-          StorageService.getShowMediaImages(),
+          StorageService.getShowSeasonEpisodeImages(),
+          StorageService.getShowActorImages(),
+          StorageService.getShowAllCast(),
+          StorageService.getSizingConfig(),
         ]);
         if (savedKey) setApiKeyState(savedKey);
         if (savedItems) setTrackedItems(savedItems);
-        setShowMediaImagesState(savedShowImages);
+        setShowSeasonEpisodeImagesState(savedSeasonEpImages);
+        setShowActorImagesState(savedActorImages);
+        setShowAllCastState(savedAllCast);
+        setSizingConfigState(savedSizing);
       } catch (e) {
         console.error('Failed to load initial data', e);
       } finally {
@@ -90,10 +127,34 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     setTrackedItems([]);
   };
 
-  const setShowMediaImages = async (enabled: boolean): Promise<boolean> => {
-    const success = await StorageService.saveShowMediaImages(enabled);
+  const setShowSeasonEpisodeImages = async (enabled: boolean): Promise<boolean> => {
+    const success = await StorageService.saveShowSeasonEpisodeImages(enabled);
     if (success) {
-      setShowMediaImagesState(enabled);
+      setShowSeasonEpisodeImagesState(enabled);
+    }
+    return success;
+  };
+
+  const setShowActorImages = async (enabled: boolean): Promise<boolean> => {
+    const success = await StorageService.saveShowActorImages(enabled);
+    if (success) {
+      setShowActorImagesState(enabled);
+    }
+    return success;
+  };
+
+  const setShowAllCast = async (enabled: boolean): Promise<boolean> => {
+    const success = await StorageService.saveShowAllCast(enabled);
+    if (success) {
+      setShowAllCastState(enabled);
+    }
+    return success;
+  };
+
+  const setSizingConfig = async (config: SizingConfig): Promise<boolean> => {
+    const success = await StorageService.saveSizingConfig(config);
+    if (success) {
+      setSizingConfigState(config);
     }
     return success;
   };
@@ -158,8 +219,16 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         getTrackedStatus,
         stats,
         clearData,
-        showMediaImages,
-        setShowMediaImages,
+        showSeasonEpisodeImages,
+        setShowSeasonEpisodeImages,
+        showActorImages,
+        setShowActorImages,
+        showAllCast,
+        setShowAllCast,
+        sizingConfig,
+        setSizingConfig,
+        activeDiscoverFilter,
+        setActiveDiscoverFilter,
       }}>
       {children}
     </MediaContext.Provider>

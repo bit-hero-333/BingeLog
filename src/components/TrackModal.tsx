@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import {
   TMDBMediaItem,
   TrackedItem,
@@ -24,6 +25,7 @@ import {
   SeasonInfo,
   EpisodeInfo,
   DetailedMediaInfo,
+  EntitySelection,
 } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
@@ -37,6 +39,7 @@ import {
   formatRuntime,
 } from '@/utils/date';
 import { DatePickerModal } from '@/components/DatePickerModal';
+import { EntityModal } from '@/components/EntityModal';
 
 interface TrackModalProps {
   visible: boolean;
@@ -62,7 +65,15 @@ function TrackModalFormContent({
   onSave,
   onRemove,
 }: FormContentProps) {
-  const { apiKey, showMediaImages } = useMedia();
+  const router = useRouter();
+  const {
+    apiKey,
+    showSeasonEpisodeImages,
+    showActorImages,
+    showAllCast,
+    sizingConfig,
+    setActiveDiscoverFilter,
+  } = useMedia();
 
   const isTracked = 'status' in item;
   const id = item.id;
@@ -88,6 +99,10 @@ function TrackModalFormContent({
   // Detailed TMDB media info state
   const [detailedInfo, setDetailedInfo] = useState<DetailedMediaInfo | null>(null);
   const [overviewExpanded, setOverviewExpanded] = useState(false);
+  const [localShowAllCast, setLocalShowAllCast] = useState(showAllCast);
+
+  // Selected Entity for Slide-up Sheet (Actors, Studios, Genres)
+  const [selectedEntity, setSelectedEntity] = useState<EntitySelection | null>(null);
 
   // Media metadata state (episodes, seasons, runtime)
   const [totalEpisodes, setTotalEpisodes] = useState<number | null>(
@@ -160,7 +175,7 @@ function TrackModalFormContent({
   );
 
   // Dates in DD.MM.YYYY:
-  // If untracked, dates start EMPTY until status or user chooses!
+  // If untracked, dates start EMPTY until user picks or selects status
   const addedAt = existingRecord?.addedAt || new Date().toISOString();
   const [startedAt, setStartedAt] = useState<string>(
     existingRecord?.startedAt
@@ -179,6 +194,68 @@ function TrackModalFormContent({
 
   // Total watched episodes count derived from watchedKeys
   const watchedEpisodesCount = watchedKeys.size;
+
+  // Responsive UI Scales derived from sizingConfig
+  const synopsisFontSize =
+    sizingConfig.textSize === 'small'
+      ? 11
+      : sizingConfig.textSize === 'large'
+      ? 14
+      : sizingConfig.textSize === 'xlarge'
+      ? 16
+      : 12.5;
+
+  const actorAvatarSize =
+    sizingConfig.castSize === 'small'
+      ? 38
+      : sizingConfig.castSize === 'large'
+      ? 56
+      : sizingConfig.castSize === 'xlarge'
+      ? 68
+      : 46;
+  const actorCardWidth = actorAvatarSize + 18;
+  const actorNameFontSize =
+    sizingConfig.castSize === 'small'
+      ? 9.5
+      : sizingConfig.castSize === 'large'
+      ? 11.5
+      : sizingConfig.castSize === 'xlarge'
+      ? 12.5
+      : 10.5;
+
+  const tagFontSize =
+    sizingConfig.tagSize === 'small'
+      ? 10
+      : sizingConfig.tagSize === 'large'
+      ? 12.5
+      : sizingConfig.tagSize === 'xlarge'
+      ? 14
+      : 11;
+  const tagPadV =
+    sizingConfig.tagSize === 'small'
+      ? 2
+      : sizingConfig.tagSize === 'large'
+      ? 5
+      : sizingConfig.tagSize === 'xlarge'
+      ? 7
+      : 3;
+  const tagPadH =
+    sizingConfig.tagSize === 'small'
+      ? 6
+      : sizingConfig.tagSize === 'large'
+      ? 10
+      : sizingConfig.tagSize === 'xlarge'
+      ? 12
+      : 8;
+
+  const epRowPadV =
+    sizingConfig.rowDensity === 'small'
+      ? 6
+      : sizingConfig.rowDensity === 'large'
+      ? 12
+      : sizingConfig.rowDensity === 'xlarge'
+      ? 15
+      : 8;
 
   // Fetch full TV/Movie details from TMDB
   useEffect(() => {
@@ -426,7 +503,9 @@ function TrackModalFormContent({
       studios: detailedInfo?.studios
         ? detailedInfo.studios.map((s) => s.name)
         : existingRecord?.studios,
-      creators: detailedInfo?.creators || detailedInfo?.directors || existingRecord?.creators,
+      creators: detailedInfo?.creators
+        ? detailedInfo.creators.map((c) => c.name)
+        : existingRecord?.creators,
 
       // Dates
       addedAt,
@@ -473,6 +552,9 @@ function TrackModalFormContent({
       : totalEpisodes
       ? [{ seasonNumber: 1, episodeCount: totalEpisodes, name: 'Season 1' }]
       : [];
+
+  const rawCastList = detailedInfo?.cast || [];
+  const displayCast = localShowAllCast ? rawCastList : rawCastList.slice(0, 10);
 
   return (
     <KeyboardAvoidingView
@@ -560,9 +642,22 @@ function TrackModalFormContent({
             {detailedInfo?.genres && detailedInfo.genres.length > 0 ? (
               <View style={styles.genreChipsRow}>
                 {detailedInfo.genres.map((g) => (
-                  <View key={g.id} style={styles.genreChip}>
-                    <Text style={styles.genreChipText}>{g.name}</Text>
-                  </View>
+                  <Pressable
+                    key={g.id}
+                    style={[
+                      styles.genreChip,
+                      { paddingVertical: tagPadV, paddingHorizontal: tagPadH },
+                    ]}
+                    onPress={() =>
+                      setSelectedEntity({
+                        type: 'genre',
+                        id: g.id,
+                        name: g.name,
+                      })
+                    }>
+                    <Text style={[styles.genreChipText, { fontSize: tagFontSize }]}>{g.name}</Text>
+                    <Ionicons name="search" size={9} color="#94a3b8" />
+                  </Pressable>
                 ))}
               </View>
             ) : null}
@@ -570,7 +665,7 @@ function TrackModalFormContent({
             {overview ? (
               <View style={styles.synopsisContainer}>
                 <Text
-                  style={styles.synopsisText}
+                  style={[styles.synopsisText, { fontSize: synopsisFontSize }]}
                   numberOfLines={overviewExpanded ? undefined : 3}>
                   {overview}
                 </Text>
@@ -586,42 +681,93 @@ function TrackModalFormContent({
               </View>
             ) : null}
 
-            {/* Top Cast Carousel */}
-            {detailedInfo?.cast && detailedInfo.cast.length > 0 ? (
+            {/* Top Cast Carousel (Clickable & Sizable) */}
+            {rawCastList.length > 0 ? (
               <View style={styles.castSection}>
-                <Text style={styles.subSectionTitle}>Top Cast</Text>
+                <View style={styles.subSectionHeaderRow}>
+                  <Text style={styles.subSectionTitle}>
+                    {localShowAllCast ? `Full Cast (${rawCastList.length})` : `Top Cast (${Math.min(10, rawCastList.length)})`}
+                  </Text>
+                  {rawCastList.length > 10 ? (
+                    <Pressable
+                      style={styles.toggleCastBtn}
+                      onPress={() => setLocalShowAllCast(!localShowAllCast)}>
+                      <Ionicons
+                        name={localShowAllCast ? 'funnel-outline' : 'people-outline'}
+                        size={12}
+                        color="#38bdf8"
+                      />
+                      <Text style={styles.toggleCastBtnText}>
+                        {localShowAllCast ? 'Show Top 10' : `Show All (${rawCastList.length})`}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.castCarousel}>
-                  {detailedInfo.cast.map((actor) => (
-                    <View key={actor.id} style={styles.castCard}>
-                      {showMediaImages && actor.profilePath ? (
+                  {displayCast.map((actor) => (
+                    <Pressable
+                      key={actor.id}
+                      style={[styles.castCard, { width: actorCardWidth }]}
+                      onPress={() =>
+                        setSelectedEntity({
+                          type: 'person',
+                          id: actor.id,
+                          name: actor.name,
+                          profilePath: actor.profilePath,
+                        })
+                      }>
+                      {showActorImages && actor.profilePath ? (
                         <Image
                           source={{
                             uri: TMDBService.getImageUrl(actor.profilePath, 'w185') || '',
                           }}
-                          style={styles.castAvatar}
+                          style={[
+                            styles.castAvatar,
+                            {
+                              width: actorAvatarSize,
+                              height: actorAvatarSize,
+                              borderRadius: actorAvatarSize / 2,
+                            },
+                          ]}
                           contentFit="cover"
                         />
                       ) : (
-                        <View style={[styles.castAvatar, styles.castAvatarFallback]}>
-                          <Ionicons name="person" size={18} color="#64748b" />
+                        <View
+                          style={[
+                            styles.castAvatar,
+                            styles.castAvatarFallback,
+                            {
+                              width: actorAvatarSize,
+                              height: actorAvatarSize,
+                              borderRadius: actorAvatarSize / 2,
+                            },
+                          ]}>
+                          <Ionicons
+                            name="person"
+                            size={Math.max(12, actorAvatarSize * 0.4)}
+                            color="#64748b"
+                          />
                         </View>
                       )}
-                      <Text style={styles.castName} numberOfLines={1}>
+                      <Text
+                        style={[styles.castName, { fontSize: actorNameFontSize }]}
+                        numberOfLines={1}>
                         {actor.name}
                       </Text>
                       <Text style={styles.castCharacter} numberOfLines={1}>
                         {actor.character}
                       </Text>
-                    </View>
+                    </Pressable>
                   ))}
                 </ScrollView>
               </View>
             ) : null}
 
-            {/* Compact Production & Creators Box */}
+            {/* Compact Production & Creators Box (Clickable chips) */}
             {(detailedInfo?.directors?.length ||
               detailedInfo?.creators?.length ||
               detailedInfo?.writers?.length ||
@@ -631,45 +777,120 @@ function TrackModalFormContent({
                 {detailedInfo.directors && detailedInfo.directors.length > 0 ? (
                   <View style={styles.metaInfoRow}>
                     <Text style={styles.metaInfoLabel}>Director:</Text>
-                    <Text style={styles.metaInfoValue} numberOfLines={2}>
-                      {detailedInfo.directors.join(', ')}
-                    </Text>
+                    <View style={styles.metaEntityPillsRow}>
+                      {detailedInfo.directors.map((d) => (
+                        <Pressable
+                          key={`dir-${d.id}`}
+                          style={styles.metaClickableChip}
+                          onPress={() =>
+                            setSelectedEntity({
+                              type: 'person',
+                              id: d.id,
+                              name: d.name,
+                              role: 'Director',
+                            })
+                          }>
+                          <Text style={styles.metaClickableChipText}>{d.name}</Text>
+                          <Ionicons name="chevron-forward" size={10} color="#38bdf8" />
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
                 ) : null}
 
                 {detailedInfo.creators && detailedInfo.creators.length > 0 ? (
                   <View style={styles.metaInfoRow}>
                     <Text style={styles.metaInfoLabel}>Created by:</Text>
-                    <Text style={styles.metaInfoValue} numberOfLines={2}>
-                      {detailedInfo.creators.join(', ')}
-                    </Text>
+                    <View style={styles.metaEntityPillsRow}>
+                      {detailedInfo.creators.map((c) => (
+                        <Pressable
+                          key={`creator-${c.id}`}
+                          style={styles.metaClickableChip}
+                          onPress={() =>
+                            setSelectedEntity({
+                              type: 'person',
+                              id: c.id,
+                              name: c.name,
+                              role: 'Creator',
+                            })
+                          }>
+                          <Text style={styles.metaClickableChipText}>{c.name}</Text>
+                          <Ionicons name="chevron-forward" size={10} color="#38bdf8" />
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
                 ) : null}
 
                 {detailedInfo.writers && detailedInfo.writers.length > 0 ? (
                   <View style={styles.metaInfoRow}>
                     <Text style={styles.metaInfoLabel}>Writers:</Text>
-                    <Text style={styles.metaInfoValue} numberOfLines={2}>
-                      {detailedInfo.writers.join(', ')}
-                    </Text>
+                    <View style={styles.metaEntityPillsRow}>
+                      {detailedInfo.writers.map((w) => (
+                        <Pressable
+                          key={`writer-${w.id}`}
+                          style={styles.metaClickableChip}
+                          onPress={() =>
+                            setSelectedEntity({
+                              type: 'person',
+                              id: w.id,
+                              name: w.name,
+                              role: w.role || 'Writer',
+                            })
+                          }>
+                          <Text style={styles.metaClickableChipText}>{w.name}</Text>
+                          <Ionicons name="chevron-forward" size={10} color="#38bdf8" />
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
                 ) : null}
 
                 {detailedInfo.studios && detailedInfo.studios.length > 0 ? (
                   <View style={styles.metaInfoRow}>
                     <Text style={styles.metaInfoLabel}>Studios:</Text>
-                    <Text style={styles.metaInfoValue} numberOfLines={2}>
-                      {detailedInfo.studios.map((s) => s.name).join(', ')}
-                    </Text>
+                    <View style={styles.metaEntityPillsRow}>
+                      {detailedInfo.studios.map((s) => (
+                        <Pressable
+                          key={`studio-${s.id}`}
+                          style={styles.metaClickableChip}
+                          onPress={() =>
+                            setSelectedEntity({
+                              type: 'company',
+                              id: s.id,
+                              name: s.name,
+                              logoPath: s.logoPath,
+                            })
+                          }>
+                          <Text style={styles.metaClickableChipText}>{s.name}</Text>
+                          <Ionicons name="chevron-forward" size={10} color="#38bdf8" />
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
                 ) : null}
 
                 {detailedInfo.networks && detailedInfo.networks.length > 0 ? (
                   <View style={styles.metaInfoRow}>
                     <Text style={styles.metaInfoLabel}>Network:</Text>
-                    <Text style={styles.metaInfoValue} numberOfLines={2}>
-                      {detailedInfo.networks.map((n) => n.name).join(', ')}
-                    </Text>
+                    <View style={styles.metaEntityPillsRow}>
+                      {detailedInfo.networks.map((n) => (
+                        <Pressable
+                          key={`net-${n.id}`}
+                          style={styles.metaClickableChip}
+                          onPress={() =>
+                            setSelectedEntity({
+                              type: 'network',
+                              id: n.id,
+                              name: n.name,
+                              logoPath: n.logoPath,
+                            })
+                          }>
+                          <Text style={styles.metaClickableChipText}>{n.name}</Text>
+                          <Ionicons name="chevron-forward" size={10} color="#38bdf8" />
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
                 ) : null}
               </View>
@@ -812,7 +1033,7 @@ function TrackModalFormContent({
                         style={styles.seasonHeader}
                         onPress={() => handleToggleSeasonExpand(sNum)}>
                         <View style={styles.seasonHeaderLeft}>
-                          {showMediaImages && season.posterPath ? (
+                          {showSeasonEpisodeImages && season.posterPath ? (
                             <Image
                               source={{
                                 uri: TMDBService.getImageUrl(season.posterPath, 'w185') || '',
@@ -884,6 +1105,7 @@ function TrackModalFormContent({
                                   key={epKey}
                                   style={[
                                     styles.episodeRow,
+                                    { paddingVertical: epRowPadV },
                                     isWatched && styles.episodeRowWatched,
                                   ]}
                                   onPress={() => handleToggleEpisode(sNum, epNum)}>
@@ -899,7 +1121,7 @@ function TrackModalFormContent({
                                     </View>
 
                                     {/* Episode 16:9 thumbnail if setting enabled */}
-                                    {showMediaImages && detail?.stillPath ? (
+                                    {showSeasonEpisodeImages && detail?.stillPath ? (
                                       <Image
                                         source={{
                                           uri:
@@ -1253,6 +1475,22 @@ function TrackModalFormContent({
           setDatePickerTarget(null);
         }}
       />
+
+      {/* Interactive Entity Detail Sheet (Clickable Actors, Studios, Genres) */}
+      <EntityModal
+        visible={selectedEntity !== null}
+        entity={selectedEntity}
+        onClose={() => setSelectedEntity(null)}
+        onFilterInDiscover={(filter) => {
+          setActiveDiscoverFilter(filter);
+          setSelectedEntity(null);
+          onClose();
+          router.push('/(tabs)');
+        }}
+        onSelectMedia={(_media) => {
+          setSelectedEntity(null);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -1419,17 +1657,17 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   genreChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: '#1a1f2b',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#262d3d',
   },
   genreChipText: {
     color: '#cbd5e1',
-    fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   synopsisContainer: {
     backgroundColor: '#161922',
@@ -1440,8 +1678,7 @@ const styles = StyleSheet.create({
   },
   synopsisText: {
     color: '#cbd5e1',
-    fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 18,
   },
   expandOverviewBtn: {
     marginTop: 4,
@@ -1453,7 +1690,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   castSection: {
-    marginTop: 2,
+    marginTop: 4,
+  },
+  subSectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   subSectionTitle: {
     color: '#94a3b8',
@@ -1461,7 +1704,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 8,
+  },
+  toggleCastBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#1a1f2b',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#262d3d',
+  },
+  toggleCastBtnText: {
+    color: '#38bdf8',
+    fontSize: 10,
+    fontWeight: '700',
   },
   castCarousel: {
     flexDirection: 'row',
@@ -1469,13 +1727,9 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   castCard: {
-    width: 64,
     alignItems: 'center',
   },
   castAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     backgroundColor: '#1e2433',
     marginBottom: 4,
   },
@@ -1485,7 +1739,6 @@ const styles = StyleSheet.create({
   },
   castName: {
     color: '#ffffff',
-    fontSize: 10,
     fontWeight: '600',
     textAlign: 'center',
     width: '100%',
@@ -1502,7 +1755,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#232838',
-    gap: 6,
+    gap: 8,
   },
   metaInfoRow: {
     flexDirection: 'row',
@@ -1514,12 +1767,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     minWidth: 70,
+    paddingTop: 3,
   },
-  metaInfoValue: {
+  metaEntityPillsRow: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  metaClickableChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#1f2432',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#2d3548',
+  },
+  metaClickableChipText: {
     color: '#e2e8f0',
     fontSize: 11,
-    flex: 1,
-    lineHeight: 15,
+    fontWeight: '600',
   },
   statusHeaderRow: {
     flexDirection: 'row',
@@ -1745,7 +2015,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#1a1f2b',
   },

@@ -22,7 +22,15 @@ type MediaFilter = 'all' | 'movie' | 'tv';
 
 export default function DiscoverScreen() {
   const router = useRouter();
-  const { apiKey, saveItem, removeItem, getTrackedStatus, isLoadingStorage } = useMedia();
+  const {
+    apiKey,
+    saveItem,
+    removeItem,
+    getTrackedStatus,
+    isLoadingStorage,
+    activeDiscoverFilter,
+    setActiveDiscoverFilter,
+  } = useMedia();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<MediaFilter>('all');
@@ -34,6 +42,26 @@ export default function DiscoverScreen() {
   // Selected item for TrackModal
   const [activeItem, setActiveItem] = useState<TMDBMediaItem | TrackedItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  const fetchFilteredMedia = useCallback(async () => {
+    if (!apiKey || !activeDiscoverFilter) return;
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const results = await TMDBService.discoverByEntity(
+        activeDiscoverFilter.type,
+        activeDiscoverFilter.id,
+        apiKey
+      );
+      setItems(results);
+    } catch (e: unknown) {
+      const err = e as Error;
+      setErrorMessage(err.message || 'Failed to load media for this filter.');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [apiKey, activeDiscoverFilter]);
 
   const fetchDefaultMedia = useCallback(async () => {
     if (!apiKey) return;
@@ -88,6 +116,18 @@ export default function DiscoverScreen() {
     let isMounted = true;
     if (!apiKey) return;
 
+    if (activeDiscoverFilter) {
+      const timer = setTimeout(() => {
+        if (isMounted) {
+          fetchFilteredMedia();
+        }
+      }, 10);
+      return () => {
+        isMounted = false;
+        clearTimeout(timer);
+      };
+    }
+
     if (searchQuery.trim()) {
       const timer = setTimeout(() => {
         if (isMounted) {
@@ -109,11 +149,21 @@ export default function DiscoverScreen() {
         clearTimeout(timer);
       };
     }
-  }, [searchQuery, selectedFilter, apiKey, performSearch, fetchDefaultMedia]);
+  }, [
+    searchQuery,
+    selectedFilter,
+    apiKey,
+    activeDiscoverFilter,
+    performSearch,
+    fetchDefaultMedia,
+    fetchFilteredMedia,
+  ]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    if (searchQuery.trim()) {
+    if (activeDiscoverFilter) {
+      fetchFilteredMedia();
+    } else if (searchQuery.trim()) {
       performSearch(searchQuery, selectedFilter);
     } else {
       fetchDefaultMedia();
@@ -194,6 +244,40 @@ export default function DiscoverScreen() {
             );
           })}
         </View>
+
+        {/* Active Entity Filter Banner */}
+        {activeDiscoverFilter && (
+          <View style={styles.activeFilterBanner}>
+            <View style={styles.activeFilterBadge}>
+              <Ionicons
+                name={
+                  activeDiscoverFilter.type === 'person'
+                    ? 'person'
+                    : activeDiscoverFilter.type === 'genre'
+                    ? 'pricetag'
+                    : 'business'
+                }
+                size={13}
+                color="#38bdf8"
+              />
+              <Text style={styles.activeFilterText}>
+                {activeDiscoverFilter.type === 'person'
+                  ? 'Person:'
+                  : activeDiscoverFilter.type === 'genre'
+                  ? 'Genre:'
+                  : 'Studio:'}{' '}
+                <Text style={styles.activeFilterName}>{activeDiscoverFilter.name}</Text>
+              </Text>
+            </View>
+
+            <Pressable
+              style={styles.clearFilterBtn}
+              onPress={() => setActiveDiscoverFilter(null)}>
+              <Ionicons name="close-circle" size={16} color="#94a3b8" />
+              <Text style={styles.clearFilterBtnText}>Clear</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
 
       {/* No API Key Notice */}
@@ -260,7 +344,9 @@ export default function DiscoverScreen() {
             apiKey && items.length > 0 ? (
               <View style={styles.listHeader}>
                 <Text style={styles.listHeaderTitle}>
-                  {searchQuery.trim()
+                  {activeDiscoverFilter
+                    ? `Filtered by ${activeDiscoverFilter.name} (${items.length})`
+                    : searchQuery.trim()
                     ? `Results for "${searchQuery}" (${items.length})`
                     : '🔥 Trending Today'}
                 </Text>
@@ -272,10 +358,16 @@ export default function DiscoverScreen() {
               <View style={styles.emptyContainer}>
                 <Ionicons name="search-outline" size={48} color="#334155" />
                 <Text style={styles.emptyTitle}>
-                  {searchQuery.trim() ? 'No matches found' : 'No titles available'}
+                  {activeDiscoverFilter
+                    ? `No titles found for ${activeDiscoverFilter.name}`
+                    : searchQuery.trim()
+                    ? 'No matches found'
+                    : 'No titles available'}
                 </Text>
                 <Text style={styles.emptySub}>
-                  {searchQuery.trim()
+                  {activeDiscoverFilter
+                    ? 'Try clearing the filter or searching by keyword'
+                    : searchQuery.trim()
                     ? 'Try searching with a different title or keyword'
                     : 'Pull down to refresh trending titles'}
                 </Text>
@@ -363,6 +455,44 @@ const styles = StyleSheet.create({
   filterPillTextSelected: {
     color: '#ffffff',
     fontWeight: '700',
+  },
+  activeFilterBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 10,
+  },
+  activeFilterBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  activeFilterText: {
+    color: '#94a3b8',
+    fontSize: 12,
+  },
+  activeFilterName: {
+    color: '#38bdf8',
+    fontWeight: '700',
+  },
+  clearFilterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  clearFilterBtnText: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '600',
   },
   noApiKeyCard: {
     margin: 16,
