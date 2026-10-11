@@ -3,36 +3,59 @@ export function formatDateDisplay(dateStr?: string | null): string {
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return String(dateStr);
-    return d.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}.${month}.${year}`;
   } catch {
     return String(dateStr);
   }
 }
 
-export function formatDateInput(dateStr?: string | null): string {
+export function formatDateDDMMYYYY(dateStr?: string | null): string {
   if (!dateStr) return '';
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}.${month}.${year}`;
   } catch {
     return '';
   }
 }
 
-export function getTodayIsoDate(): string {
+export function parseDDMMYYYYtoIso(ddmmyyyy: string): string | null {
+  if (!ddmmyyyy) return null;
+  const parts = ddmmyyyy.trim().split('.');
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    const d = new Date(year, month, day, 12, 0, 0);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString();
+    }
+  }
+  return null;
+}
+
+export function getTodayDDMMYYYY(): string {
   const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}.${month}.${year}`;
+}
+
+export function getYesterdayDDMMYYYY(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}.${month}.${year}`;
 }
 
 export function getRelativeTime(dateStr?: string | null): string {
@@ -41,8 +64,10 @@ export function getRelativeTime(dateStr?: string | null): string {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
     const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    // Normalize to date without time for day comparison
+    const dDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffDays = Math.floor((nowDate.getTime() - dDate.getTime()) / (1000 * 60 * 60 * 24));
 
     if (diffDays <= 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';

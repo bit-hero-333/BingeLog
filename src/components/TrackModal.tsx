@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -22,17 +22,20 @@ import {
   MAL_SCORES,
   MediaType,
   SeasonInfo,
+  EpisodeInfo,
 } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
 import {
   formatDateDisplay,
-  formatDateInput,
-  getTodayIsoDate,
+  formatDateDDMMYYYY,
+  parseDDMMYYYYtoIso,
+  getTodayDDMMYYYY,
   getRelativeTime,
   getDurationLabel,
   formatRuntime,
 } from '@/utils/date';
+import { DatePickerModal } from '@/components/DatePickerModal';
 
 interface TrackModalProps {
   visible: boolean;
@@ -103,15 +106,44 @@ function TrackModalFormContent({
   const needsDetails = Boolean(apiKey && (totalEpisodes === null || (item as TMDBMediaItem).runtime === undefined));
   const [isLoadingDetails, setIsLoadingDetails] = useState(needsDetails);
 
+  // Granular episode tracking state: Set of "s{season}_e{episode}"
+  const initialWatchedKeys = useMemo(() => {
+    const keys = new Set<string>();
+    if (existingRecord?.watchedEpisodeKeys && existingRecord.watchedEpisodeKeys.length > 0) {
+      existingRecord.watchedEpisodeKeys.forEach((k) => keys.add(k));
+    } else if (existingRecord?.currentProgress && existingRecord.currentProgress > 0) {
+      // Synthesize initial keys from currentProgress
+      let remaining = existingRecord.currentProgress;
+      const seasonList = existingRecord.seasons || seasons;
+      if (seasonList.length > 0) {
+        for (const s of seasonList) {
+          for (let e = 1; e <= s.episodeCount && remaining > 0; e++) {
+            keys.add(`s${s.seasonNumber}_e${e}`);
+            remaining--;
+          }
+        }
+      } else {
+        for (let e = 1; e <= remaining; e++) {
+          keys.add(`s1_e${e}`);
+        }
+      }
+    }
+    return keys;
+  }, [existingRecord, seasons]);
+
+  const [watchedKeys, setWatchedKeys] = useState<Set<string>>(initialWatchedKeys);
+
+  // Season episodes cache: record of seasonNumber -> EpisodeInfo[]
+  const [episodesBySeason, setEpisodesBySeason] = useState<Record<number, EpisodeInfo[]>>({});
+  const [loadingSeasonEpisodes, setLoadingSeasonEpisodes] = useState<Record<number, boolean>>({});
+  const [expandedSeason, setExpandedSeason] = useState<number | null>(null);
+
   // User tracking inputs
   const [status, setStatus] = useState<MediaStatus>(
     existingRecord ? existingRecord.status : 'watching'
   );
   const [score, setScore] = useState<number>(
     existingRecord ? existingRecord.userScore || 0 : 0
-  );
-  const [progress, setProgress] = useState<number>(
-    existingRecord ? existingRecord.currentProgress || 0 : 0
   );
   const [minutesWatched, setMinutesWatched] = useState<number>(
     existingRecord ? existingRecord.minutesWatched || 0 : 0
@@ -123,20 +155,30 @@ function TrackModalFormContent({
     existingRecord ? existingRecord.notes || '' : ''
   );
 
-  // Dates state
+  // Dates in DD.MM.YYYY
   const addedAt = existingRecord?.addedAt || new Date().toISOString();
   const [startedAt, setStartedAt] = useState<string>(
-    existingRecord?.startedAt ? formatDateInput(existingRecord.startedAt) : (status === 'watching' ? getTodayIsoDate() : '')
+    existingRecord?.startedAt
+      ? formatDateDDMMYYYY(existingRecord.startedAt)
+      : (status === 'watching' ? getTodayDDMMYYYY() : '')
   );
   const [finishedAt, setFinishedAt] = useState<string>(
-    existingRecord?.finishedAt ? formatDateInput(existingRecord.finishedAt) : (status === 'completed' ? getTodayIsoDate() : '')
+    existingRecord?.finishedAt
+      ? formatDateDDMMYYYY(existingRecord.finishedAt)
+      : (status === 'completed' ? getTodayDDMMYYYY() : '')
   );
   const [showDatesSection, setShowDatesSection] = useState(false);
 
-  // Fetch missing TMDB metadata (episodes count, runtime) if not already known
+  // Date picker modal state
+  const [datePickerTarget, setDatePickerTarget] = useState<'started' | 'finished' | null>(null);
+
+  // Total watched episodes count derived from watchedKeys
+  const watchedEpisodesCount = watchedKeys.size;
+
+  // Fetch missing TV/Movie details from TMDB
   useEffect(() => {
     let isMounted = true;
-    if (apiKey && (totalEpisodes === null || runtimeMinutes === null)) {
+    if (apiKey && (totalEpisodes === null || runtimeMinutes === null || seasons.length === 0)) {
       TMDBService.getMediaDetails(id, mediaType, apiKey)
         .then((details) => {
           if (!isMounted) return;
@@ -152,59 +194,173 @@ function TrackModalFormContent({
     return () => {
       isMounted = false;
     };
-  }, [id, mediaType, apiKey, totalEpisodes, runtimeMinutes]);
+  }, [id, mediaType, apiKey, totalEpisodes, runtimeMinutes, seasons.length]);
 
-  // Handle Status change with automatic date & progress synchronization
+  // Load episodes of a specific season when expanded
+  const handleToggleSeasonExpand = (seasonNumber: number) => {
+    if (expandedSeason === seasonNumber) {
+      setExpandedSeason(null);
+      return;
+    }
+    setExpandedSeason(seasonNumber);
+
+    // If not already fetched, load episodes
+    if (!episodesBySeason[seasonNumber] && apiKey && mediaType === 'tv') {
+      setLoadingSeasonEpisodes((prev) => ({ ...prev, [seasonNumber]: true }));
+      TMDBService.getSeasonEpisodes(id, seasonNumber, apiKey)
+        .then((episodes) => {
+          setEpisodesBySeason((prev) => ({ ...prev, [seasonNumber]: episodes }));
+        })
+        .finally(() => {
+          setLoadingSeasonEpisodes((prev) => ({ ...prev, [seasonNumber]: false }));
+        });
+    }
+  };
+
+  // Toggle single episode watched
+  const handleToggleEpisode = (seasonNum: number, episodeNum: number) => {
+    const key = `s${seasonNum}_e${episodeNum}`;
+    setWatchedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+
+      // Check auto completion
+      if (totalEpisodes && next.size >= totalEpisodes && status !== 'completed') {
+        setStatus('completed');
+        if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+      } else if (next.size > 0 && status === 'plan_to_watch') {
+        setStatus('watching');
+        if (!startedAt) setStartedAt(getTodayDDMMYYYY());
+      }
+
+      return next;
+    });
+  };
+
+  // Mark all episodes of a season as watched or clear
+  const handleToggleWholeSeason = (seasonNum: number, episodeCount: number) => {
+    setWatchedKeys((prev) => {
+      const next = new Set(prev);
+      let allWatched = true;
+      for (let i = 1; i <= episodeCount; i++) {
+        if (!next.has(`s${seasonNum}_e${i}`)) {
+          allWatched = false;
+          break;
+        }
+      }
+
+      for (let i = 1; i <= episodeCount; i++) {
+        const key = `s${seasonNum}_e${i}`;
+        if (allWatched) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+      }
+
+      // Auto completion
+      if (totalEpisodes && next.size >= totalEpisodes && status !== 'completed') {
+        setStatus('completed');
+        if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+      }
+
+      return next;
+    });
+  };
+
+  // Master episode counter: increment next unwatched episode
+  const handleIncrementNextEpisode = () => {
+    const targetSeasons = seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }];
+    setWatchedKeys((prev) => {
+      const next = new Set(prev);
+      for (const s of targetSeasons) {
+        for (let e = 1; e <= s.episodeCount; e++) {
+          const key = `s${s.seasonNumber}_e${e}`;
+          if (!next.has(key)) {
+            next.add(key);
+            if (totalEpisodes && next.size >= totalEpisodes && status !== 'completed') {
+              setStatus('completed');
+              if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+            } else if (status === 'plan_to_watch') {
+              setStatus('watching');
+              if (!startedAt) setStartedAt(getTodayDDMMYYYY());
+            }
+            return next;
+          }
+        }
+      }
+      return next;
+    });
+  };
+
+  // Master episode counter: decrement last watched episode
+  const handleDecrementLastEpisode = () => {
+    const targetSeasons = seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }];
+    setWatchedKeys((prev) => {
+      const next = new Set(prev);
+      // Iterate backwards
+      for (let si = targetSeasons.length - 1; si >= 0; si--) {
+        const s = targetSeasons[si];
+        for (let e = s.episodeCount; e >= 1; e--) {
+          const key = `s${s.seasonNumber}_e${e}`;
+          if (next.has(key)) {
+            next.delete(key);
+            return next;
+          }
+        }
+      }
+      return next;
+    });
+  };
+
+  // Mark entire show as watched
+  const handleMarkEntireShowWatched = () => {
+    const targetSeasons = seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }];
+    const next = new Set<string>();
+    for (const s of targetSeasons) {
+      for (let e = 1; e <= s.episodeCount; e++) {
+        next.add(`s${s.seasonNumber}_e${e}`);
+      }
+    }
+    setWatchedKeys(next);
+    setStatus('completed');
+    if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+  };
+
+  // Reset all watched episodes
+  const handleResetAllEpisodes = () => {
+    setWatchedKeys(new Set<string>());
+    if (status === 'completed') {
+      setStatus('watching');
+      setFinishedAt('');
+    }
+  };
+
+  // Status Change with Date and Progress Sync
   const handleStatusChange = (newStatus: MediaStatus) => {
     setStatus(newStatus);
 
     if (newStatus === 'completed') {
-      // Auto-set finished date if empty
-      if (!finishedAt) {
-        setFinishedAt(getTodayIsoDate());
-      }
-      // If TV show: automatically fill watched episodes to maximum
-      if (mediaType === 'tv' && totalEpisodes && totalEpisodes > 0) {
-        setProgress(totalEpisodes);
-      }
-      // If Movie: automatically set minutes watched to full runtime
-      if (mediaType === 'movie' && runtimeMinutes && runtimeMinutes > 0) {
+      if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+      // Fill episodes
+      if (mediaType === 'tv') {
+        handleMarkEntireShowWatched();
+      } else if (mediaType === 'movie' && runtimeMinutes) {
         setMinutesWatched(runtimeMinutes);
       }
     } else if (newStatus === 'watching') {
-      // Auto-set start date if empty
-      if (!startedAt) {
-        setStartedAt(getTodayIsoDate());
-      }
-      // Clear finished date if moving back to watching
-      if (status === 'completed') {
-        setFinishedAt('');
-      }
+      if (!startedAt) setStartedAt(getTodayDDMMYYYY());
+      if (status === 'completed') setFinishedAt('');
     } else {
-      // Plan to watch, on hold, dropped
-      if (status === 'completed') {
-        setFinishedAt('');
-      }
+      if (status === 'completed') setFinishedAt('');
     }
   };
 
-  // TV Progress stepper handlers with strict upper limit
-  const handleProgressChange = (newVal: number) => {
-    const minVal = 0;
-    const maxVal = totalEpisodes && totalEpisodes > 0 ? totalEpisodes : 9999;
-    const clamped = Math.max(minVal, Math.min(newVal, maxVal));
-    setProgress(clamped);
-
-    // If reached max episodes, auto-prompt to mark as completed
-    if (totalEpisodes && clamped >= totalEpisodes && status !== 'completed') {
-      setStatus('completed');
-      if (!finishedAt) {
-        setFinishedAt(getTodayIsoDate());
-      }
-    }
-  };
-
-  // Movie Minutes watched handler
+  // Movie minutes watched change
   const handleMinutesChange = (newVal: number) => {
     const minVal = 0;
     const maxVal = runtimeMinutes && runtimeMinutes > 0 ? runtimeMinutes : 999;
@@ -213,13 +369,14 @@ function TrackModalFormContent({
 
     if (runtimeMinutes && clamped >= runtimeMinutes && status !== 'completed') {
       setStatus('completed');
-      if (!finishedAt) {
-        setFinishedAt(getTodayIsoDate());
-      }
+      if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
     }
   };
 
   const handleSave = () => {
+    const startedIso = parseDDMMYYYYtoIso(startedAt);
+    const finishedIso = parseDDMMYYYYtoIso(finishedAt);
+
     const record: TrackedItem = {
       id,
       mediaType,
@@ -232,11 +389,12 @@ function TrackModalFormContent({
       userScore: score,
 
       // TV
-      currentProgress: mediaType === 'tv' ? progress : undefined,
+      currentProgress: mediaType === 'tv' ? watchedEpisodesCount : undefined,
       totalProgress: totalEpisodes || undefined,
       totalEpisodes,
       totalSeasons,
       seasons: seasons.length > 0 ? seasons : undefined,
+      watchedEpisodeKeys: mediaType === 'tv' ? Array.from(watchedKeys) : undefined,
 
       // Movie
       runtimeMinutes,
@@ -245,8 +403,8 @@ function TrackModalFormContent({
 
       // Dates
       addedAt,
-      startedAt: startedAt.trim() ? new Date(startedAt.trim()).toISOString() : null,
-      finishedAt: finishedAt.trim() ? new Date(finishedAt.trim()).toISOString() : null,
+      startedAt: startedIso,
+      finishedAt: finishedIso,
       lastWatchedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
 
@@ -266,9 +424,7 @@ function TrackModalFormContent({
           text: 'Remove',
           style: 'destructive',
           onPress: () => {
-            if (onRemove) {
-              onRemove(id, mediaType);
-            }
+            if (onRemove) onRemove(id, mediaType);
             onClose();
           },
         },
@@ -279,11 +435,22 @@ function TrackModalFormContent({
   const posterUrl = TMDBService.getImageUrl(posterPath, 'w342');
   const currentScoreLabel =
     MAL_SCORES.find((s) => s.score === score)?.label || 'Select Score';
-  const durationLabel = getDurationLabel(startedAt, finishedAt, status === 'completed');
+  const startedIsoForLabel = parseDDMMYYYYtoIso(startedAt);
+  const finishedIsoForLabel = parseDDMMYYYYtoIso(finishedAt);
+  const durationLabel = getDurationLabel(startedIsoForLabel, finishedIsoForLabel, status === 'completed');
+
+  // Seasons list to display
+  const displaySeasons: SeasonInfo[] =
+    seasons.length > 0
+      ? seasons
+      : totalEpisodes
+      ? [{ seasonNumber: 1, episodeCount: totalEpisodes, name: 'Season 1' }]
+      : [];
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
       style={styles.overlay}>
       <Pressable style={styles.backdrop} onPress={onClose} />
 
@@ -295,6 +462,7 @@ function TrackModalFormContent({
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           {/* Media Summary Info */}
           <View style={styles.mediaSummary}>
@@ -350,7 +518,7 @@ function TrackModalFormContent({
               {isLoadingDetails && (
                 <View style={styles.loadingDetailsRow}>
                   <ActivityIndicator size="small" color="#38bdf8" />
-                  <Text style={styles.loadingDetailsText}>Fetching episode info...</Text>
+                  <Text style={styles.loadingDetailsText}>Loading seasons info...</Text>
                 </View>
               )}
             </View>
@@ -392,79 +560,224 @@ function TrackModalFormContent({
             })}
           </View>
 
-          {/* TV Show Episode Stepper (strictly capped at totalEpisodes) */}
+          {/* TV Shows: Master Counter + Seasons Breakdown */}
           {mediaType === 'tv' && (
-            <View style={styles.progressCard}>
-              <View style={styles.progressHeaderRow}>
-                <View>
-                  <Text style={styles.sectionTitle}>Episodes Watched</Text>
-                  <Text style={styles.progressSubtitle}>
-                    {totalEpisodes
-                      ? `Max ${totalEpisodes} episodes available`
-                      : 'Episodes watched so far'}
-                  </Text>
-                </View>
-
-                {totalEpisodes ? (
-                  <View style={styles.fractionBadge}>
-                    <Text style={styles.fractionBadgeText}>
-                      {progress} / {totalEpisodes}
+            <View style={styles.tvSection}>
+              {/* Master Counter Header */}
+              <View style={styles.progressCard}>
+                <View style={styles.progressHeaderRow}>
+                  <View>
+                    <Text style={styles.sectionTitle}>Episodes Watched</Text>
+                    <Text style={styles.progressSubtitle}>
+                      {totalEpisodes
+                        ? `Overall: ${watchedEpisodesCount} of ${totalEpisodes} episodes`
+                        : `${watchedEpisodesCount} episodes watched`}
                     </Text>
                   </View>
-                ) : null}
-              </View>
 
-              <View style={styles.stepperContainer}>
-                <Pressable
-                  style={[styles.stepperBtn, progress <= 0 && styles.stepperDisabled]}
-                  onPress={() => handleProgressChange(progress - 1)}
-                  disabled={progress <= 0}>
-                  <Ionicons name="remove" size={18} color="#ffffff" />
-                </Pressable>
-
-                <View style={styles.stepperValueContainer}>
-                  <Text style={styles.stepperValue}>{progress}</Text>
-                  <Text style={styles.stepperSubLabel}>
-                    {totalEpisodes ? `of ${totalEpisodes}` : 'episodes'}
-                  </Text>
+                  {totalEpisodes ? (
+                    <View style={styles.fractionBadge}>
+                      <Text style={styles.fractionBadgeText}>
+                        {watchedEpisodesCount} / {totalEpisodes}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
 
-                <Pressable
-                  style={[
-                    styles.stepperBtn,
-                    totalEpisodes !== null && progress >= totalEpisodes && styles.stepperDisabled,
-                  ]}
-                  onPress={() => handleProgressChange(progress + 1)}
-                  disabled={totalEpisodes !== null && progress >= totalEpisodes}>
-                  <Ionicons name="add" size={18} color="#ffffff" />
-                </Pressable>
+                {/* Master Stepper */}
+                <View style={styles.stepperContainer}>
+                  <Pressable
+                    style={[styles.stepperBtn, watchedEpisodesCount <= 0 && styles.stepperDisabled]}
+                    onPress={handleDecrementLastEpisode}
+                    disabled={watchedEpisodesCount <= 0}>
+                    <Ionicons name="remove" size={18} color="#ffffff" />
+                  </Pressable>
+
+                  <View style={styles.stepperValueContainer}>
+                    <Text style={styles.stepperValue}>{watchedEpisodesCount}</Text>
+                    <Text style={styles.stepperSubLabel}>
+                      {totalEpisodes ? `of ${totalEpisodes}` : 'watched'}
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    style={[
+                      styles.stepperBtn,
+                      totalEpisodes !== null && watchedEpisodesCount >= totalEpisodes && styles.stepperDisabled,
+                    ]}
+                    onPress={handleIncrementNextEpisode}
+                    disabled={totalEpisodes !== null && watchedEpisodesCount >= totalEpisodes}>
+                    <Ionicons name="add" size={18} color="#ffffff" />
+                  </Pressable>
+                </View>
+
+                {/* Master Quick Actions */}
+                <View style={styles.quickActionsRow}>
+                  <Pressable style={styles.quickPill} onPress={handleIncrementNextEpisode}>
+                    <Text style={styles.quickPillText}>+1 Ep</Text>
+                  </Pressable>
+                  {totalEpisodes ? (
+                    <Pressable style={styles.quickPill} onPress={handleMarkEntireShowWatched}>
+                      <Text style={styles.quickPillText}>All ({totalEpisodes})</Text>
+                    </Pressable>
+                  ) : null}
+                  <Pressable style={styles.quickPill} onPress={handleResetAllEpisodes}>
+                    <Text style={styles.quickPillText}>Reset (0)</Text>
+                  </Pressable>
+                </View>
               </View>
 
-              {/* Quick Jump Buttons for TV */}
-              <View style={styles.quickActionsRow}>
-                {totalEpisodes ? (
-                  <Pressable
-                    style={styles.quickPill}
-                    onPress={() => handleProgressChange(totalEpisodes)}>
-                    <Text style={styles.quickPillText}>All ({totalEpisodes})</Text>
-                  </Pressable>
-                ) : null}
-                <Pressable
-                  style={styles.quickPill}
-                  onPress={() => handleProgressChange(progress + 1)}
-                  disabled={totalEpisodes !== null && progress >= totalEpisodes}>
-                  <Text style={styles.quickPillText}>+1 Ep</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.quickPill}
-                  onPress={() => handleProgressChange(0)}>
-                  <Text style={styles.quickPillText}>Reset (0)</Text>
-                </Pressable>
+              {/* Seasons & Episodes Breakdown Accordion */}
+              <Text style={styles.sectionTitle}>Seasons & Episodes</Text>
+              <Text style={styles.sectionSubHelp}>
+                Tap any episode to mark as watched or unwatched. Tap season to view details.
+              </Text>
+
+              <View style={styles.seasonsAccordionContainer}>
+                {displaySeasons.map((season) => {
+                  const sNum = season.seasonNumber;
+                  const epCount = season.episodeCount;
+                  const isExpanded = expandedSeason === sNum;
+                  const episodesList = episodesBySeason[sNum] || [];
+                  const isLoadingSeason = loadingSeasonEpisodes[sNum];
+
+                  // Count watched in this season
+                  let seasonWatched = 0;
+                  for (let i = 1; i <= epCount; i++) {
+                    if (watchedKeys.has(`s${sNum}_e${i}`)) seasonWatched++;
+                  }
+                  const isSeasonComplete = seasonWatched >= epCount && epCount > 0;
+
+                  return (
+                    <View key={`season-${sNum}`} style={styles.seasonCard}>
+                      {/* Season Header */}
+                      <Pressable
+                        style={styles.seasonHeader}
+                        onPress={() => handleToggleSeasonExpand(sNum)}>
+                        <View style={styles.seasonHeaderLeft}>
+                          <Ionicons
+                            name={isSeasonComplete ? 'checkmark-circle' : 'layers-outline'}
+                            size={18}
+                            color={isSeasonComplete ? '#22c55e' : '#38bdf8'}
+                          />
+                          <View>
+                            <Text style={styles.seasonNameText}>
+                              {season.name || `Season ${sNum}`}
+                            </Text>
+                            <Text style={styles.seasonMetaText}>
+                              {seasonWatched} / {epCount} watched
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.seasonHeaderRight}>
+                          <Pressable
+                            style={[
+                              styles.seasonCompleteBtn,
+                              isSeasonComplete && styles.seasonCompleteBtnActive,
+                            ]}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              handleToggleWholeSeason(sNum, epCount);
+                            }}>
+                            <Text
+                              style={[
+                                styles.seasonCompleteBtnText,
+                                isSeasonComplete && styles.seasonCompleteBtnTextActive,
+                              ]}>
+                              {isSeasonComplete ? 'Reset' : 'Complete'}
+                            </Text>
+                          </Pressable>
+
+                          <Ionicons
+                            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                            size={18}
+                            color="#94a3b8"
+                          />
+                        </View>
+                      </Pressable>
+
+                      {/* Expanded Episodes List */}
+                      {isExpanded && (
+                        <View style={styles.episodesListContainer}>
+                          {isLoadingSeason ? (
+                            <View style={styles.episodesLoadingRow}>
+                              <ActivityIndicator size="small" color="#38bdf8" />
+                              <Text style={styles.episodesLoadingText}>Loading episode details...</Text>
+                            </View>
+                          ) : (
+                            Array.from({ length: epCount }).map((_, idx) => {
+                              const epNum = idx + 1;
+                              const epKey = `s${sNum}_e${epNum}`;
+                              const isWatched = watchedKeys.has(epKey);
+                              const detail = episodesList.find((e) => e.episodeNumber === epNum);
+
+                              return (
+                                <Pressable
+                                  key={epKey}
+                                  style={[
+                                    styles.episodeRow,
+                                    isWatched && styles.episodeRowWatched,
+                                  ]}
+                                  onPress={() => handleToggleEpisode(sNum, epNum)}>
+                                  <View style={styles.episodeLeft}>
+                                    <View
+                                      style={[
+                                        styles.checkbox,
+                                        isWatched && styles.checkboxWatched,
+                                      ]}>
+                                      {isWatched && (
+                                        <Ionicons name="checkmark" size={14} color="#ffffff" />
+                                      )}
+                                    </View>
+
+                                    <View style={styles.episodeTextContainer}>
+                                      <Text
+                                        style={[
+                                          styles.episodeTitleText,
+                                          isWatched && styles.episodeTitleTextWatched,
+                                        ]}
+                                        numberOfLines={1}>
+                                        {epNum}. {detail?.name || `Episode ${epNum}`}
+                                      </Text>
+
+                                      {(detail?.runtime || detail?.airDate) ? (
+                                        <Text style={styles.episodeSubInfoText}>
+                                          {detail?.runtime ? `${detail.runtime}m` : ''}
+                                          {detail?.runtime && detail?.airDate ? ' • ' : ''}
+                                          {detail?.airDate ? formatDateDisplay(detail.airDate) : ''}
+                                        </Text>
+                                      ) : null}
+                                    </View>
+                                  </View>
+
+                                  <View
+                                    style={[
+                                      styles.watchedBadge,
+                                      isWatched && styles.watchedBadgeActive,
+                                    ]}>
+                                    <Text
+                                      style={[
+                                        styles.watchedBadgeText,
+                                        isWatched && styles.watchedBadgeTextActive,
+                                      ]}>
+                                      {isWatched ? 'Watched' : 'Unwatched'}
+                                    </Text>
+                                  </View>
+                                </Pressable>
+                              );
+                            })
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
               </View>
             </View>
           )}
 
-          {/* Movie Runtime Progress & Rewatch Counter (No episode counter) */}
+          {/* Movies Section: Viewing Progress & Rewatches (NO episode counter) */}
           {mediaType === 'movie' && (
             <View style={styles.progressCard}>
               <View style={styles.progressHeaderRow}>
@@ -512,7 +825,6 @@ function TrackModalFormContent({
                 </View>
               ) : null}
 
-              {/* Quick movie buttons */}
               <View style={styles.quickActionsRow}>
                 {runtimeMinutes ? (
                   <>
@@ -547,7 +859,7 @@ function TrackModalFormContent({
             </View>
           )}
 
-          {/* MAL Score Selector (0-10) */}
+          {/* Score Selector (0-10) */}
           <View style={styles.scoreHeaderRow}>
             <Text style={styles.sectionTitle}>Your Score</Text>
             <Text style={styles.scoreActiveLabel}>{currentScoreLabel}</Text>
@@ -578,7 +890,7 @@ function TrackModalFormContent({
             })}
           </ScrollView>
 
-          {/* Dates, Dates, DATES! Timeline Accordion */}
+          {/* Dates & Timeline Accordion with Dynamic DatePicker */}
           <View style={styles.datesCard}>
             <Pressable
               style={styles.datesCardHeader}
@@ -586,7 +898,7 @@ function TrackModalFormContent({
               <View style={styles.datesHeaderLeft}>
                 <Ionicons name="calendar" size={18} color="#38bdf8" />
                 <View>
-                  <Text style={styles.datesCardTitle}>Dates & Timeline</Text>
+                  <Text style={styles.datesCardTitle}>Dates & Timeline (DD.MM.YYYY)</Text>
                   {durationLabel ? (
                     <Text style={styles.durationSummaryText}>{durationLabel}</Text>
                   ) : (
@@ -614,22 +926,29 @@ function TrackModalFormContent({
                   <Text style={styles.dateStaticValue}>{formatDateDisplay(addedAt)}</Text>
                 </View>
 
-                {/* Started Watching Date */}
+                {/* Started Watching Date Picker Button */}
                 <View style={styles.dateRow}>
                   <Text style={styles.dateLabel}>Started Watching:</Text>
-                  <View style={styles.dateInputGroup}>
-                    <TextInput
-                      style={styles.dateInput}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#64748b"
-                      value={startedAt}
-                      onChangeText={setStartedAt}
-                    />
+                  <View style={styles.dateButtonGroup}>
                     <Pressable
-                      style={styles.dateActionBtn}
-                      onPress={() => setStartedAt(getTodayIsoDate())}>
-                      <Text style={styles.dateActionText}>Today</Text>
+                      style={styles.datePickerTriggerBtn}
+                      onPress={() => setDatePickerTarget('started')}>
+                      <Ionicons name="calendar-outline" size={14} color="#38bdf8" />
+                      <Text
+                        style={[
+                          styles.datePickerTriggerText,
+                          !startedAt && styles.datePickerTriggerPlaceholder,
+                        ]}>
+                        {startedAt || 'DD.MM.YYYY'}
+                      </Text>
                     </Pressable>
+
+                    <Pressable
+                      style={styles.dateQuickBtn}
+                      onPress={() => setStartedAt(getTodayDDMMYYYY())}>
+                      <Text style={styles.dateQuickText}>Today</Text>
+                    </Pressable>
+
                     {startedAt ? (
                       <Pressable
                         style={styles.dateClearBtn}
@@ -640,22 +959,29 @@ function TrackModalFormContent({
                   </View>
                 </View>
 
-                {/* Finished Watching Date */}
+                {/* Finished Watching Date Picker Button */}
                 <View style={styles.dateRow}>
                   <Text style={styles.dateLabel}>Finished Watching:</Text>
-                  <View style={styles.dateInputGroup}>
-                    <TextInput
-                      style={styles.dateInput}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#64748b"
-                      value={finishedAt}
-                      onChangeText={setFinishedAt}
-                    />
+                  <View style={styles.dateButtonGroup}>
                     <Pressable
-                      style={styles.dateActionBtn}
-                      onPress={() => setFinishedAt(getTodayIsoDate())}>
-                      <Text style={styles.dateActionText}>Today</Text>
+                      style={styles.datePickerTriggerBtn}
+                      onPress={() => setDatePickerTarget('finished')}>
+                      <Ionicons name="calendar-outline" size={14} color="#38bdf8" />
+                      <Text
+                        style={[
+                          styles.datePickerTriggerText,
+                          !finishedAt && styles.datePickerTriggerPlaceholder,
+                        ]}>
+                        {finishedAt || 'DD.MM.YYYY'}
+                      </Text>
                     </Pressable>
+
+                    <Pressable
+                      style={styles.dateQuickBtn}
+                      onPress={() => setFinishedAt(getTodayDDMMYYYY())}>
+                      <Text style={styles.dateQuickText}>Today</Text>
+                    </Pressable>
+
                     {finishedAt ? (
                       <Pressable
                         style={styles.dateClearBtn}
@@ -666,7 +992,7 @@ function TrackModalFormContent({
                   </View>
                 </View>
 
-                {/* Watch Duration badge */}
+                {/* Duration Label */}
                 {durationLabel && (
                   <View style={styles.durationPillContainer}>
                     <Ionicons name="time-outline" size={14} color="#38bdf8" />
@@ -677,16 +1003,16 @@ function TrackModalFormContent({
             )}
           </View>
 
-          {/* Notes Input */}
+          {/* Notes Input (Keyboard avoiding & accessible) */}
           <Text style={styles.sectionTitle}>Personal Notes</Text>
           <TextInput
             style={styles.notesInput}
             value={notes}
             onChangeText={setNotes}
-            placeholder="e.g. Recommended by Alex, favorite episode 4..."
+            placeholder="e.g. Favorite moments, thoughts, watched with..."
             placeholderTextColor="#64748b"
             multiline
-            numberOfLines={3}
+            numberOfLines={4}
           />
 
           {/* Action Buttons */}
@@ -717,6 +1043,24 @@ function TrackModalFormContent({
           </View>
         </ScrollView>
       </View>
+
+      {/* Interactive Visual DatePicker Modal */}
+      <DatePickerModal
+        visible={datePickerTarget !== null}
+        title={datePickerTarget === 'started' ? 'Select Start Date' : 'Select Finish Date'}
+        initialDate={datePickerTarget === 'started' ? startedAt : finishedAt}
+        onClose={() => setDatePickerTarget(null)}
+        onSelectDate={(newDate) => {
+          if (datePickerTarget === 'started') setStartedAt(newDate);
+          else if (datePickerTarget === 'finished') setFinishedAt(newDate);
+          setDatePickerTarget(null);
+        }}
+        onClearDate={() => {
+          if (datePickerTarget === 'started') setStartedAt('');
+          else if (datePickerTarget === 'finished') setFinishedAt('');
+          setDatePickerTarget(null);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -764,7 +1108,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     borderWidth: 1,
     borderColor: '#232838',
-    maxHeight: '92%',
+    maxHeight: '94%',
   },
   sheetHeader: {
     alignItems: 'center',
@@ -778,7 +1122,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 140, // Generous padding so text inputs are never covered by Android keyboard
   },
   mediaSummary: {
     flexDirection: 'row',
@@ -870,7 +1214,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  sectionSubHelp: {
+    color: '#64748b',
+    fontSize: 11,
     marginBottom: 10,
+    lineHeight: 15,
   },
   statusGrid: {
     flexDirection: 'row',
@@ -899,19 +1249,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
+  tvSection: {
+    marginBottom: 16,
+  },
   progressCard: {
     backgroundColor: '#161922',
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#232838',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   progressHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   progressSubtitle: {
     color: '#64748b',
@@ -979,6 +1332,145 @@ const styles = StyleSheet.create({
     color: '#cbd5e1',
     fontSize: 12,
     fontWeight: '600',
+  },
+  seasonsAccordionContainer: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  seasonCard: {
+    backgroundColor: '#161922',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#232838',
+    overflow: 'hidden',
+  },
+  seasonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+  },
+  seasonHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  seasonNameText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  seasonMetaText: {
+    color: '#94a3b8',
+    fontSize: 11,
+  },
+  seasonHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  seasonCompleteBtn: {
+    backgroundColor: '#1f2432',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#262d3d',
+  },
+  seasonCompleteBtnActive: {
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    borderColor: '#22c55e',
+  },
+  seasonCompleteBtnText: {
+    color: '#38bdf8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  seasonCompleteBtnTextActive: {
+    color: '#22c55e',
+  },
+  episodesListContainer: {
+    borderTopWidth: 1,
+    borderTopColor: '#232838',
+    backgroundColor: '#12151c',
+    paddingVertical: 4,
+  },
+  episodesLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    gap: 8,
+  },
+  episodesLoadingText: {
+    color: '#94a3b8',
+    fontSize: 12,
+  },
+  episodeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1f2b',
+  },
+  episodeRowWatched: {
+    backgroundColor: 'rgba(34, 197, 94, 0.04)',
+  },
+  episodeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    marginRight: 8,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#475569',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxWatched: {
+    backgroundColor: '#22c55e',
+    borderColor: '#22c55e',
+  },
+  episodeTextContainer: {
+    flex: 1,
+  },
+  episodeTitleText: {
+    color: '#f8fafc',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  episodeTitleTextWatched: {
+    color: '#cbd5e1',
+  },
+  episodeSubInfoText: {
+    color: '#64748b',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  watchedBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: '#1a1f2b',
+  },
+  watchedBadgeActive: {
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+  },
+  watchedBadgeText: {
+    color: '#64748b',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  watchedBadgeTextActive: {
+    color: '#22c55e',
   },
   rewatchRow: {
     flexDirection: 'row',
@@ -1120,31 +1612,40 @@ const styles = StyleSheet.create({
   dateStaticValue: {
     color: '#ffffff',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  dateInputGroup: {
+  dateButtonGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  dateInput: {
+  datePickerTriggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#0d0f15',
     borderWidth: 1,
     borderColor: '#262d3d',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  datePickerTriggerText: {
     color: '#ffffff',
     fontSize: 12,
-    width: 96,
+    fontWeight: '700',
   },
-  dateActionBtn: {
+  datePickerTriggerPlaceholder: {
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  dateQuickBtn: {
     backgroundColor: '#1e293b',
     paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderRadius: 6,
   },
-  dateActionText: {
+  dateQuickText: {
     color: '#38bdf8',
     fontSize: 11,
     fontWeight: '700',
@@ -1174,7 +1675,7 @@ const styles = StyleSheet.create({
     padding: 12,
     color: '#ffffff',
     fontSize: 14,
-    minHeight: 70,
+    minHeight: 80,
     textAlignVertical: 'top',
     marginBottom: 24,
   },

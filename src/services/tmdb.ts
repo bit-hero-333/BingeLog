@@ -1,4 +1,4 @@
-import { TMDBMediaItem, MediaType, SeasonInfo } from '@/types/media';
+import { TMDBMediaItem, MediaType, SeasonInfo, EpisodeInfo } from '@/types/media';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
@@ -193,6 +193,40 @@ export const TMDBService = {
     } catch (e) {
       console.warn('Failed to fetch media details from TMDB', e);
       return {};
+    }
+  },
+
+  async getSeasonEpisodes(
+    tvId: number,
+    seasonNumber: number,
+    apiKey: string
+  ): Promise<EpisodeInfo[]> {
+    try {
+      const endpoint = `/tv/${tvId}/season/${seasonNumber}`;
+      interface RawSeasonResponse {
+        episodes: {
+          episode_number: number;
+          name: string;
+          overview?: string;
+          air_date?: string | null;
+          runtime?: number | null;
+          still_path?: string | null;
+          vote_average?: number;
+        }[];
+      }
+      const data = await this.request<RawSeasonResponse>(endpoint, apiKey);
+      return (data.episodes || []).map((ep) => ({
+        episodeNumber: ep.episode_number,
+        name: ep.name || `Episode ${ep.episode_number}`,
+        overview: ep.overview,
+        airDate: ep.air_date,
+        runtime: ep.runtime,
+        stillPath: ep.still_path,
+        voteAverage: ep.vote_average,
+      }));
+    } catch (e) {
+      console.warn(`Failed to fetch season ${seasonNumber} episodes`, e);
+      return [];
     }
   },
 };
