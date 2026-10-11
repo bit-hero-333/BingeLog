@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { TMDBMediaItem, TrackedItem, STATUS_CONFIG, MediaType } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
+import { formatDateDisplay, getRelativeTime, formatRuntime } from '@/utils/date';
 
 interface MediaCardProps {
   item: TMDBMediaItem | TrackedItem;
@@ -34,6 +35,22 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack }: MediaC
   const posterUrl = TMDBService.getImageUrl(posterPath, 'w342');
 
   const statusConfig = currentTracked ? STATUS_CONFIG[currentTracked.status] : null;
+
+  // Determine date summary label
+  const getDateLabel = () => {
+    if (!currentTracked) return null;
+    if (currentTracked.status === 'completed' && currentTracked.finishedAt) {
+      return `Finished ${formatDateDisplay(currentTracked.finishedAt)}`;
+    }
+    if (currentTracked.status === 'watching' && currentTracked.startedAt) {
+      return `Started ${getRelativeTime(currentTracked.startedAt)}`;
+    }
+    if (currentTracked.addedAt) {
+      return `Added ${getRelativeTime(currentTracked.addedAt)}`;
+    }
+    return null;
+  };
+  const dateLabel = getDateLabel();
 
   return (
     <Pressable
@@ -85,13 +102,41 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack }: MediaC
             <Text style={styles.yearText}>{releaseYear}</Text>
           ) : null}
 
+          {/* TV Episodes / Movie Runtime info */}
+          {currentTracked ? (
+            mediaType === 'tv' ? (
+              <View style={styles.progressChip}>
+                <Ionicons name="tv-outline" size={11} color="#38bdf8" />
+                <Text style={styles.progressChipText}>
+                  Ep {currentTracked.currentProgress || 0}
+                  {currentTracked.totalEpisodes ? `/${currentTracked.totalEpisodes}` : ''}
+                </Text>
+              </View>
+            ) : currentTracked.runtimeMinutes ? (
+              <View style={styles.progressChip}>
+                <Ionicons name="time-outline" size={11} color="#38bdf8" />
+                <Text style={styles.progressChipText}>
+                  {formatRuntime(currentTracked.runtimeMinutes)}
+                </Text>
+              </View>
+            ) : null
+          ) : null}
+
           {voteAverage ? (
             <View style={styles.ratingBadge}>
-              <Ionicons name="star" size={12} color="#f59e0b" />
+              <Ionicons name="star" size={11} color="#f59e0b" />
               <Text style={styles.ratingText}>{voteAverage.toFixed(1)}</Text>
             </View>
           ) : null}
         </View>
+
+        {/* Date Info Row */}
+        {dateLabel && (
+          <View style={styles.dateInfoRow}>
+            <Ionicons name="calendar-outline" size={11} color="#64748b" />
+            <Text style={styles.dateInfoText}>{dateLabel}</Text>
+          </View>
+        )}
 
         {/* Tracking status or Quick Add */}
         <View style={styles.bottomRow}>
@@ -175,7 +220,7 @@ const styles = StyleSheet.create({
   },
   posterContainer: {
     width: 90,
-    height: 135,
+    height: 140,
     position: 'relative',
     backgroundColor: '#1e2433',
   },
@@ -222,7 +267,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerRow: {
-    marginBottom: 4,
+    marginBottom: 2,
   },
   title: {
     color: '#f8fafc',
@@ -233,13 +278,28 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 4,
   },
   yearText: {
     color: '#94a3b8',
     fontSize: 12,
     fontWeight: '500',
+  },
+  progressChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  progressChipText: {
+    color: '#38bdf8',
+    fontSize: 11,
+    fontWeight: '700',
   },
   ratingBadge: {
     flexDirection: 'row',
@@ -255,11 +315,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+  dateInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  dateInfoText: {
+    color: '#64748b',
+    fontSize: 11,
+    fontWeight: '500',
+  },
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 4,
+    marginTop: 2,
   },
   trackedInfo: {
     flexDirection: 'row',

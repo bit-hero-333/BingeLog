@@ -2,10 +2,16 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MediaProvider, useMedia } from '@/context/MediaContext';
 
 function TabLayoutContent() {
   const { trackedItems } = useMedia();
+  const insets = useSafeAreaInsets();
+
+  // Dynamic bottom padding so Android gesture bar or hardware navigation never overlaps icons
+  const bottomInset = insets.bottom > 0 ? insets.bottom : 8;
+  const tabHeight = 56 + bottomInset;
 
   return (
     <>
@@ -26,9 +32,9 @@ function TabLayoutContent() {
             backgroundColor: '#0d0f15',
             borderTopColor: '#1e2433',
             borderTopWidth: 1,
-            height: 60,
-            paddingBottom: 8,
-            paddingTop: 6,
+            height: tabHeight,
+            paddingBottom: bottomInset,
+            paddingTop: 8,
           },
           tabBarActiveTintColor: '#38bdf8',
           tabBarInactiveTintColor: '#64748b',
@@ -81,8 +87,10 @@ function TabLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <MediaProvider>
-      <TabLayoutContent />
-    </MediaProvider>
+    <SafeAreaProvider>
+      <MediaProvider>
+        <TabLayoutContent />
+      </MediaProvider>
+    </SafeAreaProvider>
   );
 }

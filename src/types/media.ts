@@ -2,6 +2,13 @@ export type MediaType = 'movie' | 'tv';
 
 export type MediaStatus = 'watching' | 'plan_to_watch' | 'completed' | 'on_hold' | 'dropped';
 
+export interface SeasonInfo {
+  seasonNumber: number;
+  episodeCount: number;
+  name: string;
+  airDate?: string | null;
+}
+
 export interface TMDBMediaItem {
   id: number;
   title?: string;
@@ -17,6 +24,9 @@ export interface TMDBMediaItem {
   overview: string;
   media_type?: MediaType;
   genre_ids?: number[];
+  runtime?: number;
+  number_of_episodes?: number;
+  number_of_seasons?: number;
 }
 
 export interface TrackedItem {
@@ -29,10 +39,27 @@ export interface TrackedItem {
   overview?: string;
   status: MediaStatus;
   userScore: number; // 0 = unrated, 1 to 10
-  currentProgress?: number; // episode or progress
+
+  // TV Tracking Fields
+  currentProgress?: number; // current episode watched
   totalProgress?: number; // total episodes if known
+  totalEpisodes?: number | null;
+  totalSeasons?: number | null;
+  seasons?: SeasonInfo[];
+
+  // Movie Tracking Fields
+  runtimeMinutes?: number | null;
+  minutesWatched?: number | null;
+  rewatchCount?: number;
+
+  // Dates & Timeline
+  addedAt: string; // ISO date when added to list
+  startedAt?: string | null; // Date user began watching
+  finishedAt?: string | null; // Date user completed watching
+  lastWatchedAt?: string | null; // Date user last updated progress
+  updatedAt: string; // ISO date of last modification
+
   notes?: string;
-  updatedAt: string; // ISO string
 }
 
 export const STATUS_CONFIG: Record<

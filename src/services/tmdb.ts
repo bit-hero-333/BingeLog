@@ -1,4 +1,4 @@
-import { TMDBMediaItem, MediaType } from '@/types/media';
+import { TMDBMediaItem, MediaType, SeasonInfo } from '@/types/media';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
@@ -8,6 +8,18 @@ interface TMDBResponse<T> {
   results: T[];
   total_pages: number;
   total_results: number;
+}
+
+interface RawTMDBDetails {
+  runtime?: number;
+  number_of_episodes?: number;
+  number_of_seasons?: number;
+  seasons?: {
+    season_number: number;
+    episode_count: number;
+    name: string;
+    air_date?: string | null;
+  }[];
 }
 
 export const TMDBService = {
@@ -141,5 +153,46 @@ export const TMDBService = {
       ...item,
       media_type: type,
     }));
+  },
+
+  async getMediaDetails(
+    id: number,
+    type: MediaType,
+    apiKey: string
+  ): Promise<{
+    runtime?: number;
+    numberOfEpisodes?: number;
+    numberOfSeasons?: number;
+    seasons?: SeasonInfo[];
+  }> {
+    try {
+      const endpoint = type === 'movie' ? `/movie/${id}` : `/tv/${id}`;
+      const data = await this.request<RawTMDBDetails>(endpoint, apiKey);
+
+      if (type === 'movie') {
+        return {
+          runtime: data.runtime || undefined,
+        };
+      } else {
+        const rawSeasons = data.seasons || [];
+        const seasons: SeasonInfo[] = rawSeasons
+          .filter((s) => s.season_number > 0)
+          .map((s) => ({
+            seasonNumber: s.season_number,
+            episodeCount: s.episode_count,
+            name: s.name,
+            airDate: s.air_date,
+          }));
+
+        return {
+          numberOfEpisodes: data.number_of_episodes || undefined,
+          numberOfSeasons: data.number_of_seasons || undefined,
+          seasons,
+        };
+      }
+    } catch (e) {
+      console.warn('Failed to fetch media details from TMDB', e);
+      return {};
+    }
   },
 };
