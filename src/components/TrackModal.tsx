@@ -40,6 +40,7 @@ import {
 } from '@/utils/date';
 import { DatePickerModal } from '@/components/DatePickerModal';
 import { EntityModal } from '@/components/EntityModal';
+import { EpisodeDetailModal } from '@/components/EpisodeDetailModal';
 
 interface TrackModalProps {
   visible: boolean;
@@ -192,6 +193,43 @@ function TrackModalFormContent({
   // Date picker modal state
   const [datePickerTarget, setDatePickerTarget] = useState<'started' | 'finished' | null>(null);
 
+  // Episode detail sheet state
+  const [selectedEpisodeForDetail, setSelectedEpisodeForDetail] = useState<{
+    sNum: number;
+    epNum: number;
+    detail?: EpisodeInfo;
+    isWatched: boolean;
+  } | null>(null);
+
+  // Sync TMDB state
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
+  const handleSyncTMDB = async () => {
+    if (!apiKey || isSyncing) return;
+    setIsSyncing(true);
+    setSyncFeedback(null);
+    try {
+      const details = await TMDBService.getMediaDetails(id, mediaType, apiKey);
+      setDetailedInfo(details);
+      if (mediaType === 'tv') {
+        if (details.numberOfEpisodes) setTotalEpisodes(details.numberOfEpisodes);
+        if (details.numberOfSeasons) setTotalSeasons(details.numberOfSeasons);
+        if (details.seasons && details.seasons.length > 0) setSeasons(details.seasons);
+      }
+      if (mediaType === 'movie' && details.runtime) {
+        setRuntimeMinutes(details.runtime);
+      }
+      setSyncFeedback('Synced with TMDB!');
+      setTimeout(() => setSyncFeedback(null), 3000);
+    } catch {
+      setSyncFeedback('Sync failed');
+      setTimeout(() => setSyncFeedback(null), 3000);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   // Total watched episodes count derived from watchedKeys
   const watchedEpisodesCount = watchedKeys.size;
 
@@ -256,6 +294,44 @@ function TrackModalFormContent({
       : sizingConfig.rowDensity === 'xlarge'
       ? 15
       : 8;
+
+  const seasonHeaderFontSize =
+    sizingConfig.seasonEpisodeSize === 'small'
+      ? 14
+      : sizingConfig.seasonEpisodeSize === 'large'
+      ? 18
+      : sizingConfig.seasonEpisodeSize === 'xlarge'
+      ? 20
+      : 16;
+
+  const episodeTitleFontSize =
+    sizingConfig.seasonEpisodeSize === 'small'
+      ? 13
+      : sizingConfig.seasonEpisodeSize === 'large'
+      ? 17
+      : sizingConfig.seasonEpisodeSize === 'xlarge'
+      ? 19
+      : 15;
+
+  const episodeStillWidth =
+    sizingConfig.seasonEpisodeSize === 'small'
+      ? 64
+      : sizingConfig.seasonEpisodeSize === 'large'
+      ? 100
+      : sizingConfig.seasonEpisodeSize === 'xlarge'
+      ? 120
+      : 80;
+
+  const episodeStillHeight = Math.round(episodeStillWidth * (9 / 16));
+
+  const episodeCheckboxSize =
+    sizingConfig.seasonEpisodeSize === 'small'
+      ? 20
+      : sizingConfig.seasonEpisodeSize === 'large'
+      ? 28
+      : sizingConfig.seasonEpisodeSize === 'xlarge'
+      ? 32
+      : 24;
 
   // Fetch full TV/Movie details from TMDB
   useEffect(() => {
@@ -512,6 +588,7 @@ function TrackModalFormContent({
       startedAt: startedIso,
       finishedAt: finishedIso,
       lastWatchedAt: new Date().toISOString(),
+      lastSyncedAt: existingRecord?.lastSyncedAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
 
       notes: notes.trim(),
@@ -590,9 +667,29 @@ function TrackModalFormContent({
                 <Text style={styles.mediaTitle} numberOfLines={2}>
                   {title}
                 </Text>
-                <Pressable onPress={onClose} style={styles.closeButton}>
-                  <Ionicons name="close" size={20} color="#94a3b8" />
-                </Pressable>
+                <View style={styles.headerActions}>
+                  {syncFeedback ? (
+                    <View style={styles.syncFeedbackBadge}>
+                      <Text style={styles.syncFeedbackText}>{syncFeedback}</Text>
+                    </View>
+                  ) : null}
+                  {apiKey ? (
+                    <Pressable
+                      onPress={handleSyncTMDB}
+                      style={styles.syncButton}
+                      disabled={isSyncing}
+                      hitSlop={8}>
+                      {isSyncing ? (
+                        <ActivityIndicator size="small" color="#38bdf8" />
+                      ) : (
+                        <Ionicons name="cloud-download-outline" size={19} color="#38bdf8" />
+                      )}
+                    </Pressable>
+                  ) : null}
+                  <Pressable onPress={onClose} style={styles.closeButton} hitSlop={8}>
+                    <Ionicons name="close" size={20} color="#94a3b8" />
+                  </Pressable>
+                </View>
               </View>
 
               <View style={styles.metaBadgeRow}>
@@ -1049,7 +1146,7 @@ function TrackModalFormContent({
                             />
                           )}
                           <View style={styles.seasonTitleGroup}>
-                            <Text style={styles.seasonNameText}>
+                            <Text style={[styles.seasonNameText, { fontSize: seasonHeaderFontSize }]}>
                               {season.name || `Season ${sNum}`}
                             </Text>
                             <Text style={styles.seasonMetaText}>
@@ -1108,15 +1205,33 @@ function TrackModalFormContent({
                                     { paddingVertical: epRowPadV },
                                     isWatched && styles.episodeRowWatched,
                                   ]}
+                                  delayLongPress={350}
+                                  onLongPress={() =>
+                                    setSelectedEpisodeForDetail({
+                                      sNum,
+                                      epNum,
+                                      detail,
+                                      isWatched,
+                                    })
+                                  }
                                   onPress={() => handleToggleEpisode(sNum, epNum)}>
                                   <View style={styles.episodeLeft}>
                                     <View
                                       style={[
                                         styles.checkbox,
+                                        {
+                                          width: episodeCheckboxSize,
+                                          height: episodeCheckboxSize,
+                                          borderRadius: Math.round(episodeCheckboxSize / 4),
+                                        },
                                         isWatched && styles.checkboxWatched,
                                       ]}>
                                       {isWatched && (
-                                        <Ionicons name="checkmark" size={14} color="#ffffff" />
+                                        <Ionicons
+                                          name="checkmark"
+                                          size={Math.max(12, episodeCheckboxSize - 10)}
+                                          color="#ffffff"
+                                        />
                                       )}
                                     </View>
 
@@ -1128,7 +1243,10 @@ function TrackModalFormContent({
                                             TMDBService.getImageUrl(detail.stillPath, 'w185') ||
                                             '',
                                         }}
-                                        style={styles.episodeStillThumb}
+                                        style={[
+                                          styles.episodeStillThumb,
+                                          { width: episodeStillWidth, height: episodeStillHeight },
+                                        ]}
                                         contentFit="cover"
                                       />
                                     ) : null}
@@ -1137,6 +1255,7 @@ function TrackModalFormContent({
                                       <Text
                                         style={[
                                           styles.episodeTitleText,
+                                          { fontSize: episodeTitleFontSize },
                                           isWatched && styles.episodeTitleTextWatched,
                                         ]}
                                         numberOfLines={1}>
@@ -1153,18 +1272,39 @@ function TrackModalFormContent({
                                     </View>
                                   </View>
 
-                                  <View
-                                    style={[
-                                      styles.watchedBadge,
-                                      isWatched && styles.watchedBadgeActive,
-                                    ]}>
-                                    <Text
+                                  <View style={styles.episodeRight}>
+                                    <View
                                       style={[
-                                        styles.watchedBadgeText,
-                                        isWatched && styles.watchedBadgeTextActive,
+                                        styles.watchedBadge,
+                                        isWatched && styles.watchedBadgeActive,
                                       ]}>
-                                      {isWatched ? 'Watched' : 'Unwatched'}
-                                    </Text>
+                                      <Text
+                                        style={[
+                                          styles.watchedBadgeText,
+                                          isWatched && styles.watchedBadgeTextActive,
+                                        ]}>
+                                        {isWatched ? 'Watched' : 'Unwatched'}
+                                      </Text>
+                                    </View>
+
+                                    <Pressable
+                                      style={styles.episodeInfoBtn}
+                                      hitSlop={10}
+                                      onPress={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedEpisodeForDetail({
+                                          sNum,
+                                          epNum,
+                                          detail,
+                                          isWatched,
+                                        });
+                                      }}>
+                                      <Ionicons
+                                        name="information-circle-outline"
+                                        size={20}
+                                        color="#94a3b8"
+                                      />
+                                    </Pressable>
                                   </View>
                                 </Pressable>
                               );
@@ -1491,6 +1631,31 @@ function TrackModalFormContent({
           setSelectedEntity(null);
         }}
       />
+
+      {/* Episode Detail Modal (Full synopsis, air dates, guest actors & crew with clickable links) */}
+      {selectedEpisodeForDetail && (
+        <EpisodeDetailModal
+          visible={Boolean(selectedEpisodeForDetail)}
+          tvId={id}
+          seasonNumber={selectedEpisodeForDetail.sNum}
+          episodeNumber={selectedEpisodeForDetail.epNum}
+          baseEpisodeInfo={selectedEpisodeForDetail.detail}
+          isWatched={watchedKeys.has(
+            `s${selectedEpisodeForDetail.sNum}_e${selectedEpisodeForDetail.epNum}`
+          )}
+          onToggleWatched={() => {
+            handleToggleEpisode(
+              selectedEpisodeForDetail.sNum,
+              selectedEpisodeForDetail.epNum
+            );
+          }}
+          onSelectEntity={(entity) => {
+            setSelectedEpisodeForDetail(null);
+            setSelectedEntity(entity);
+          }}
+          onClose={() => setSelectedEpisodeForDetail(null)}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -1595,6 +1760,29 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 4,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  syncButton: {
+    padding: 5,
+    borderRadius: 8,
+    backgroundColor: '#161e2e',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  syncFeedbackBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+  },
+  syncFeedbackText: {
+    color: '#38bdf8',
+    fontSize: 10,
+    fontWeight: '700',
   },
   metaBadgeRow: {
     flexDirection: 'row',
@@ -2079,6 +2267,14 @@ const styles = StyleSheet.create({
   },
   watchedBadgeTextActive: {
     color: '#22c55e',
+  },
+  episodeRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  episodeInfoBtn: {
+    padding: 3,
   },
   rewatchRow: {
     flexDirection: 'row',

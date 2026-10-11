@@ -12,7 +12,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMedia } from '@/context/MediaContext';
+import { useAppTheme } from '@/context/ThemeContext';
 import { TMDBService } from '@/services/tmdb';
+import {
+  THEME_PRESET_METAS,
+  QUICK_ACCENTS,
+} from '@/constants/theme';
 import {
   DensityPreset,
   ElementScale,
@@ -52,11 +57,28 @@ export default function SettingsScreen() {
     setSizingConfig,
   } = useMedia();
 
+  const {
+    mode,
+    isDark,
+    preset,
+    colors,
+    customAccent,
+    setMode,
+    setPreset,
+    setCustomAccent,
+    resetTheme,
+  } = useAppTheme();
+
   const [customKey, setCustomKey] = useState<string | null>(null);
   const inputKey = customKey !== null ? customKey : (apiKey || '');
   const [showKey, setShowKey] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ valid: boolean; message: string } | null>(null);
+
+  // Manual hex input state
+  const [hexInput, setHexInput] = useState(customAccent || '');
+  // Preview mode toggle within live preview card (allows previewing opposite mode)
+  const [previewOppositeMode, setPreviewOppositeMode] = useState(false);
 
   const handleSaveKey = async () => {
     if (!inputKey.trim()) {
@@ -117,10 +139,11 @@ export default function SettingsScreen() {
   };
 
   const handleStepSizing = (
-    key: 'textSize' | 'castSize' | 'tagSize' | 'rowDensity',
+    key: 'textSize' | 'castSize' | 'tagSize' | 'rowDensity' | 'seasonEpisodeSize',
     delta: number
   ) => {
-    const currentIndex = SCALES.indexOf(sizingConfig[key]);
+    const currentVal = sizingConfig[key] || 'medium';
+    const currentIndex = SCALES.indexOf(currentVal);
     const nextIndex = Math.max(0, Math.min(SCALES.length - 1, currentIndex + delta));
     void setSizingConfig({
       ...sizingConfig,
@@ -129,8 +152,8 @@ export default function SettingsScreen() {
     });
   };
 
-  const handleApplyPreset = (preset: DensityPreset) => {
-    void setSizingConfig(SIZING_PRESETS[preset]);
+  const handleApplyPreset = (densityPreset: DensityPreset) => {
+    void setSizingConfig(SIZING_PRESETS[densityPreset]);
   };
 
   // Preview sizing values
@@ -188,27 +211,733 @@ export default function SettingsScreen() {
       ? 15
       : 8;
 
+  const previewSeasonHeaderSize =
+    sizingConfig.seasonEpisodeSize === 'small'
+      ? 13
+      : sizingConfig.seasonEpisodeSize === 'large'
+      ? 17
+      : sizingConfig.seasonEpisodeSize === 'xlarge'
+      ? 19
+      : 15;
+
+  const previewEpisodeTitleSize =
+    sizingConfig.seasonEpisodeSize === 'small'
+      ? 12
+      : sizingConfig.seasonEpisodeSize === 'large'
+      ? 15.5
+      : sizingConfig.seasonEpisodeSize === 'xlarge'
+      ? 17.5
+      : 14;
+
+  const previewEpisodeStillWidth =
+    sizingConfig.seasonEpisodeSize === 'small'
+      ? 56
+      : sizingConfig.seasonEpisodeSize === 'large'
+      ? 84
+      : sizingConfig.seasonEpisodeSize === 'xlarge'
+      ? 104
+      : 70;
+
+  const previewEpisodeStillHeight = Math.round(previewEpisodeStillWidth * (9 / 16));
+
+  const previewCheckboxSize =
+    sizingConfig.seasonEpisodeSize === 'small'
+      ? 18
+      : sizingConfig.seasonEpisodeSize === 'large'
+      ? 26
+      : sizingConfig.seasonEpisodeSize === 'xlarge'
+      ? 30
+      : 22;
+
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}>
-      {/* TMDB API Key Section */}
-      <View style={styles.card}>
+      {/* ============================================================== */}
+      {/* 1. THEME & COLOR CUSTOMIZATION SECTION */}
+      {/* ============================================================== */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <View style={styles.cardHeader}>
-          <Ionicons name="key" size={20} color="#38bdf8" />
-          <Text style={styles.cardTitle}>TMDB API Configuration</Text>
+          <Ionicons name="color-palette" size={20} color={colors.primary} />
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Appearance & Colors</Text>
         </View>
 
-        <Text style={styles.cardDescription}>
+        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+          Switch between Light and Dark mode, choose from AMOLED and curated nature presets, or pick your own custom accent colors.
+        </Text>
+
+        {/* Mode Selector: Dark vs Light */}
+        <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>MODE</Text>
+        <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+          <Pressable
+            style={[
+              styles.modeSegmentBtn,
+              mode === 'dark' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+            ]}
+            onPress={() => setMode('dark')}>
+            <Ionicons
+              name="moon"
+              size={15}
+              color={mode === 'dark' ? '#ffffff' : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.modeSegmentText,
+                { color: mode === 'dark' ? '#ffffff' : colors.textSecondary },
+              ]}>
+              Dark Mode
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.modeSegmentBtn,
+              mode === 'light' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+            ]}
+            onPress={() => setMode('light')}>
+            <Ionicons
+              name="sunny"
+              size={16}
+              color={mode === 'light' ? '#ffffff' : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.modeSegmentText,
+                { color: mode === 'light' ? '#ffffff' : colors.textSecondary },
+              ]}>
+              Light Mode
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Curated Presets Grid */}
+        <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+          COLOR PRESETS
+        </Text>
+        <View style={styles.presetsGrid}>
+          {THEME_PRESET_METAS.map((p) => {
+            const isSelected = preset === p.id;
+            return (
+              <Pressable
+                key={p.id}
+                style={[
+                  styles.presetChip,
+                  { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                  isSelected && { borderColor: colors.primary, backgroundColor: colors.cardSelected },
+                ]}
+                onPress={() => setPreset(p.id)}>
+                <View style={styles.presetColorPreview}>
+                  <View
+                    style={[
+                      styles.presetBgDot,
+                      { backgroundColor: isDark ? p.darkBgPreview : p.lightBgPreview },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.presetAccentDot,
+                      { backgroundColor: p.accentPreview },
+                    ]}
+                  />
+                </View>
+
+                <View style={styles.presetChipContent}>
+                  <Text
+                    style={[
+                      styles.presetChipLabel,
+                      { color: isSelected ? colors.primary : colors.text },
+                    ]}>
+                    {p.label}
+                  </Text>
+                  <Text
+                    style={[styles.presetChipDesc, { color: colors.textMuted }]}
+                    numberOfLines={1}>
+                    {p.description}
+                  </Text>
+                </View>
+
+                {isSelected && (
+                  <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Quick Accent Color Palette */}
+        <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+          QUICK ACCENT COLORS
+        </Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.accentPaletteScroll}>
+          {QUICK_ACCENTS.map((item) => {
+            const isChosen =
+              (preset === 'custom' && customAccent?.toLowerCase() === item.hex.toLowerCase()) ||
+              colors.primary.toLowerCase() === item.hex.toLowerCase();
+
+            return (
+              <Pressable
+                key={item.hex}
+                style={[
+                  styles.paletteCircle,
+                  { backgroundColor: item.hex },
+                  isChosen && styles.paletteCircleChosen,
+                ]}
+                onPress={() => {
+                  setHexInput(item.hex);
+                  void setCustomAccent(item.hex);
+                }}>
+                {isChosen && <Ionicons name="checkmark" size={16} color="#ffffff" />}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {/* Manual Hex Input */}
+        <View style={styles.hexInputRow}>
+          <Text style={[styles.hexInputLabel, { color: colors.textSecondary }]}>Custom Hex:</Text>
+          <View style={[styles.hexBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+            <TextInput
+              style={[styles.hexTextInput, { color: colors.text }]}
+              placeholder="#a855f7"
+              placeholderTextColor={colors.textMuted}
+              value={hexInput}
+              onChangeText={setHexInput}
+              autoCapitalize="none"
+              maxLength={7}
+            />
+          </View>
+          <Pressable
+            style={[styles.hexApplyBtn, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              if (hexInput.trim()) {
+                void setCustomAccent(hexInput.trim());
+              }
+            }}>
+            <Text style={styles.hexApplyBtnText}>Apply</Text>
+          </Pressable>
+        </View>
+
+        {/* Theme Live Preview Card */}
+        <View
+          style={[
+            styles.themeLivePreviewBox,
+            {
+              backgroundColor: previewOppositeMode ? (isDark ? '#f8fafc' : '#0d1017') : colors.cardSelected,
+              borderColor: colors.cardBorder,
+            },
+          ]}>
+          <View style={styles.previewHeaderRow}>
+            <Text style={[styles.previewBoxTitle, { color: colors.primary }]}>
+              THEME LIVE PREVIEW {previewOppositeMode ? (isDark ? '(LIGHT PREVIEW)' : '(DARK PREVIEW)') : `(${mode.toUpperCase()})`}
+            </Text>
+            <Pressable
+              style={[styles.previewToggleModeBtn, { borderColor: colors.cardBorder }]}
+              onPress={() => setPreviewOppositeMode(!previewOppositeMode)}>
+              <Ionicons
+                name={previewOppositeMode ? 'eye' : 'eye-outline'}
+                size={13}
+                color={colors.textSecondary}
+              />
+              <Text style={[styles.previewToggleModeText, { color: colors.textSecondary }]}>
+                {previewOppositeMode ? 'Show Current' : `Preview ${isDark ? 'Light' : 'Dark'}`}
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Sample Interactive Component Preview */}
+          <View style={styles.previewComponentsColumn}>
+            {/* Sample Watchlist Card */}
+            <View
+              style={[
+                styles.sampleMediaCardPreview,
+                {
+                  backgroundColor: previewOppositeMode ? (isDark ? '#ffffff' : '#161b26') : colors.card,
+                  borderColor: colors.cardBorder,
+                },
+              ]}>
+              <View style={[styles.samplePosterThumb, { backgroundColor: colors.inputBg }]}>
+                <Ionicons name="film" size={16} color={colors.primary} />
+              </View>
+              <View style={styles.sampleMediaInfo}>
+                <Text
+                  style={[
+                    styles.sampleMediaTitle,
+                    { color: previewOppositeMode ? (isDark ? '#0f172a' : '#f8fafc') : colors.text },
+                  ]}
+                  numberOfLines={1}>
+                  The Amazing World of Gumball
+                </Text>
+                <View style={styles.sampleBadgesRow}>
+                  <View style={[styles.sampleStatusPill, { backgroundColor: colors.primaryBg }]}>
+                    <Text style={[styles.sampleStatusPillText, { color: colors.primary }]}>
+                      Watching • 8/240
+                    </Text>
+                  </View>
+                  <View style={styles.sampleRatingTag}>
+                    <Ionicons name="star" size={11} color="#f59e0b" />
+                    <Text style={[styles.sampleRatingText, { color: colors.textSecondary }]}>8.4</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Sample Action Button */}
+            <View style={styles.sampleButtonsRow}>
+              <View style={[styles.samplePrimaryBtn, { backgroundColor: colors.primary }]}>
+                <Ionicons name="checkmark" size={14} color="#ffffff" />
+                <Text style={styles.samplePrimaryBtnText}>Save to List</Text>
+              </View>
+              <View style={[styles.sampleSecondaryBtn, { borderColor: colors.cardBorder, backgroundColor: colors.inputBg }]}>
+                <Text style={[styles.sampleSecondaryBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <Pressable style={styles.resetThemeBtn} onPress={resetTheme}>
+          <Ionicons name="refresh-outline" size={14} color={colors.textSecondary} />
+          <Text style={[styles.resetThemeBtnText, { color: colors.textSecondary }]}>
+            Reset Theme to Default (Midnight Slate)
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* ============================================================== */}
+      {/* 2. GRANULAR SIZING & DISPLAY SETTINGS */}
+      {/* ============================================================== */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="resize" size={20} color={colors.primary} />
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Element Sizes & Density</Text>
+        </View>
+
+        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+          Fine-tune element sizes without overlapping or breaking layouts. Choose a preset or adjust sliders below.
+        </Text>
+
+        {/* Master Preset Buttons */}
+        <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>MASTER DENSITY PRESETS</Text>
+        <View style={styles.presetButtonsRow}>
+          {(['compact', 'default', 'large'] as DensityPreset[]).map((p) => {
+            const isSelected = sizingConfig.preset === p;
+            return (
+              <Pressable
+                key={p}
+                style={[
+                  styles.presetBtn,
+                  { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                  isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
+                ]}
+                onPress={() => handleApplyPreset(p)}>
+                <Text
+                  style={[
+                    styles.presetBtnText,
+                    { color: isSelected ? '#ffffff' : colors.textSecondary },
+                    isSelected && styles.presetBtnTextActive,
+                  ]}>
+                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder }]} />
+
+        {/* Slider 1: Synopsis & Description Text Size */}
+        <View style={styles.sliderControlRow}>
+          <View style={styles.sliderInfo}>
+            <Text style={[styles.sliderTitle, { color: colors.text }]}>Synopsis & Text Size</Text>
+            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
+              {SCALE_LABELS[sizingConfig.textSize]}
+            </Text>
+          </View>
+          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                sizingConfig.textSize === 'small' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('textSize', -1)}
+              disabled={sizingConfig.textSize === 'small'}>
+              <Ionicons name="remove" size={16} color={colors.text} />
+            </Pressable>
+            <View style={styles.stepLevelPipContainer}>
+              {SCALES.map((scale, i) => (
+                <View
+                  key={scale}
+                  style={[
+                    styles.stepPip,
+                    { backgroundColor: colors.cardBorder },
+                    SCALES.indexOf(sizingConfig.textSize) >= i && [styles.stepPipActive, { backgroundColor: colors.primary }],
+                  ]}
+                />
+              ))}
+            </View>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                sizingConfig.textSize === 'xlarge' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('textSize', 1)}
+              disabled={sizingConfig.textSize === 'xlarge'}>
+              <Ionicons name="add" size={16} color={colors.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Slider 2: Cast & Actor Cards Size */}
+        <View style={styles.sliderControlRow}>
+          <View style={styles.sliderInfo}>
+            <Text style={[styles.sliderTitle, { color: colors.text }]}>Cast Cards & Avatars</Text>
+            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
+              {SCALE_LABELS[sizingConfig.castSize]}
+            </Text>
+          </View>
+          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                sizingConfig.castSize === 'small' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('castSize', -1)}
+              disabled={sizingConfig.castSize === 'small'}>
+              <Ionicons name="remove" size={16} color={colors.text} />
+            </Pressable>
+            <View style={styles.stepLevelPipContainer}>
+              {SCALES.map((scale, i) => (
+                <View
+                  key={scale}
+                  style={[
+                    styles.stepPip,
+                    { backgroundColor: colors.cardBorder },
+                    SCALES.indexOf(sizingConfig.castSize) >= i && [styles.stepPipActive, { backgroundColor: colors.primary }],
+                  ]}
+                />
+              ))}
+            </View>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                sizingConfig.castSize === 'xlarge' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('castSize', 1)}
+              disabled={sizingConfig.castSize === 'xlarge'}>
+              <Ionicons name="add" size={16} color={colors.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Slider 3: Tags & Badge Chips Size */}
+        <View style={styles.sliderControlRow}>
+          <View style={styles.sliderInfo}>
+            <Text style={[styles.sliderTitle, { color: colors.text }]}>Tags & Badges</Text>
+            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
+              {SCALE_LABELS[sizingConfig.tagSize]}
+            </Text>
+          </View>
+          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                sizingConfig.tagSize === 'small' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('tagSize', -1)}
+              disabled={sizingConfig.tagSize === 'small'}>
+              <Ionicons name="remove" size={16} color={colors.text} />
+            </Pressable>
+            <View style={styles.stepLevelPipContainer}>
+              {SCALES.map((scale, i) => (
+                <View
+                  key={scale}
+                  style={[
+                    styles.stepPip,
+                    { backgroundColor: colors.cardBorder },
+                    SCALES.indexOf(sizingConfig.tagSize) >= i && [styles.stepPipActive, { backgroundColor: colors.primary }],
+                  ]}
+                />
+              ))}
+            </View>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                sizingConfig.tagSize === 'xlarge' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('tagSize', 1)}
+              disabled={sizingConfig.tagSize === 'xlarge'}>
+              <Ionicons name="add" size={16} color={colors.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Slider 4: Episode Rows Density */}
+        <View style={styles.sliderControlRow}>
+          <View style={styles.sliderInfo}>
+            <Text style={[styles.sliderTitle, { color: colors.text }]}>Episode Rows Padding</Text>
+            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
+              {ROW_SCALE_LABELS[sizingConfig.rowDensity]}
+            </Text>
+          </View>
+          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                sizingConfig.rowDensity === 'small' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('rowDensity', -1)}
+              disabled={sizingConfig.rowDensity === 'small'}>
+              <Ionicons name="remove" size={16} color={colors.text} />
+            </Pressable>
+            <View style={styles.stepLevelPipContainer}>
+              {SCALES.map((scale, i) => (
+                <View
+                  key={scale}
+                  style={[
+                    styles.stepPip,
+                    { backgroundColor: colors.cardBorder },
+                    SCALES.indexOf(sizingConfig.rowDensity) >= i && [styles.stepPipActive, { backgroundColor: colors.primary }],
+                  ]}
+                />
+              ))}
+            </View>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                sizingConfig.rowDensity === 'xlarge' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('rowDensity', 1)}
+              disabled={sizingConfig.rowDensity === 'xlarge'}>
+              <Ionicons name="add" size={16} color={colors.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Slider 5: Season & Episode List Size (NEW) */}
+        <View style={styles.sliderControlRow}>
+          <View style={styles.sliderInfo}>
+            <Text style={[styles.sliderTitle, { color: colors.text }]}>Season & Episode List Size</Text>
+            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
+              {SCALE_LABELS[sizingConfig.seasonEpisodeSize || 'medium']}
+            </Text>
+          </View>
+          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                (sizingConfig.seasonEpisodeSize || 'medium') === 'small' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('seasonEpisodeSize', -1)}
+              disabled={(sizingConfig.seasonEpisodeSize || 'medium') === 'small'}>
+              <Ionicons name="remove" size={16} color={colors.text} />
+            </Pressable>
+            <View style={styles.stepLevelPipContainer}>
+              {SCALES.map((scale, i) => (
+                <View
+                  key={scale}
+                  style={[
+                    styles.stepPip,
+                    { backgroundColor: colors.cardBorder },
+                    SCALES.indexOf(sizingConfig.seasonEpisodeSize || 'medium') >= i && [
+                      styles.stepPipActive,
+                      { backgroundColor: colors.primary },
+                    ],
+                  ]}
+                />
+              ))}
+            </View>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                (sizingConfig.seasonEpisodeSize || 'medium') === 'xlarge' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('seasonEpisodeSize', 1)}
+              disabled={(sizingConfig.seasonEpisodeSize || 'medium') === 'xlarge'}>
+              <Ionicons name="add" size={16} color={colors.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Live Interactive Sizing Preview Box */}
+        <View style={[styles.previewBox, { backgroundColor: colors.cardSelected, borderColor: colors.cardBorder }]}>
+          <Text style={[styles.previewBoxTitle, { color: colors.primary }]}>SIZING LIVE PREVIEW</Text>
+
+          {/* Sample Tag Pill */}
+          <View style={styles.previewTagRow}>
+            <View
+              style={[
+                styles.sampleTag,
+                {
+                  paddingVertical: previewTagPadV,
+                  paddingHorizontal: previewTagPadH,
+                  backgroundColor: colors.inputBg,
+                  borderColor: colors.cardBorder,
+                },
+              ]}>
+              <Text style={[styles.sampleTagText, { fontSize: previewTagFontSize, color: colors.text }]}>
+                Sci-Fi & Fantasy
+              </Text>
+              <Ionicons name="search" size={9} color={colors.textSecondary} />
+            </View>
+          </View>
+
+          {/* Sample Synopsis */}
+          <Text style={[styles.sampleSynopsis, { fontSize: previewTextSize, color: colors.textSecondary }]}>
+            Sample synopsis text scaling dynamically with your chosen settings.
+          </Text>
+
+          {/* Sample Cast Avatar */}
+          <View style={styles.sampleCastCard}>
+            <View
+              style={[
+                styles.sampleCastAvatar,
+                {
+                  width: previewAvatarSize,
+                  height: previewAvatarSize,
+                  borderRadius: previewAvatarSize / 2,
+                  backgroundColor: colors.inputBg,
+                },
+              ]}>
+              <Ionicons
+                name="person"
+                size={Math.max(14, previewAvatarSize * 0.4)}
+                color={colors.textMuted}
+              />
+            </View>
+            <Text style={[styles.sampleCastName, { color: colors.text }]}>Sample Actor</Text>
+          </View>
+
+          {/* Sample Season Header Preview */}
+          <View style={[styles.sampleSeasonHeader, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Ionicons name="layers-outline" size={16} color={colors.primary} />
+            <Text style={[styles.sampleSeasonHeaderText, { fontSize: previewSeasonHeaderSize, color: colors.text }]}>
+              Season 1 (Preview)
+            </Text>
+            <Text style={[styles.sampleSeasonMeta, { color: colors.textSecondary }]}>1 / 8 watched</Text>
+          </View>
+
+          {/* Sample Episode Row Preview */}
+          <View
+            style={[
+              styles.sampleEpisodeRow,
+              { paddingVertical: previewRowPadV, borderColor: colors.cardBorder },
+            ]}>
+            <View
+              style={[
+                styles.sampleCheckbox,
+                {
+                  width: previewCheckboxSize,
+                  height: previewCheckboxSize,
+                  borderRadius: Math.round(previewCheckboxSize / 4),
+                  backgroundColor: colors.success,
+                  borderColor: colors.success,
+                },
+              ]}>
+              <Ionicons name="checkmark" size={Math.max(10, previewCheckboxSize - 10)} color="#ffffff" />
+            </View>
+            {showSeasonEpisodeImages && (
+              <View
+                style={[
+                  styles.sampleStillThumb,
+                  {
+                    width: previewEpisodeStillWidth,
+                    height: previewEpisodeStillHeight,
+                    backgroundColor: colors.inputBg,
+                  },
+                ]}>
+                <Ionicons name="image-outline" size={14} color={colors.textMuted} />
+              </View>
+            )}
+            <Text
+              style={[
+                styles.sampleEpisodeText,
+                { fontSize: previewEpisodeTitleSize, color: colors.text },
+              ]}
+              numberOfLines={1}>
+              1. Pilot Episode
+            </Text>
+            <View style={[styles.sampleBadge, { backgroundColor: colors.primaryBg }]}>
+              <Text style={[styles.sampleBadgeText, { color: colors.primary }]}>Watched</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Display Toggles */}
+        <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder }]} />
+
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleTextContainer}>
+            <Text style={[styles.toggleLabel, { color: colors.text }]}>Season & Episode Images</Text>
+            <Text style={[styles.toggleDescription, { color: colors.textSecondary }]}>
+              Show 16:9 thumbnail previews for episodes and season posters.
+            </Text>
+          </View>
+          <Switch
+            value={showSeasonEpisodeImages}
+            onValueChange={(val) => {
+              void setShowSeasonEpisodeImages(val);
+            }}
+            trackColor={{ false: '#334155', true: colors.primary }}
+            thumbColor="#ffffff"
+          />
+        </View>
+
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleTextContainer}>
+            <Text style={[styles.toggleLabel, { color: colors.text }]}>Actor & Cast Profile Images</Text>
+            <Text style={[styles.toggleDescription, { color: colors.textSecondary }]}>
+              Show circular actor photos in the cast carousel and details sheet.
+            </Text>
+          </View>
+          <Switch
+            value={showActorImages}
+            onValueChange={(val) => {
+              void setShowActorImages(val);
+            }}
+            trackColor={{ false: '#334155', true: colors.primary }}
+            thumbColor="#ffffff"
+          />
+        </View>
+
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleTextContainer}>
+            <Text style={[styles.toggleLabel, { color: colors.text }]}>Full Cast Mode</Text>
+            <Text style={[styles.toggleDescription, { color: colors.textSecondary }]}>
+              Display all available actors in the cast carousel instead of only top 10.
+            </Text>
+          </View>
+          <Switch
+            value={showAllCast}
+            onValueChange={(val) => {
+              void setShowAllCast(val);
+            }}
+            trackColor={{ false: '#334155', true: colors.primary }}
+            thumbColor="#ffffff"
+          />
+        </View>
+      </View>
+
+      {/* ============================================================== */}
+      {/* 3. TMDB API KEY SECTION */}
+      {/* ============================================================== */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="key" size={20} color={colors.primary} />
+          <Text style={[styles.cardTitle, { color: colors.text }]}>TMDB API Configuration</Text>
+        </View>
+
+        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
           Enter your TMDB API Key (v3) or API Read Access Token (v4). It is saved locally on your device and never shared.
         </Text>
 
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: colors.text }]}
             placeholder="Paste your TMDB key or token here..."
-            placeholderTextColor="#64748b"
+            placeholderTextColor={colors.textMuted}
             value={inputKey}
             onChangeText={(text) => {
               setCustomKey(text);
@@ -224,7 +953,7 @@ export default function SettingsScreen() {
             <Ionicons
               name={showKey ? 'eye-off-outline' : 'eye-outline'}
               size={18}
-              color="#94a3b8"
+              color={colors.textSecondary}
             />
           </Pressable>
         </View>
@@ -250,414 +979,81 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        <View style={styles.btnRow}>
+        <View style={styles.buttonRow}>
           <Pressable
-            style={[styles.saveBtn, isTesting && styles.btnDisabled]}
+            style={[styles.saveBtn, { backgroundColor: colors.primary }, isTesting && styles.btnDisabled]}
             onPress={handleSaveKey}
             disabled={isTesting}>
             {isTesting ? (
               <ActivityIndicator size="small" color="#ffffff" />
             ) : (
               <>
-                <Ionicons name="save-outline" size={16} color="#ffffff" />
-                <Text style={styles.saveBtnText}>Save & Verify</Text>
+                <Ionicons name="checkmark-sharp" size={16} color="#ffffff" />
+                <Text style={styles.saveBtnText}>Verify & Save Key</Text>
               </>
             )}
           </Pressable>
 
           {apiKey && (
-            <Pressable style={styles.removeKeyBtn} onPress={handleRemoveKey}>
+            <Pressable
+              style={styles.removeBtn}
+              onPress={handleRemoveKey}>
               <Ionicons name="trash-outline" size={16} color="#ef4444" />
+              <Text style={styles.removeBtnText}>Remove</Text>
             </Pressable>
           )}
         </View>
       </View>
 
-      {/* Display & Media Preferences Card */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Ionicons name="images-outline" size={20} color="#38bdf8" />
-          <Text style={styles.cardTitle}>Display & Media Preferences</Text>
-        </View>
-
-        {/* Toggle 1: Season & Episode Images */}
-        <View style={styles.toggleRow}>
-          <View style={styles.toggleInfo}>
-            <Text style={styles.toggleTitle}>Show Season & Episode Images</Text>
-            <Text style={styles.toggleSubText}>
-              Display season posters and episode preview stills. Turn off to save mobile data.
-            </Text>
-          </View>
-          <Switch
-            value={showSeasonEpisodeImages}
-            onValueChange={(val) => {
-              void setShowSeasonEpisodeImages(val);
-            }}
-            trackColor={{ false: '#334155', true: '#2563eb' }}
-            thumbColor={showSeasonEpisodeImages ? '#ffffff' : '#94a3b8'}
-          />
-        </View>
-
-        <View style={styles.cardDivider} />
-
-        {/* Toggle 2: Actor & Cast Images (Separated!) */}
-        <View style={styles.toggleRow}>
-          <View style={styles.toggleInfo}>
-            <Text style={styles.toggleTitle}>Show Actor & Cast Photos</Text>
-            <Text style={styles.toggleSubText}>
-              Display actor photo portraits in the cast carousel. Turning off replaces them with clean avatar icons.
-            </Text>
-          </View>
-          <Switch
-            value={showActorImages}
-            onValueChange={(val) => {
-              void setShowActorImages(val);
-            }}
-            trackColor={{ false: '#334155', true: '#2563eb' }}
-            thumbColor={showActorImages ? '#ffffff' : '#94a3b8'}
-          />
-        </View>
-
-        <View style={styles.cardDivider} />
-
-        {/* Toggle 3: Cast Carousel: Full Cast Mode */}
-        <View style={styles.toggleRow}>
-          <View style={styles.toggleInfo}>
-            <Text style={styles.toggleTitle}>Cast Carousel: Full Cast</Text>
-            <Text style={styles.toggleSubText}>
-              Display all cast members by default instead of only the top 10 actors.
-            </Text>
-          </View>
-          <Switch
-            value={showAllCast}
-            onValueChange={(val) => {
-              void setShowAllCast(val);
-            }}
-            trackColor={{ false: '#334155', true: '#2563eb' }}
-            thumbColor={showAllCast ? '#ffffff' : '#94a3b8'}
-          />
-        </View>
-      </View>
-
-      {/* Granular Element Sizing & Density Card */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Ionicons name="resize-outline" size={20} color="#38bdf8" />
-          <Text style={styles.cardTitle}>Granular Element Sizing</Text>
-        </View>
-
-        <Text style={styles.cardDescription}>
-          Fine-tune element sizes without overlapping or breaking layouts. Choose a preset or adjust sliders below.
-        </Text>
-
-        {/* Master Preset Buttons */}
-        <Text style={styles.subControlLabel}>MASTER DENSITY PRESETS</Text>
-        <View style={styles.presetButtonsRow}>
-          {(['compact', 'default', 'large'] as DensityPreset[]).map((p) => {
-            const isSelected = sizingConfig.preset === p;
-            return (
-              <Pressable
-                key={p}
-                style={[
-                  styles.presetBtn,
-                  isSelected && styles.presetBtnActive,
-                ]}
-                onPress={() => handleApplyPreset(p)}>
-                <Text
-                  style={[
-                    styles.presetBtnText,
-                    isSelected && styles.presetBtnTextActive,
-                  ]}>
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.cardDivider} />
-
-        {/* Slider 1: Synopsis & Description Text Size */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={styles.sliderTitle}>Synopsis & Text Size</Text>
-            <Text style={styles.sliderValueText}>
-              {SCALE_LABELS[sizingConfig.textSize]}
-            </Text>
-          </View>
-          <View style={styles.stepperBox}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.textSize === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('textSize', -1)}
-              disabled={sizingConfig.textSize === 'small'}>
-              <Ionicons name="remove" size={16} color="#ffffff" />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    SCALES.indexOf(sizingConfig.textSize) >= i && styles.stepPipActive,
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.textSize === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('textSize', 1)}
-              disabled={sizingConfig.textSize === 'xlarge'}>
-              <Ionicons name="add" size={16} color="#ffffff" />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Slider 2: Cast & Actor Cards Size */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={styles.sliderTitle}>Cast Cards & Avatars</Text>
-            <Text style={styles.sliderValueText}>
-              {SCALE_LABELS[sizingConfig.castSize]}
-            </Text>
-          </View>
-          <View style={styles.stepperBox}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.castSize === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('castSize', -1)}
-              disabled={sizingConfig.castSize === 'small'}>
-              <Ionicons name="remove" size={16} color="#ffffff" />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    SCALES.indexOf(sizingConfig.castSize) >= i && styles.stepPipActive,
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.castSize === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('castSize', 1)}
-              disabled={sizingConfig.castSize === 'xlarge'}>
-              <Ionicons name="add" size={16} color="#ffffff" />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Slider 3: Tags & Badge Chips Size */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={styles.sliderTitle}>Tags & Badges</Text>
-            <Text style={styles.sliderValueText}>
-              {SCALE_LABELS[sizingConfig.tagSize]}
-            </Text>
-          </View>
-          <View style={styles.stepperBox}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.tagSize === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('tagSize', -1)}
-              disabled={sizingConfig.tagSize === 'small'}>
-              <Ionicons name="remove" size={16} color="#ffffff" />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    SCALES.indexOf(sizingConfig.tagSize) >= i && styles.stepPipActive,
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.tagSize === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('tagSize', 1)}
-              disabled={sizingConfig.tagSize === 'xlarge'}>
-              <Ionicons name="add" size={16} color="#ffffff" />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Slider 4: Episode Rows Density */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={styles.sliderTitle}>Episode Rows & Padding</Text>
-            <Text style={styles.sliderValueText}>
-              {ROW_SCALE_LABELS[sizingConfig.rowDensity]}
-            </Text>
-          </View>
-          <View style={styles.stepperBox}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.rowDensity === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('rowDensity', -1)}
-              disabled={sizingConfig.rowDensity === 'small'}>
-              <Ionicons name="remove" size={16} color="#ffffff" />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    SCALES.indexOf(sizingConfig.rowDensity) >= i && styles.stepPipActive,
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.rowDensity === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('rowDensity', 1)}
-              disabled={sizingConfig.rowDensity === 'xlarge'}>
-              <Ionicons name="add" size={16} color="#ffffff" />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Live Interactive Preview Box */}
-        <View style={styles.previewBox}>
-          <Text style={styles.previewBoxTitle}>LIVE PREVIEW</Text>
-
-          {/* Sample Tag Pill */}
-          <View style={styles.previewTagRow}>
-            <View
-              style={[
-                styles.sampleTag,
-                {
-                  paddingVertical: previewTagPadV,
-                  paddingHorizontal: previewTagPadH,
-                },
-              ]}>
-              <Text style={[styles.sampleTagText, { fontSize: previewTagFontSize }]}>
-                Sci-Fi & Fantasy
-              </Text>
-              <Ionicons name="search" size={9} color="#94a3b8" />
-            </View>
-          </View>
-
-          {/* Sample Synopsis */}
-          <Text style={[styles.sampleSynopsis, { fontSize: previewTextSize }]}>
-            Sample synopsis text scaling dynamically with your chosen settings.
-          </Text>
-
-          {/* Sample Cast Avatar */}
-          <View style={styles.sampleCastCard}>
-            <View
-              style={[
-                styles.sampleCastAvatar,
-                {
-                  width: previewAvatarSize,
-                  height: previewAvatarSize,
-                  borderRadius: previewAvatarSize / 2,
-                },
-              ]}>
-              <Ionicons
-                name="person"
-                size={Math.max(14, previewAvatarSize * 0.4)}
-                color="#64748b"
-              />
-            </View>
-            <Text style={styles.sampleCastName}>Sample Actor</Text>
-          </View>
-
-          {/* Sample Episode Row */}
-          <View
-            style={[
-              styles.sampleEpisodeRow,
-              { paddingVertical: previewRowPadV },
-            ]}>
-            <View style={styles.sampleCheckbox}>
-              <Ionicons name="checkmark" size={12} color="#ffffff" />
-            </View>
-            {showSeasonEpisodeImages && (
-              <View style={styles.sampleStillThumb}>
-                <Ionicons name="image-outline" size={12} color="#64748b" />
-              </View>
-            )}
-            <Text style={styles.sampleEpisodeText}>1. Pilot Episode</Text>
-            <View style={styles.sampleBadge}>
-              <Text style={styles.sampleBadgeText}>Watched</Text>
-            </View>
-          </View>
-        </View>
-      </View>
-
       {/* Guide: How to get TMDB Key */}
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <View style={styles.cardHeader}>
           <Ionicons name="information-circle" size={20} color="#fbbf24" />
-          <Text style={styles.cardTitle}>How to get a Free TMDB Key</Text>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>How to get a Free TMDB Key</Text>
         </View>
 
         <View style={styles.stepList}>
           <View style={styles.stepItem}>
-            <Text style={styles.stepNumber}>1</Text>
-            <Text style={styles.stepText}>
-              Go to <Text style={styles.bold}>themoviedb.org</Text> and sign up for a free account.
+            <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>1</Text>
+            <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+              Go to <Text style={[styles.bold, { color: colors.text }]}>themoviedb.org</Text> and sign up for a free account.
             </Text>
           </View>
 
           <View style={styles.stepItem}>
-            <Text style={styles.stepNumber}>2</Text>
-            <Text style={styles.stepText}>
-              Click your avatar at top right → <Text style={styles.bold}>Settings</Text> →{' '}
-              <Text style={styles.bold}>API</Text>.
+            <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>2</Text>
+            <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+              Click your avatar at top right → <Text style={[styles.bold, { color: colors.text }]}>Settings</Text> →{' '}
+              <Text style={[styles.bold, { color: colors.text }]}>API</Text>.
             </Text>
           </View>
 
           <View style={styles.stepItem}>
-            <Text style={styles.stepNumber}>3</Text>
-            <Text style={styles.stepText}>
-              Click <Text style={styles.bold}>Create</Text> (choose Developer) and accept the terms.
+            <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>3</Text>
+            <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+              Click <Text style={[styles.bold, { color: colors.text }]}>Create</Text> (choose Developer) and accept the terms.
             </Text>
           </View>
 
           <View style={styles.stepItem}>
-            <Text style={styles.stepNumber}>4</Text>
-            <Text style={styles.stepText}>
-              Copy the <Text style={styles.bold}>API Key (v3)</Text> or <Text style={styles.bold}>API Read Access Token</Text> and paste it above!
+            <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>4</Text>
+            <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+              Copy the <Text style={[styles.bold, { color: colors.text }]}>API Key (v3)</Text> or <Text style={[styles.bold, { color: colors.text }]}>API Read Access Token</Text> and paste it above!
             </Text>
           </View>
         </View>
       </View>
 
       {/* Data Management Section */}
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <View style={styles.cardHeader}>
-          <Ionicons name="server" size={20} color="#a855f7" />
-          <Text style={styles.cardTitle}>Storage & Data</Text>
+          <Ionicons name="server" size={20} color={colors.primary} />
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Storage & Data</Text>
         </View>
 
         <View style={styles.dataRow}>
-          <Text style={styles.dataLabel}>Saved Media Items:</Text>
-          <Text style={styles.dataValue}>{trackedItems.length}</Text>
+          <Text style={[styles.dataLabel, { color: colors.textSecondary }]}>Saved Media Items:</Text>
+          <Text style={[styles.dataValue, { color: colors.text }]}>{trackedItems.length}</Text>
         </View>
 
         <Pressable
@@ -673,12 +1069,12 @@ export default function SettingsScreen() {
       </View>
 
       {/* App Info */}
-      <View style={styles.infoCard}>
-        <Text style={styles.infoTitle}>PersonalMediaTracker</Text>
-        <Text style={styles.infoSub}>
+      <View style={[styles.infoCard, { backgroundColor: colors.cardSelected, borderColor: colors.cardBorder }]}>
+        <Text style={[styles.infoTitle, { color: colors.text }]}>PersonalMediaTracker</Text>
+        <Text style={[styles.infoSub, { color: colors.textSecondary }]}>
           MyAnimeList-inspired tracker for Movies & TV Shows.
         </Text>
-        <Text style={styles.infoVersion}>Version 1.0.4 • Expo SDK 57</Text>
+        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 1.0.5 • Expo SDK 57</Text>
       </View>
     </ScrollView>
   );
@@ -687,7 +1083,6 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0d0f15',
   },
   contentContainer: {
     padding: 16,
@@ -695,11 +1090,9 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   card: {
-    backgroundColor: '#161922',
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#232838',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -708,35 +1101,440 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   cardTitle: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
   },
   cardDescription: {
-    color: '#94a3b8',
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 14,
   },
   cardDivider: {
     height: 1,
-    backgroundColor: '#232838',
     marginVertical: 14,
+  },
+  subControlLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  modeSegmentContainer: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 4,
+    gap: 6,
+  },
+  modeSegmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  modeSegmentBtnActive: {},
+  modeSegmentText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  presetsGrid: {
+    gap: 8,
+  },
+  presetChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 12,
+  },
+  presetColorPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: 32,
+    height: 32,
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  presetBgDot: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  presetAccentDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
+  },
+  presetChipContent: {
+    flex: 1,
+  },
+  presetChipLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  presetChipDesc: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  accentPaletteScroll: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 6,
+  },
+  paletteCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paletteCircleChosen: {
+    borderWidth: 3,
+    borderColor: '#ffffff',
+  },
+  hexInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+  },
+  hexInputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  hexBox: {
+    flex: 1,
+    height: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    justifyContent: 'center',
+  },
+  hexTextInput: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  hexApplyBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  hexApplyBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  themeLivePreviewBox: {
+    marginTop: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+  },
+  previewHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  previewToggleModeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  previewToggleModeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  previewComponentsColumn: {
+    gap: 10,
+  },
+  sampleMediaCardPreview: {
+    flexDirection: 'row',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 10,
+    alignItems: 'center',
+  },
+  samplePosterThumb: {
+    width: 36,
+    height: 50,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sampleMediaInfo: {
+    flex: 1,
+  },
+  sampleMediaTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  sampleBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sampleStatusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  sampleStatusPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  sampleRatingTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  sampleRatingText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  sampleButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  samplePrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  samplePrimaryBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sampleSecondaryBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  sampleSecondaryBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  resetThemeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 14,
+    paddingVertical: 8,
+  },
+  resetThemeBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  presetButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  presetBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  presetBtnActive: {},
+  presetBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  presetBtnTextActive: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  sliderControlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  sliderInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  sliderTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  sliderValueText: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  stepperBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 3,
+    gap: 6,
+  },
+  stepBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepBtnDisabled: {
+    opacity: 0.3,
+  },
+  stepLevelPipContainer: {
+    flexDirection: 'row',
+    gap: 4,
+    paddingHorizontal: 4,
+  },
+  stepPip: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  stepPipActive: {},
+  previewBox: {
+    marginTop: 14,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+  },
+  previewBoxTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  previewTagRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  sampleTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  sampleTagText: {
+    fontWeight: '600',
+  },
+  sampleSynopsis: {
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  sampleCastCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  sampleCastAvatar: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sampleCastName: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  sampleSeasonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  sampleSeasonHeaderText: {
+    fontWeight: '700',
+    flex: 1,
+  },
+  sampleSeasonMeta: {
+    fontSize: 11,
+  },
+  sampleEpisodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderTopWidth: 1,
+    paddingTop: 8,
+  },
+  sampleCheckbox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+  },
+  sampleStillThumb: {
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sampleEpisodeText: {
+    flex: 1,
+    fontWeight: '600',
+  },
+  sampleBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  sampleBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  toggleTextContainer: {
+    flex: 1,
+    marginRight: 16,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  toggleDescription: {
+    fontSize: 12,
+    marginTop: 2,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0d0f15',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#262d3d',
     paddingHorizontal: 12,
     marginBottom: 12,
   },
   input: {
     flex: 1,
     height: 44,
-    color: '#ffffff',
     fontSize: 13,
   },
   eyeBtn: {
@@ -751,14 +1549,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   testResultSuccess: {
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
   },
   testResultError: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
   },
   testResultText: {
     fontSize: 12,
-    fontWeight: '600',
     flex: 1,
   },
   testResultSuccessText: {
@@ -767,240 +1564,45 @@ const styles = StyleSheet.create({
   testResultErrorText: {
     color: '#ef4444',
   },
-  btnRow: {
+  buttonRow: {
     flexDirection: 'row',
     gap: 10,
   },
   saveBtn: {
     flex: 1,
-    backgroundColor: '#2563eb',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
     height: 42,
     borderRadius: 10,
-    gap: 6,
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
   saveBtnText: {
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '700',
   },
-  removeKeyBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+  removeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
+    gap: 4,
+    height: 42,
+    paddingHorizontal: 14,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderColor: '#ef4444',
   },
-  btnDisabled: {
-    opacity: 0.5,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
-  toggleInfo: {
-    flex: 1,
-  },
-  toggleTitle: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  toggleSubText: {
-    color: '#94a3b8',
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  subControlLabel: {
-    color: '#94a3b8',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 10,
-  },
-  presetButtonsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  presetBtn: {
-    flex: 1,
-    backgroundColor: '#1f2432',
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#262d3d',
-    alignItems: 'center',
-  },
-  presetBtnActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#3b82f6',
-  },
-  presetBtnText: {
-    color: '#cbd5e1',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  presetBtnTextActive: {
-    color: '#ffffff',
-    fontWeight: '700',
-  },
-  sliderControlRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1e2433',
-  },
-  sliderInfo: {
-    flex: 1,
-  },
-  sliderTitle: {
-    color: '#e2e8f0',
+  removeBtnText: {
+    color: '#ef4444',
     fontSize: 13,
     fontWeight: '600',
   },
-  sliderValueText: {
-    color: '#38bdf8',
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  stepperBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#1f2432',
-    borderWidth: 1,
-    borderColor: '#262d3d',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  stepBtnDisabled: {
-    opacity: 0.3,
-  },
-  stepLevelPipContainer: {
-    flexDirection: 'row',
-    gap: 4,
-    paddingHorizontal: 4,
-  },
-  stepPip: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#334155',
-  },
-  stepPipActive: {
-    backgroundColor: '#38bdf8',
-  },
-  previewBox: {
-    backgroundColor: '#12151c',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#232838',
-    padding: 12,
-    marginTop: 16,
-    gap: 8,
-  },
-  previewBoxTitle: {
-    color: '#64748b',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  previewTagRow: {
-    flexDirection: 'row',
-  },
-  sampleTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#1a1f2b',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#262d3d',
-  },
-  sampleTagText: {
-    color: '#cbd5e1',
-    fontWeight: '600',
-  },
-  sampleSynopsis: {
-    color: '#cbd5e1',
-    lineHeight: 18,
-  },
-  sampleCastCard: {
-    alignItems: 'flex-start',
-  },
-  sampleCastAvatar: {
-    backgroundColor: '#1e2433',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  sampleCastName: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  sampleEpisodeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#161922',
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#232838',
-  },
-  sampleCheckbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    backgroundColor: '#22c55e',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sampleStillThumb: {
-    width: 36,
-    height: 22,
-    borderRadius: 4,
-    backgroundColor: '#1e2433',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sampleEpisodeText: {
-    color: '#ffffff',
-    fontSize: 12,
-    flex: 1,
-  },
-  sampleBadge: {
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  sampleBadgeText: {
-    color: '#22c55e',
-    fontSize: 10,
-    fontWeight: '700',
-  },
   stepList: {
     gap: 10,
-    marginTop: 4,
   },
   stepItem: {
     flexDirection: 'row',
@@ -1011,38 +1613,29 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#2563eb',
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '800',
     textAlign: 'center',
     lineHeight: 20,
+    fontSize: 11,
+    fontWeight: '700',
   },
   stepText: {
     flex: 1,
-    color: '#cbd5e1',
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 18,
   },
   bold: {
     fontWeight: '700',
-    color: '#ffffff',
   },
   dataRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#232838',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   dataLabel: {
-    color: '#94a3b8',
     fontSize: 14,
   },
   dataValue: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -1050,35 +1643,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    height: 40,
-    borderRadius: 10,
     gap: 6,
+    height: 42,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.25)',
+    borderColor: '#ef4444',
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
   },
   clearBtnText: {
     color: '#ef4444',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  infoCard: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  infoTitle: {
-    color: '#94a3b8',
     fontSize: 14,
     fontWeight: '700',
   },
+  infoCard: {
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  infoTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
   infoSub: {
-    color: '#64748b',
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 4,
+    textAlign: 'center',
   },
   infoVersion: {
-    color: '#475569',
     fontSize: 11,
-    marginTop: 6,
+    marginTop: 8,
+    fontWeight: '700',
   },
 });

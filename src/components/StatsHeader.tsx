@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { STATUS_CONFIG } from '@/types/media';
+import { useAppTheme } from '@/context/ThemeContext';
 
 interface StatsHeaderProps {
   total: number;
@@ -22,33 +23,35 @@ export function StatsHeader({
   dropped,
   meanScore,
 }: StatsHeaderProps) {
+  const { colors } = useAppTheme();
+
   if (total === 0) return null;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
       {/* Top summary row */}
       <View style={styles.topRow}>
         <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Total Entries</Text>
-          <Text style={styles.statValue}>{total}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Entries</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{total}</Text>
         </View>
 
-        <View style={styles.statDivider} />
+        <View style={[styles.statDivider, { backgroundColor: colors.divider }]} />
 
         <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Mean Score</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mean Score</Text>
           <View style={styles.scoreRow}>
             <Ionicons name="star" size={14} color="#f59e0b" />
-            <Text style={styles.statValue}>
+            <Text style={[styles.statValue, { color: colors.text }]}>
               {meanScore > 0 ? meanScore.toFixed(1) : '-'}
             </Text>
           </View>
         </View>
 
-        <View style={styles.statDivider} />
+        <View style={[styles.statDivider, { backgroundColor: colors.divider }]} />
 
         <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Completed</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Completed</Text>
           <Text style={[styles.statValue, { color: STATUS_CONFIG.completed.color }]}>
             {completed}
           </Text>
@@ -56,7 +59,7 @@ export function StatsHeader({
       </View>
 
       {/* Segmented status breakdown bar */}
-      <View style={styles.segmentedBar}>
+      <View style={[styles.segmentedBar, { backgroundColor: colors.cardSelected }]}>
         {watching > 0 && (
           <View
             style={{
@@ -110,19 +113,19 @@ export function StatsHeader({
           <View
             style={[styles.dot, { backgroundColor: STATUS_CONFIG.watching.color }]}
           />
-          <Text style={styles.badgeText}>Watching: {watching}</Text>
+          <Text style={[styles.badgeText, { color: colors.textSecondary }]}>Watching: {watching}</Text>
         </View>
         <View style={styles.badgeItem}>
           <View
             style={[styles.dot, { backgroundColor: STATUS_CONFIG.plan_to_watch.color }]}
           />
-          <Text style={styles.badgeText}>Plan: {planToWatch}</Text>
+          <Text style={[styles.badgeText, { color: colors.textSecondary }]}>Plan: {planToWatch}</Text>
         </View>
         <View style={styles.badgeItem}>
           <View
             style={[styles.dot, { backgroundColor: STATUS_CONFIG.completed.color }]}
           />
-          <Text style={styles.badgeText}>Done: {completed}</Text>
+          <Text style={[styles.badgeText, { color: colors.textSecondary }]}>Done: {completed}</Text>
         </View>
       </View>
     </View>
@@ -131,12 +134,10 @@ export function StatsHeader({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#161922',
     borderRadius: 14,
     padding: 14,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#232838',
   },
   topRow: {
     flexDirection: 'row',
@@ -149,7 +150,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statLabel: {
-    color: '#94a3b8',
     fontSize: 11,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -157,7 +157,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   statValue: {
-    color: '#ffffff',
     fontSize: 18,
     fontWeight: '800',
   },
@@ -169,14 +168,12 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#262d3d',
   },
   segmentedBar: {
     height: 6,
     borderRadius: 3,
     flexDirection: 'row',
     overflow: 'hidden',
-    backgroundColor: '#262d3d',
     marginBottom: 10,
   },
   badgesRow: {
@@ -195,7 +192,6 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   badgeText: {
-    color: '#94a3b8',
     fontSize: 11,
     fontWeight: '600',
   },

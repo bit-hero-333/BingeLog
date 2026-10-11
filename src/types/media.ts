@@ -43,6 +43,12 @@ export interface EpisodeInfo {
   voteAverage?: number;
 }
 
+export interface EpisodeDetailedInfo extends EpisodeInfo {
+  guestStars?: CastMember[];
+  directors?: PersonSummary[];
+  writers?: PersonSummary[];
+}
+
 export interface SeasonInfo {
   seasonNumber: number;
   episodeCount: number;
@@ -132,6 +138,7 @@ export interface TrackedItem {
   startedAt?: string | null; // Date user began watching (ISO)
   finishedAt?: string | null; // Date user completed watching (ISO)
   lastWatchedAt?: string | null; // Date user last updated progress
+  lastSyncedAt?: string | null; // Date item was last synced with TMDB
   updatedAt: string; // ISO date of last modification
 
   notes?: string;
@@ -196,6 +203,7 @@ export interface SizingConfig {
   castSize: ElementScale; // actor avatar size & card width
   tagSize: ElementScale;  // badge pills & chips
   rowDensity: ElementScale; // episode row heights & padding
+  seasonEpisodeSize: ElementScale; // season header, episode title & thumbnail dimensions
 }
 
 export const DEFAULT_SIZING_CONFIG: SizingConfig = {
@@ -204,6 +212,7 @@ export const DEFAULT_SIZING_CONFIG: SizingConfig = {
   castSize: 'medium',
   tagSize: 'medium',
   rowDensity: 'medium',
+  seasonEpisodeSize: 'medium',
 };
 
 export const SIZING_PRESETS: Record<DensityPreset, SizingConfig> = {
@@ -213,6 +222,7 @@ export const SIZING_PRESETS: Record<DensityPreset, SizingConfig> = {
     castSize: 'small',
     tagSize: 'small',
     rowDensity: 'small',
+    seasonEpisodeSize: 'small',
   },
   default: {
     preset: 'default',
@@ -220,6 +230,7 @@ export const SIZING_PRESETS: Record<DensityPreset, SizingConfig> = {
     castSize: 'medium',
     tagSize: 'medium',
     rowDensity: 'medium',
+    seasonEpisodeSize: 'medium',
   },
   large: {
     preset: 'large',
@@ -227,6 +238,7 @@ export const SIZING_PRESETS: Record<DensityPreset, SizingConfig> = {
     castSize: 'large',
     tagSize: 'large',
     rowDensity: 'large',
+    seasonEpisodeSize: 'large',
   },
 };
 

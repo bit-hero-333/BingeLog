@@ -6,11 +6,14 @@ import {
   FlatList,
   TextInput,
   Pressable,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useMedia } from '@/context/MediaContext';
+import { useAppTheme } from '@/context/ThemeContext';
 import { TrackedItem, MediaType } from '@/types/media';
+import { TMDBService } from '@/services/tmdb';
 import { MediaCard } from '@/components/MediaCard';
 import { StatsHeader } from '@/components/StatsHeader';
 import { StatusFilterChips, FilterStatus } from '@/components/StatusFilterChips';
@@ -20,11 +23,16 @@ type SortOption = 'updated' | 'score' | 'title';
 
 export default function MyListScreen() {
   const router = useRouter();
-  const { trackedItems, saveItem, removeItem, stats } = useMedia();
+  const { trackedItems, saveItem, saveItems, removeItem, stats, apiKey } = useMedia();
+  const { colors } = useAppTheme();
 
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>('all');
   const [filterQuery, setFilterQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('updated');
+
+  // Pull-to-refresh metadata sync state
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshBanner, setRefreshBanner] = useState<string | null>(null);
 
   // Modal state
   const [activeItem, setActiveItem] = useState<TrackedItem | null>(null);
@@ -73,6 +81,63 @@ export default function MyListScreen() {
     return result;
   }, [trackedItems, selectedStatus, filterQuery, sortBy]);
 
+  const handleRefresh = async () => {
+    if (!apiKey) {
+      setRefreshBanner('Set TMDB API Key in Settings to sync');
+      setTimeout(() => setRefreshBanner(null), 3500);
+      return;
+    }
+
+    setIsRefreshing(true);
+    setRefreshBanner(null);
+
+    try {
+      // Find active titles that need sync
+      const activeTitles = trackedItems.filter(
+        (i) => i.status === 'watching' || i.status === 'plan_to_watch'
+      );
+
+      if (activeTitles.length === 0) {
+        setRefreshBanner('No active titles to sync');
+        setTimeout(() => setRefreshBanner(null), 2500);
+        return;
+      }
+
+      const updatedItems: TrackedItem[] = [];
+      for (const item of activeTitles) {
+        try {
+          const details = await TMDBService.getMediaDetails(item.id, item.mediaType, apiKey);
+          const updated: TrackedItem = {
+            ...item,
+            totalEpisodes: details.numberOfEpisodes ?? item.totalEpisodes,
+            totalSeasons: details.numberOfSeasons ?? item.totalSeasons,
+            totalProgress: item.mediaType === 'tv' && details.numberOfEpisodes ? details.numberOfEpisodes : item.totalProgress,
+            seasons: details.seasons && details.seasons.length > 0 ? details.seasons : item.seasons,
+            tagline: details.tagline || item.tagline,
+            lastSyncedAt: new Date().toISOString(),
+          };
+          updatedItems.push(updated);
+        } catch {
+          // Skip silently on item error
+        }
+      }
+
+      if (updatedItems.length > 0) {
+        await saveItems(updatedItems);
+        setRefreshBanner(`Synced ${updatedItems.length} active title${updatedItems.length > 1 ? 's' : ''}!`);
+      } else {
+        setRefreshBanner('Metadata is up to date');
+      }
+      setTimeout(() => setRefreshBanner(null), 3500);
+    } catch (e) {
+      console.warn('Failed to refresh list', e);
+      setRefreshBanner('Sync failed');
+      setTimeout(() => setRefreshBanner(null), 3000);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const handleCardPress = (item: TrackedItem) => {
     setActiveItem(item);
     setModalVisible(true);
@@ -97,33 +162,43 @@ export default function MyListScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Subheader / Search & Sort bar */}
-      <View style={styles.topControlSection}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={16} color="#94a3b8" />
+      <View style={[styles.topControlSection, { backgroundColor: colors.background }]}>
+        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <Ionicons name="search" size={16} color={colors.textSecondary} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.text }]}
             placeholder="Filter your list..."
-            placeholderTextColor="#64748b"
+            placeholderTextColor={colors.textMuted}
             value={filterQuery}
             onChangeText={setFilterQuery}
           />
           {filterQuery.length > 0 && (
             <Pressable onPress={() => setFilterQuery('')} style={styles.clearBtn}>
-              <Ionicons name="close-circle" size={16} color="#94a3b8" />
+              <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
             </Pressable>
           )}
         </View>
 
-        <Pressable style={styles.sortButton} onPress={cycleSort}>
-          <Ionicons name="swap-vertical" size={14} color="#38bdf8" />
-          <Text style={styles.sortButtonText}>{getSortLabel()}</Text>
+        <Pressable
+          style={[styles.sortButton, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+          onPress={cycleSort}>
+          <Ionicons name="swap-vertical" size={14} color={colors.primary} />
+          <Text style={[styles.sortButtonText, { color: colors.primary }]}>{getSortLabel()}</Text>
         </Pressable>
       </View>
 
+      {/* Sync Banner notification */}
+      {refreshBanner ? (
+        <View style={[styles.bannerContainer, { backgroundColor: colors.cardSelected, borderColor: colors.primary }]}>
+          <Ionicons name="cloud-done-outline" size={14} color={colors.primary} />
+          <Text style={[styles.bannerText, { color: colors.text }]}>{refreshBanner}</Text>
+        </View>
+      ) : null}
+
       {/* Status Filter Chips */}
-      <View style={styles.chipsSection}>
+      <View style={[styles.chipsSection, { borderBottomColor: colors.cardBorder }]}>
         <StatusFilterChips
           selectedStatus={selectedStatus}
           onSelect={setSelectedStatus}
@@ -144,6 +219,14 @@ export default function MyListScreen() {
         )}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
         ListHeaderComponent={
           trackedItems.length > 0 ? (
             <StatsHeader
@@ -159,13 +242,13 @@ export default function MyListScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="bookmark-outline" size={52} color="#334155" />
-            <Text style={styles.emptyTitle}>
+            <Ionicons name="bookmark-outline" size={52} color={colors.textMuted} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
               {trackedItems.length === 0
                 ? 'Your list is empty'
                 : 'No matching titles found'}
             </Text>
-            <Text style={styles.emptySub}>
+            <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
               {trackedItems.length === 0
                 ? 'Explore trending movies & TV shows and add them to your tracker.'
                 : 'Try changing your status filter or search keyword.'}
@@ -173,7 +256,7 @@ export default function MyListScreen() {
 
             {trackedItems.length === 0 && (
               <Pressable
-                style={styles.discoverBtn}
+                style={[styles.discoverBtn, { backgroundColor: colors.primary }]}
                 onPress={() => router.push('/')}>
                 <Ionicons name="compass-outline" size={16} color="#ffffff" />
                 <Text style={styles.discoverBtnText}>Explore Titles</Text>
@@ -206,7 +289,6 @@ export default function MyListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0d0f15',
   },
   topControlSection: {
     flexDirection: 'row',
@@ -215,22 +297,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 4,
-    backgroundColor: '#0d0f15',
   },
   searchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#161922',
     borderRadius: 10,
     paddingHorizontal: 10,
     height: 38,
     borderWidth: 1,
-    borderColor: '#232838',
   },
   searchInput: {
     flex: 1,
-    color: '#ffffff',
     fontSize: 13,
     marginLeft: 6,
     height: '100%',
@@ -242,22 +320,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#161922',
     height: 38,
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#232838',
   },
   sortButtonText: {
-    color: '#38bdf8',
     fontSize: 12,
     fontWeight: '700',
+  },
+  bannerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  bannerText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   chipsSection: {
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#161922',
   },
   listContent: {
     padding: 16,
@@ -269,13 +359,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   emptyTitle: {
-    color: '#e2e8f0',
     fontSize: 17,
     fontWeight: '700',
     marginTop: 14,
   },
   emptySub: {
-    color: '#64748b',
     fontSize: 13,
     textAlign: 'center',
     marginTop: 6,
@@ -285,7 +373,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#2563eb',
     marginTop: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,

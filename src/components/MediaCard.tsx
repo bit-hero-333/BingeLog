@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { TMDBMediaItem, TrackedItem, STATUS_CONFIG, MediaType } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
 import { formatDateDisplay, getRelativeTime, formatRuntime } from '@/utils/date';
+import { useAppTheme } from '@/context/ThemeContext';
 
 interface MediaCardProps {
   item: TMDBMediaItem | TrackedItem;
@@ -14,6 +15,7 @@ interface MediaCardProps {
 }
 
 export function MediaCard({ item, trackedRecord, onPress, onQuickTrack }: MediaCardProps) {
+  const { colors } = useAppTheme();
   // Normalize fields between TMDBMediaItem and TrackedItem
   const isTrackedItem = 'status' in item;
   const title = ('title' in item && item.title) ? item.title : ('name' in item ? item.name : 'Untitled');
@@ -54,11 +56,15 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack }: MediaC
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [
+        styles.card,
+        { backgroundColor: colors.card, borderColor: colors.cardBorder },
+        pressed && styles.cardPressed,
+      ]}
       onPress={onPress}
       android_ripple={{ color: 'rgba(255, 255, 255, 0.05)' }}>
       {/* Poster */}
-      <View style={styles.posterContainer}>
+      <View style={[styles.posterContainer, { backgroundColor: colors.cardSelected }]}>
         {posterUrl ? (
           <Image
             source={{ uri: posterUrl }}
@@ -67,9 +73,9 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack }: MediaC
             transition={200}
           />
         ) : (
-          <View style={[styles.poster, styles.posterFallback]}>
-            <Ionicons name="film-outline" size={32} color="#64748b" />
-            <Text style={styles.noPosterText}>No Poster</Text>
+          <View style={[styles.poster, styles.posterFallback, { backgroundColor: colors.inputBg }]}>
+            <Ionicons name="film-outline" size={32} color={colors.textMuted} />
+            <Text style={[styles.noPosterText, { color: colors.textMuted }]}>No Poster</Text>
           </View>
         )}
 
@@ -92,30 +98,30 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack }: MediaC
       {/* Content Info */}
       <View style={styles.infoContainer}>
         <View style={styles.headerRow}>
-          <Text style={styles.title} numberOfLines={2}>
+          <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
             {title}
           </Text>
         </View>
 
         <View style={styles.metaRow}>
           {releaseYear ? (
-            <Text style={styles.yearText}>{releaseYear}</Text>
+            <Text style={[styles.yearText, { color: colors.textSecondary }]}>{releaseYear}</Text>
           ) : null}
 
           {/* TV Episodes / Movie Runtime info */}
           {currentTracked ? (
             mediaType === 'tv' ? (
-              <View style={styles.progressChip}>
-                <Ionicons name="tv-outline" size={11} color="#38bdf8" />
-                <Text style={styles.progressChipText}>
+              <View style={[styles.progressChip, { backgroundColor: colors.primaryBg }]}>
+                <Ionicons name="tv-outline" size={11} color={colors.primary} />
+                <Text style={[styles.progressChipText, { color: colors.primary }]}>
                   Ep {currentTracked.currentProgress || 0}
                   {currentTracked.totalEpisodes ? `/${currentTracked.totalEpisodes}` : ''}
                 </Text>
               </View>
             ) : currentTracked.runtimeMinutes ? (
-              <View style={styles.progressChip}>
-                <Ionicons name="time-outline" size={11} color="#38bdf8" />
-                <Text style={styles.progressChipText}>
+              <View style={[styles.progressChip, { backgroundColor: colors.primaryBg }]}>
+                <Ionicons name="time-outline" size={11} color={colors.primary} />
+                <Text style={[styles.progressChipText, { color: colors.primary }]}>
                   {formatRuntime(currentTracked.runtimeMinutes)}
                 </Text>
               </View>
@@ -173,6 +179,7 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack }: MediaC
             <Pressable
               style={({ pressed }) => [
                 styles.trackButton,
+                { backgroundColor: colors.primary },
                 pressed && styles.buttonPressed,
               ]}
               onPress={(e) => {
@@ -196,7 +203,7 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack }: MediaC
                 pressed && styles.buttonPressed,
               ]}
               onPress={onPress}>
-              <Ionicons name="create-outline" size={16} color="#94a3b8" />
+              <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
             </Pressable>
           )}
         </View>

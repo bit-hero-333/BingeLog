@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useMedia } from '@/context/MediaContext';
+import { useAppTheme } from '@/context/ThemeContext';
 import { TMDBService } from '@/services/tmdb';
 import { TMDBMediaItem, TrackedItem, MediaType } from '@/types/media';
 import { MediaCard } from '@/components/MediaCard';
@@ -22,6 +23,7 @@ type MediaFilter = 'all' | 'movie' | 'tv';
 
 export default function DiscoverScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
   const {
     apiKey,
     saveItem,
@@ -194,15 +196,15 @@ export default function DiscoverScreen() {
     : undefined;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Search Header */}
-      <View style={styles.searchSection}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={18} color="#94a3b8" />
+      <View style={[styles.searchSection, { backgroundColor: colors.background, borderBottomColor: colors.cardBorder }]}>
+        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <Ionicons name="search" size={18} color={colors.textSecondary} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.text }]}
             placeholder="Search anime, movies, series..."
-            placeholderTextColor="#64748b"
+            placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             returnKeyType="search"
@@ -210,7 +212,7 @@ export default function DiscoverScreen() {
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={handleClearSearch} style={styles.clearBtn}>
-              <Ionicons name="close-circle" size={18} color="#94a3b8" />
+              <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
             </Pressable>
           )}
         </View>
@@ -230,12 +232,14 @@ export default function DiscoverScreen() {
                 key={filter.id}
                 style={[
                   styles.filterPill,
-                  isSelected && styles.filterPillSelected,
+                  { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                  isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
                 ]}
                 onPress={() => handleFilterChange(filter.id)}>
                 <Text
                   style={[
                     styles.filterPillText,
+                    { color: isSelected ? '#ffffff' : colors.textSecondary },
                     isSelected && styles.filterPillTextSelected,
                   ]}>
                   {filter.label}

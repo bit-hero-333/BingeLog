@@ -25,6 +25,7 @@ interface MediaContextType {
   trackedItems: TrackedItem[];
   isLoadingStorage: boolean;
   saveItem: (item: TrackedItem) => Promise<void>;
+  saveItems: (items: TrackedItem[]) => Promise<void>;
   removeItem: (id: number, mediaType: MediaType) => Promise<void>;
   getTrackedStatus: (id: number, mediaType: MediaType) => TrackedItem | undefined;
   stats: MediaStats;
@@ -110,6 +111,11 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
 
   const saveItem = async (item: TrackedItem): Promise<void> => {
     const updated = await StorageService.saveTrackedItem(item);
+    setTrackedItems(updated);
+  };
+
+  const saveItems = async (items: TrackedItem[]): Promise<void> => {
+    const updated = await StorageService.saveTrackedItems(items);
     setTrackedItems(updated);
   };
 
@@ -215,6 +221,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         trackedItems,
         isLoadingStorage,
         saveItem,
+        saveItems,
         removeItem,
         getTrackedStatus,
         stats,

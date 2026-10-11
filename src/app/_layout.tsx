@@ -4,9 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MediaProvider, useMedia } from '@/context/MediaContext';
+import { ThemeProvider, useAppTheme } from '@/context/ThemeContext';
 
 function TabLayoutContent() {
   const { trackedItems } = useMedia();
+  const { isDark, colors } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   // Dynamic bottom padding so Android gesture bar or hardware navigation never overlaps icons
@@ -15,13 +17,13 @@ function TabLayoutContent() {
 
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <Tabs
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#0d0f15',
+            backgroundColor: colors.headerBg,
           },
-          headerTintColor: '#f8fafc',
+          headerTintColor: colors.text,
           headerTitleStyle: {
             fontWeight: '800',
             fontSize: 18,
@@ -29,15 +31,15 @@ function TabLayoutContent() {
           },
           headerShadowVisible: false,
           tabBarStyle: {
-            backgroundColor: '#0d0f15',
-            borderTopColor: '#1e2433',
+            backgroundColor: colors.tabBg,
+            borderTopColor: colors.tabBorder,
             borderTopWidth: 1,
             height: tabHeight,
             paddingBottom: bottomInset,
             paddingTop: 8,
           },
-          tabBarActiveTintColor: '#38bdf8',
-          tabBarInactiveTintColor: '#64748b',
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textMuted,
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '600',
@@ -60,7 +62,7 @@ function TabLayoutContent() {
             headerTitle: 'My Watchlist',
             tabBarBadge: trackedItems.length > 0 ? trackedItems.length : undefined,
             tabBarBadgeStyle: {
-              backgroundColor: '#2563eb',
+              backgroundColor: colors.primary,
               color: '#ffffff',
               fontSize: 10,
               fontWeight: '700',
@@ -88,9 +90,11 @@ function TabLayoutContent() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <MediaProvider>
-        <TabLayoutContent />
-      </MediaProvider>
+      <ThemeProvider>
+        <MediaProvider>
+          <TabLayoutContent />
+        </MediaProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

@@ -3,6 +3,8 @@ import {
   MediaType,
   SeasonInfo,
   EpisodeInfo,
+  EpisodeDetailedInfo,
+  CastMember,
   DetailedMediaInfo,
   PersonSummary,
   PersonFullDetails,
@@ -326,6 +328,79 @@ export const TMDBService = {
     } catch (e) {
       console.warn(`Failed to fetch season ${seasonNumber} episodes`, e);
       return [];
+    }
+  },
+
+  async getEpisodeDetails(
+    tvId: number,
+    seasonNumber: number,
+    episodeNumber: number,
+    apiKey: string
+  ): Promise<EpisodeDetailedInfo | null> {
+    try {
+      const endpoint = `/tv/${tvId}/season/${seasonNumber}/episode/${episodeNumber}`;
+      interface RawEpisodeResponse {
+        episode_number: number;
+        name: string;
+        overview?: string;
+        air_date?: string | null;
+        runtime?: number | null;
+        still_path?: string | null;
+        vote_average?: number;
+        guest_stars?: {
+          id: number;
+          name: string;
+          character: string;
+          profile_path: string | null;
+        }[];
+        crew?: {
+          id: number;
+          name: string;
+          job: string;
+          department: string;
+          profile_path?: string | null;
+        }[];
+      }
+      const data = await this.request<RawEpisodeResponse>(endpoint, apiKey, {
+        append_to_response: 'credits',
+      });
+
+      const guestStars: CastMember[] = (data.guest_stars || []).map((g) => ({
+        id: g.id,
+        name: g.name,
+        character: g.character,
+        profilePath: g.profile_path,
+      }));
+
+      const directors: PersonSummary[] = (data.crew || [])
+        .filter((c) => c.job === 'Director')
+        .map((c) => ({ id: c.id, name: c.name, role: 'Director' }));
+
+      const writers: PersonSummary[] = (data.crew || [])
+        .filter(
+          (c) =>
+            c.department === 'Writing' ||
+            c.job === 'Writer' ||
+            c.job === 'Teleplay by' ||
+            c.job === 'Story by'
+        )
+        .map((c) => ({ id: c.id, name: c.name, role: c.job || 'Writer' }));
+
+      return {
+        episodeNumber: data.episode_number,
+        name: data.name || `Episode ${data.episode_number}`,
+        overview: data.overview,
+        airDate: data.air_date,
+        runtime: data.runtime,
+        stillPath: data.still_path,
+        voteAverage: data.vote_average,
+        guestStars,
+        directors,
+        writers,
+      };
+    } catch (e) {
+      console.warn(`Failed to fetch episode details for S${seasonNumber}E${episodeNumber}`, e);
+      return null;
     }
   },
 

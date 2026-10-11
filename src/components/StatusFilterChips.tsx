@@ -1,6 +1,7 @@
 import React from 'react';
 import { ScrollView, Text, StyleSheet, Pressable, View } from 'react-native';
 import { MediaStatus, STATUS_CONFIG } from '@/types/media';
+import { useAppTheme } from '@/context/ThemeContext';
 
 export type FilterStatus = 'all' | MediaStatus;
 
@@ -15,8 +16,10 @@ export function StatusFilterChips({
   onSelect,
   counts,
 }: StatusFilterChipsProps) {
+  const { colors } = useAppTheme();
+
   const options: { id: FilterStatus; label: string; color: string }[] = [
-    { id: 'all', label: 'All', color: '#38bdf8' },
+    { id: 'all', label: 'All', color: colors.primary },
     { id: 'watching', label: 'Watching', color: STATUS_CONFIG.watching.color },
     { id: 'plan_to_watch', label: 'Plan to Watch', color: STATUS_CONFIG.plan_to_watch.color },
     { id: 'completed', label: 'Completed', color: STATUS_CONFIG.completed.color },
@@ -38,6 +41,7 @@ export function StatusFilterChips({
             key={opt.id}
             style={[
               styles.chip,
+              { backgroundColor: colors.card, borderColor: colors.cardBorder },
               isSelected && {
                 backgroundColor: opt.color,
                 borderColor: opt.color,
@@ -47,6 +51,7 @@ export function StatusFilterChips({
             <Text
               style={[
                 styles.chipText,
+                { color: isSelected ? '#ffffff' : colors.textSecondary },
                 isSelected && styles.chipTextSelected,
               ]}>
               {opt.label}
@@ -54,11 +59,12 @@ export function StatusFilterChips({
             <View
               style={[
                 styles.badge,
-                isSelected ? styles.badgeSelected : { backgroundColor: '#262d3d' },
+                isSelected ? styles.badgeSelected : { backgroundColor: colors.cardSelected },
               ]}>
               <Text
                 style={[
                   styles.badgeText,
+                  { color: isSelected ? '#ffffff' : colors.textSecondary },
                   isSelected && styles.badgeTextSelected,
                 ]}>
                 {count}
@@ -81,20 +87,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#161922',
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#262d3d',
   },
   chipText: {
-    color: '#94a3b8',
     fontSize: 13,
     fontWeight: '600',
   },
   chipTextSelected: {
-    color: '#000000',
     fontWeight: '800',
   },
   badge: {
@@ -106,11 +108,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.25)',
   },
   badgeText: {
-    color: '#94a3b8',
     fontSize: 11,
     fontWeight: '700',
   },
   badgeTextSelected: {
-    color: '#000000',
+    color: '#ffffff',
   },
 });

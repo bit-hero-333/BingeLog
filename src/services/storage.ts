@@ -1,5 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TrackedItem, SizingConfig, DEFAULT_SIZING_CONFIG } from '@/types/media';
+import { ThemeMode, ThemePresetId } from '@/constants/theme';
+
+export interface SavedThemeConfig {
+  mode: ThemeMode;
+  preset: ThemePresetId;
+  customAccent?: string;
+  customCardColor?: string;
+}
 
 const STORAGE_KEYS = {
   API_KEY: '@pmt_tmdb_api_key',
@@ -9,6 +17,7 @@ const STORAGE_KEYS = {
   SHOW_ACTOR_IMAGES: '@pmt_show_actor_images',
   SHOW_ALL_CAST: '@pmt_show_all_cast',
   SIZING_CONFIG: '@pmt_sizing_config',
+  THEME_CONFIG: '@pmt_theme_config',
 };
 
 export const StorageService = {
@@ -71,6 +80,23 @@ export const StorageService = {
       return updated;
     } catch (e) {
       console.error('Failed to save tracked item', e);
+      throw e;
+    }
+  },
+
+  async saveTrackedItems(items: TrackedItem[]): Promise<TrackedItem[]> {
+    try {
+      const existing = await this.getTrackedItems();
+      const updatedMap = new Map<string, TrackedItem>();
+      existing.forEach((i) => updatedMap.set(`${i.mediaType}_${i.id}`, i));
+      items.forEach((i) => {
+        updatedMap.set(`${i.mediaType}_${i.id}`, { ...i, updatedAt: new Date().toISOString() });
+      });
+      const updated = Array.from(updatedMap.values());
+      await AsyncStorage.setItem(STORAGE_KEYS.TRACKED_ITEMS, JSON.stringify(updated));
+      return updated;
+    } catch (e) {
+      console.error('Failed to save tracked items batch', e);
       throw e;
     }
   },
@@ -193,6 +219,27 @@ export const StorageService = {
       return true;
     } catch (e) {
       console.error('Failed to save sizing config', e);
+      return false;
+    }
+  },
+
+  async getThemeConfig(): Promise<SavedThemeConfig | null> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.THEME_CONFIG);
+      if (!val) return null;
+      return JSON.parse(val) as SavedThemeConfig;
+    } catch (e) {
+      console.error('Failed to get theme config', e);
+      return null;
+    }
+  },
+
+  async saveThemeConfig(config: SavedThemeConfig): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.THEME_CONFIG, JSON.stringify(config));
+      return true;
+    } catch (e) {
+      console.error('Failed to save theme config', e);
       return false;
     }
   },
