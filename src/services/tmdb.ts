@@ -1,4 +1,10 @@
-import { TMDBMediaItem, MediaType, SeasonInfo, EpisodeInfo } from '@/types/media';
+import {
+  TMDBMediaItem,
+  MediaType,
+  SeasonInfo,
+  EpisodeInfo,
+  DetailedMediaInfo,
+} from '@/types/media';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
@@ -10,16 +16,38 @@ interface TMDBResponse<T> {
   total_results: number;
 }
 
-interface RawTMDBDetails {
+interface RawCreditsResponse {
+  tagline?: string;
+  genres?: { id: number; name: string }[];
   runtime?: number;
   number_of_episodes?: number;
   number_of_seasons?: number;
+  status?: string;
+  created_by?: { id: number; name: string }[];
+  networks?: { id: number; name: string; logo_path: string | null }[];
+  production_companies?: { id: number; name: string; logo_path: string | null }[];
   seasons?: {
     season_number: number;
     episode_count: number;
     name: string;
     air_date?: string | null;
+    poster_path?: string | null;
+    overview?: string;
   }[];
+  credits?: {
+    cast?: {
+      id: number;
+      name: string;
+      character: string;
+      profile_path: string | null;
+    }[];
+    crew?: {
+      id: number;
+      name: string;
+      job: string;
+      department: string;
+    }[];
+  };
 }
 
 export const TMDBService = {
@@ -95,7 +123,6 @@ export const TMDBService = {
       include_adult: 'false',
     });
 
-    // Filter to only movie and tv types
     return (data.results || []).filter(
       (item) => item.media_type === 'movie' || item.media_type === 'tv'
     );
@@ -159,39 +186,78 @@ export const TMDBService = {
     id: number,
     type: MediaType,
     apiKey: string
-  ): Promise<{
-    runtime?: number;
-    numberOfEpisodes?: number;
-    numberOfSeasons?: number;
-    seasons?: SeasonInfo[];
-  }> {
+  ): Promise<DetailedMediaInfo> {
     try {
       const endpoint = type === 'movie' ? `/movie/${id}` : `/tv/${id}`;
-      const data = await this.request<RawTMDBDetails>(endpoint, apiKey);
+      const data = await this.request<RawCreditsResponse>(endpoint, apiKey, {
+        append_to_response: 'credits',
+      });
 
-      if (type === 'movie') {
-        return {
-          runtime: data.runtime || undefined,
-        };
-      } else {
-        const rawSeasons = data.seasons || [];
-        const seasons: SeasonInfo[] = rawSeasons
-          .filter((s) => s.season_number > 0)
-          .map((s) => ({
-            seasonNumber: s.season_number,
-            episodeCount: s.episode_count,
-            name: s.name,
-            airDate: s.air_date,
-          }));
+      const cast = (data.credits?.cast || []).slice(0, 10).map((c) => ({
+        id: c.id,
+        name: c.name,
+        character: c.character,
+        profilePath: c.profile_path,
+      }));
 
-        return {
-          numberOfEpisodes: data.number_of_episodes || undefined,
-          numberOfSeasons: data.number_of_seasons || undefined,
-          seasons,
-        };
-      }
+      const directors = (data.credits?.crew || [])
+        .filter((c) => c.job === 'Director')
+        .map((c) => c.name);
+
+      const creators = (data.created_by || []).map((c) => c.name);
+
+      const writers = (data.credits?.crew || [])
+        .filter(
+          (c) =>
+            c.department === 'Writing' ||
+            c.job === 'Writer' ||
+            c.job === 'Screenplay' ||
+            c.job === 'Story'
+        )
+        .slice(0, 3)
+        .map((c) => c.name);
+
+      const studios = (data.production_companies || []).slice(0, 4).map((p) => ({
+        id: p.id,
+        name: p.name,
+        logoPath: p.logo_path,
+      }));
+
+      const networks = (data.networks || []).slice(0, 3).map((n) => ({
+        id: n.id,
+        name: n.name,
+        logoPath: n.logo_path,
+      }));
+
+      const rawSeasons = data.seasons || [];
+      const seasons: SeasonInfo[] = rawSeasons
+        .filter((s) => s.season_number > 0)
+        .map((s) => ({
+          seasonNumber: s.season_number,
+          episodeCount: s.episode_count,
+          name: s.name,
+          airDate: s.air_date,
+          posterPath: s.poster_path,
+          overview: s.overview,
+        }));
+
+      return {
+        runtime: data.runtime || undefined,
+        numberOfEpisodes: data.number_of_episodes || undefined,
+        numberOfSeasons: data.number_of_seasons || undefined,
+        seasons: seasons.length > 0 ? seasons : undefined,
+        tagline: data.tagline || undefined,
+        genres: data.genres || [],
+        cast: cast.length > 0 ? cast : undefined,
+        directors: directors.length > 0 ? directors : undefined,
+        creators: creators.length > 0 ? creators : undefined,
+        writers: writers.length > 0 ? writers : undefined,
+        studios: studios.length > 0 ? studios : undefined,
+        networks: networks.length > 0 ? networks : undefined,
+        status: data.status,
+      };
     } catch (e) {
-      console.warn('Failed to fetch media details from TMDB', e);
+      console.warn('Failed to fetch detailed media info from TMDB', e);
       return {};
     }
   },

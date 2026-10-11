@@ -23,6 +23,8 @@ interface MediaContextType {
   getTrackedStatus: (id: number, mediaType: MediaType) => TrackedItem | undefined;
   stats: MediaStats;
   clearData: () => Promise<void>;
+  showMediaImages: boolean;
+  setShowMediaImages: (enabled: boolean) => Promise<boolean>;
 }
 
 const MediaContext = createContext<MediaContextType | undefined>(undefined);
@@ -30,17 +32,20 @@ const MediaContext = createContext<MediaContextType | undefined>(undefined);
 export function MediaProvider({ children }: { children: React.ReactNode }) {
   const [apiKey, setApiKeyState] = useState<string | null>(null);
   const [trackedItems, setTrackedItems] = useState<TrackedItem[]>([]);
+  const [showMediaImages, setShowMediaImagesState] = useState(true);
   const [isLoadingStorage, setIsLoadingStorage] = useState(true);
 
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [savedKey, savedItems] = await Promise.all([
+        const [savedKey, savedItems, savedShowImages] = await Promise.all([
           StorageService.getApiKey(),
           StorageService.getTrackedItems(),
+          StorageService.getShowMediaImages(),
         ]);
         if (savedKey) setApiKeyState(savedKey);
         if (savedItems) setTrackedItems(savedItems);
+        setShowMediaImagesState(savedShowImages);
       } catch (e) {
         console.error('Failed to load initial data', e);
       } finally {
@@ -83,6 +88,14 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   const clearData = async (): Promise<void> => {
     await StorageService.clearAllData();
     setTrackedItems([]);
+  };
+
+  const setShowMediaImages = async (enabled: boolean): Promise<boolean> => {
+    const success = await StorageService.saveShowMediaImages(enabled);
+    if (success) {
+      setShowMediaImagesState(enabled);
+    }
+    return success;
   };
 
   const stats = useMemo<MediaStats>(() => {
@@ -145,6 +158,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         getTrackedStatus,
         stats,
         clearData,
+        showMediaImages,
+        setShowMediaImages,
       }}>
       {children}
     </MediaContext.Provider>

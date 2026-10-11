@@ -2,6 +2,37 @@ export type MediaType = 'movie' | 'tv';
 
 export type MediaStatus = 'watching' | 'plan_to_watch' | 'completed' | 'on_hold' | 'dropped';
 
+export interface CastMember {
+  id: number;
+  name: string;
+  character: string;
+  profilePath: string | null;
+}
+
+export interface CrewMember {
+  id: number;
+  name: string;
+  job: string;
+  department: string;
+}
+
+export interface GenreInfo {
+  id: number;
+  name: string;
+}
+
+export interface ProductionCompany {
+  id: number;
+  name: string;
+  logoPath: string | null;
+}
+
+export interface NetworkInfo {
+  id: number;
+  name: string;
+  logoPath: string | null;
+}
+
 export interface EpisodeInfo {
   episodeNumber: number;
   name: string;
@@ -20,6 +51,23 @@ export interface SeasonInfo {
   posterPath?: string | null;
   overview?: string;
   episodes?: EpisodeInfo[];
+}
+
+export interface DetailedMediaInfo {
+  runtime?: number;
+  numberOfEpisodes?: number;
+  numberOfSeasons?: number;
+  seasons?: SeasonInfo[];
+  tagline?: string;
+  genres?: GenreInfo[];
+  cast?: CastMember[];
+  directors?: string[];
+  creators?: string[];
+  writers?: string[];
+  studios?: ProductionCompany[];
+  networks?: NetworkInfo[];
+  releaseDate?: string;
+  status?: string;
 }
 
 export interface TMDBMediaItem {
@@ -65,6 +113,12 @@ export interface TrackedItem {
   runtimeMinutes?: number | null;
   minutesWatched?: number | null;
   rewatchCount?: number;
+
+  // Rich Details
+  tagline?: string;
+  genres?: string[];
+  studios?: string[];
+  creators?: string[];
 
   // Dates & Timeline
   addedAt: string; // ISO date when added to list

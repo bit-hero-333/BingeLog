@@ -4,6 +4,7 @@ import { TrackedItem } from '@/types/media';
 const STORAGE_KEYS = {
   API_KEY: '@pmt_tmdb_api_key',
   TRACKED_ITEMS: '@pmt_tracked_items',
+  SHOW_MEDIA_IMAGES: '@pmt_show_media_images',
 };
 
 export const StorageService = {
@@ -81,6 +82,27 @@ export const StorageService = {
     } catch (e) {
       console.error('Failed to remove tracked item', e);
       throw e;
+    }
+  },
+
+  async getShowMediaImages(): Promise<boolean> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.SHOW_MEDIA_IMAGES);
+      if (val === null) return true;
+      return val === 'true';
+    } catch (e) {
+      console.error('Failed to get show media images setting', e);
+      return true;
+    }
+  },
+
+  async saveShowMediaImages(enabled: boolean): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SHOW_MEDIA_IMAGES, enabled ? 'true' : 'false');
+      return true;
+    } catch (e) {
+      console.error('Failed to save show media images setting', e);
+      return false;
     }
   },
 

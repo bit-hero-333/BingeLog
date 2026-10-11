@@ -8,13 +8,22 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMedia } from '@/context/MediaContext';
 import { TMDBService } from '@/services/tmdb';
 
 export default function SettingsScreen() {
-  const { apiKey, setApiKey, removeApiKey, trackedItems, clearData } = useMedia();
+  const {
+    apiKey,
+    setApiKey,
+    removeApiKey,
+    trackedItems,
+    clearData,
+    showMediaImages,
+    setShowMediaImages,
+  } = useMedia();
 
   const [customKey, setCustomKey] = useState<string | null>(null);
   const inputKey = customKey !== null ? customKey : (apiKey || '');
@@ -204,6 +213,31 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* Display & Media Preferences */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="images-outline" size={20} color="#38bdf8" />
+          <Text style={styles.cardTitle}>Display Preferences</Text>
+        </View>
+
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleInfo}>
+            <Text style={styles.toggleTitle}>Show Episode & Season Images</Text>
+            <Text style={styles.toggleSubText}>
+              Display season posters and episode preview thumbnails in tracker details. Turn off for a minimalist look or lower data usage.
+            </Text>
+          </View>
+          <Switch
+            value={showMediaImages}
+            onValueChange={(val) => {
+              void setShowMediaImages(val);
+            }}
+            trackColor={{ false: '#334155', true: '#2563eb' }}
+            thumbColor={showMediaImages ? '#ffffff' : '#94a3b8'}
+          />
+        </View>
+      </View>
+
       {/* Data Management Section */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -234,7 +268,7 @@ export default function SettingsScreen() {
         <Text style={styles.infoSub}>
           MyAnimeList-inspired tracker for Movies & TV Shows.
         </Text>
-        <Text style={styles.infoVersion}>Version 1.0.0 • Expo SDK 57</Text>
+        <Text style={styles.infoVersion}>Version 1.0.3 • Expo SDK 57</Text>
       </View>
     </ScrollView>
   );
@@ -413,6 +447,26 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 13,
     fontWeight: '600',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  toggleInfo: {
+    flex: 1,
+  },
+  toggleTitle: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  toggleSubText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    lineHeight: 16,
   },
   infoCard: {
     alignItems: 'center',

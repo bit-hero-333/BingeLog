@@ -23,6 +23,7 @@ import {
   MediaType,
   SeasonInfo,
   EpisodeInfo,
+  DetailedMediaInfo,
 } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
@@ -61,7 +62,7 @@ function TrackModalFormContent({
   onSave,
   onRemove,
 }: FormContentProps) {
-  const { apiKey } = useMedia();
+  const { apiKey, showMediaImages } = useMedia();
 
   const isTracked = 'status' in item;
   const id = item.id;
@@ -84,6 +85,10 @@ function TrackModalFormContent({
     : (item as TMDBMediaItem).vote_average;
   const overview = item.overview || '';
 
+  // Detailed TMDB media info state
+  const [detailedInfo, setDetailedInfo] = useState<DetailedMediaInfo | null>(null);
+  const [overviewExpanded, setOverviewExpanded] = useState(false);
+
   // Media metadata state (episodes, seasons, runtime)
   const [totalEpisodes, setTotalEpisodes] = useState<number | null>(
     existingRecord?.totalEpisodes ??
@@ -103,8 +108,7 @@ function TrackModalFormContent({
       (item as TMDBMediaItem).runtime ??
       null
   );
-  const needsDetails = Boolean(apiKey && (totalEpisodes === null || (item as TMDBMediaItem).runtime === undefined));
-  const [isLoadingDetails, setIsLoadingDetails] = useState(needsDetails);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(Boolean(apiKey));
 
   // Granular episode tracking state: Set of "s{season}_e{episode}"
   const initialWatchedKeys = useMemo(() => {
@@ -112,7 +116,6 @@ function TrackModalFormContent({
     if (existingRecord?.watchedEpisodeKeys && existingRecord.watchedEpisodeKeys.length > 0) {
       existingRecord.watchedEpisodeKeys.forEach((k) => keys.add(k));
     } else if (existingRecord?.currentProgress && existingRecord.currentProgress > 0) {
-      // Synthesize initial keys from currentProgress
       let remaining = existingRecord.currentProgress;
       const seasonList = existingRecord.seasons || seasons;
       if (seasonList.length > 0) {
@@ -138,9 +141,10 @@ function TrackModalFormContent({
   const [loadingSeasonEpisodes, setLoadingSeasonEpisodes] = useState<Record<number, boolean>>({});
   const [expandedSeason, setExpandedSeason] = useState<number | null>(null);
 
-  // User tracking inputs
-  const [status, setStatus] = useState<MediaStatus>(
-    existingRecord ? existingRecord.status : 'watching'
+  // User tracking inputs:
+  // If untracked, status starts as null (no auto-assignment!)
+  const [status, setStatus] = useState<MediaStatus | null>(
+    existingRecord ? existingRecord.status : null
   );
   const [score, setScore] = useState<number>(
     existingRecord ? existingRecord.userScore || 0 : 0
@@ -155,17 +159,18 @@ function TrackModalFormContent({
     existingRecord ? existingRecord.notes || '' : ''
   );
 
-  // Dates in DD.MM.YYYY
+  // Dates in DD.MM.YYYY:
+  // If untracked, dates start EMPTY until status or user chooses!
   const addedAt = existingRecord?.addedAt || new Date().toISOString();
   const [startedAt, setStartedAt] = useState<string>(
     existingRecord?.startedAt
       ? formatDateDDMMYYYY(existingRecord.startedAt)
-      : (status === 'watching' ? getTodayDDMMYYYY() : '')
+      : ''
   );
   const [finishedAt, setFinishedAt] = useState<string>(
     existingRecord?.finishedAt
       ? formatDateDDMMYYYY(existingRecord.finishedAt)
-      : (status === 'completed' ? getTodayDDMMYYYY() : '')
+      : ''
   );
   const [showDatesSection, setShowDatesSection] = useState(false);
 
@@ -175,13 +180,14 @@ function TrackModalFormContent({
   // Total watched episodes count derived from watchedKeys
   const watchedEpisodesCount = watchedKeys.size;
 
-  // Fetch missing TV/Movie details from TMDB
+  // Fetch full TV/Movie details from TMDB
   useEffect(() => {
     let isMounted = true;
-    if (apiKey && (totalEpisodes === null || runtimeMinutes === null || seasons.length === 0)) {
+    if (apiKey) {
       TMDBService.getMediaDetails(id, mediaType, apiKey)
         .then((details) => {
           if (!isMounted) return;
+          setDetailedInfo(details);
           if (details.numberOfEpisodes) setTotalEpisodes(details.numberOfEpisodes);
           if (details.numberOfSeasons) setTotalSeasons(details.numberOfSeasons);
           if (details.seasons && details.seasons.length > 0) setSeasons(details.seasons);
@@ -194,7 +200,7 @@ function TrackModalFormContent({
     return () => {
       isMounted = false;
     };
-  }, [id, mediaType, apiKey, totalEpisodes, runtimeMinutes, seasons.length]);
+  }, [id, mediaType, apiKey]);
 
   // Load episodes of a specific season when expanded
   const handleToggleSeasonExpand = (seasonNumber: number) => {
@@ -204,7 +210,6 @@ function TrackModalFormContent({
     }
     setExpandedSeason(seasonNumber);
 
-    // If not already fetched, load episodes
     if (!episodesBySeason[seasonNumber] && apiKey && mediaType === 'tv') {
       setLoadingSeasonEpisodes((prev) => ({ ...prev, [seasonNumber]: true }));
       TMDBService.getSeasonEpisodes(id, seasonNumber, apiKey)
@@ -232,7 +237,7 @@ function TrackModalFormContent({
       if (totalEpisodes && next.size >= totalEpisodes && status !== 'completed') {
         setStatus('completed');
         if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
-      } else if (next.size > 0 && status === 'plan_to_watch') {
+      } else if (next.size > 0 && (!status || status === 'plan_to_watch')) {
         setStatus('watching');
         if (!startedAt) setStartedAt(getTodayDDMMYYYY());
       }
@@ -266,6 +271,9 @@ function TrackModalFormContent({
       if (totalEpisodes && next.size >= totalEpisodes && status !== 'completed') {
         setStatus('completed');
         if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+      } else if (next.size > 0 && (!status || status === 'plan_to_watch')) {
+        setStatus('watching');
+        if (!startedAt) setStartedAt(getTodayDDMMYYYY());
       }
 
       return next;
@@ -285,7 +293,7 @@ function TrackModalFormContent({
             if (totalEpisodes && next.size >= totalEpisodes && status !== 'completed') {
               setStatus('completed');
               if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
-            } else if (status === 'plan_to_watch') {
+            } else if (!status || status === 'plan_to_watch') {
               setStatus('watching');
               if (!startedAt) setStartedAt(getTodayDDMMYYYY());
             }
@@ -302,7 +310,6 @@ function TrackModalFormContent({
     const targetSeasons = seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }];
     setWatchedKeys((prev) => {
       const next = new Set(prev);
-      // Iterate backwards
       for (let si = targetSeasons.length - 1; si >= 0; si--) {
         const s = targetSeasons[si];
         for (let e = s.episodeCount; e >= 1; e--) {
@@ -346,7 +353,6 @@ function TrackModalFormContent({
 
     if (newStatus === 'completed') {
       if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
-      // Fill episodes
       if (mediaType === 'tv') {
         handleMarkEntireShowWatched();
       } else if (mediaType === 'movie' && runtimeMinutes) {
@@ -370,10 +376,21 @@ function TrackModalFormContent({
     if (runtimeMinutes && clamped >= runtimeMinutes && status !== 'completed') {
       setStatus('completed');
       if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+    } else if (clamped > 0 && (!status || status === 'plan_to_watch')) {
+      setStatus('watching');
+      if (!startedAt) setStartedAt(getTodayDDMMYYYY());
     }
   };
 
   const handleSave = () => {
+    if (!status) {
+      Alert.alert(
+        'Select a Status',
+        'Please select a tracking status (such as Watching or Plan to Watch) before adding this item to your list.'
+      );
+      return;
+    }
+
     const startedIso = parseDDMMYYYYtoIso(startedAt);
     const finishedIso = parseDDMMYYYYtoIso(finishedAt);
 
@@ -400,6 +417,16 @@ function TrackModalFormContent({
       runtimeMinutes,
       minutesWatched: mediaType === 'movie' ? minutesWatched : undefined,
       rewatchCount: mediaType === 'movie' ? rewatchCount : undefined,
+
+      // Rich metadata
+      tagline: detailedInfo?.tagline || existingRecord?.tagline,
+      genres: detailedInfo?.genres
+        ? detailedInfo.genres.map((g) => g.name)
+        : existingRecord?.genres,
+      studios: detailedInfo?.studios
+        ? detailedInfo.studios.map((s) => s.name)
+        : existingRecord?.studios,
+      creators: detailedInfo?.creators || detailedInfo?.directors || existingRecord?.creators,
 
       // Dates
       addedAt,
@@ -439,7 +466,7 @@ function TrackModalFormContent({
   const finishedIsoForLabel = parseDDMMYYYYtoIso(finishedAt);
   const durationLabel = getDurationLabel(startedIsoForLabel, finishedIsoForLabel, status === 'completed');
 
-  // Seasons list to display
+  // Display seasons
   const displaySeasons: SeasonInfo[] =
     seasons.length > 0
       ? seasons
@@ -455,7 +482,7 @@ function TrackModalFormContent({
       <Pressable style={styles.backdrop} onPress={onClose} />
 
       <View style={styles.sheetContainer}>
-        {/* Header Bar */}
+        {/* Header Handle Bar */}
         <View style={styles.sheetHeader}>
           <View style={styles.handle} />
         </View>
@@ -518,14 +545,145 @@ function TrackModalFormContent({
               {isLoadingDetails && (
                 <View style={styles.loadingDetailsRow}>
                   <ActivityIndicator size="small" color="#38bdf8" />
-                  <Text style={styles.loadingDetailsText}>Loading seasons info...</Text>
+                  <Text style={styles.loadingDetailsText}>Loading extra info...</Text>
                 </View>
               )}
             </View>
           </View>
 
+          {/* Rich Media Details: Tagline, Genres, Synopsis, Cast & Credits */}
+          <View style={styles.richInfoSection}>
+            {detailedInfo?.tagline ? (
+              <Text style={styles.taglineText}>&ldquo;{detailedInfo.tagline}&rdquo;</Text>
+            ) : null}
+
+            {detailedInfo?.genres && detailedInfo.genres.length > 0 ? (
+              <View style={styles.genreChipsRow}>
+                {detailedInfo.genres.map((g) => (
+                  <View key={g.id} style={styles.genreChip}>
+                    <Text style={styles.genreChipText}>{g.name}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {overview ? (
+              <View style={styles.synopsisContainer}>
+                <Text
+                  style={styles.synopsisText}
+                  numberOfLines={overviewExpanded ? undefined : 3}>
+                  {overview}
+                </Text>
+                {overview.length > 140 ? (
+                  <Pressable
+                    onPress={() => setOverviewExpanded(!overviewExpanded)}
+                    style={styles.expandOverviewBtn}>
+                    <Text style={styles.expandOverviewText}>
+                      {overviewExpanded ? 'Show less' : 'Read more...'}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+
+            {/* Top Cast Carousel */}
+            {detailedInfo?.cast && detailedInfo.cast.length > 0 ? (
+              <View style={styles.castSection}>
+                <Text style={styles.subSectionTitle}>Top Cast</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.castCarousel}>
+                  {detailedInfo.cast.map((actor) => (
+                    <View key={actor.id} style={styles.castCard}>
+                      {showMediaImages && actor.profilePath ? (
+                        <Image
+                          source={{
+                            uri: TMDBService.getImageUrl(actor.profilePath, 'w185') || '',
+                          }}
+                          style={styles.castAvatar}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={[styles.castAvatar, styles.castAvatarFallback]}>
+                          <Ionicons name="person" size={18} color="#64748b" />
+                        </View>
+                      )}
+                      <Text style={styles.castName} numberOfLines={1}>
+                        {actor.name}
+                      </Text>
+                      <Text style={styles.castCharacter} numberOfLines={1}>
+                        {actor.character}
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            {/* Compact Production & Creators Box */}
+            {(detailedInfo?.directors?.length ||
+              detailedInfo?.creators?.length ||
+              detailedInfo?.writers?.length ||
+              detailedInfo?.studios?.length ||
+              detailedInfo?.networks?.length) ? (
+              <View style={styles.metaInfoBox}>
+                {detailedInfo.directors && detailedInfo.directors.length > 0 ? (
+                  <View style={styles.metaInfoRow}>
+                    <Text style={styles.metaInfoLabel}>Director:</Text>
+                    <Text style={styles.metaInfoValue} numberOfLines={2}>
+                      {detailedInfo.directors.join(', ')}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {detailedInfo.creators && detailedInfo.creators.length > 0 ? (
+                  <View style={styles.metaInfoRow}>
+                    <Text style={styles.metaInfoLabel}>Created by:</Text>
+                    <Text style={styles.metaInfoValue} numberOfLines={2}>
+                      {detailedInfo.creators.join(', ')}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {detailedInfo.writers && detailedInfo.writers.length > 0 ? (
+                  <View style={styles.metaInfoRow}>
+                    <Text style={styles.metaInfoLabel}>Writers:</Text>
+                    <Text style={styles.metaInfoValue} numberOfLines={2}>
+                      {detailedInfo.writers.join(', ')}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {detailedInfo.studios && detailedInfo.studios.length > 0 ? (
+                  <View style={styles.metaInfoRow}>
+                    <Text style={styles.metaInfoLabel}>Studios:</Text>
+                    <Text style={styles.metaInfoValue} numberOfLines={2}>
+                      {detailedInfo.studios.map((s) => s.name).join(', ')}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {detailedInfo.networks && detailedInfo.networks.length > 0 ? (
+                  <View style={styles.metaInfoRow}>
+                    <Text style={styles.metaInfoLabel}>Network:</Text>
+                    <Text style={styles.metaInfoValue} numberOfLines={2}>
+                      {detailedInfo.networks.map((n) => n.name).join(', ')}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+
           {/* Status Selector */}
-          <Text style={styles.sectionTitle}>Status</Text>
+          <View style={styles.statusHeaderRow}>
+            <Text style={styles.sectionTitle}>Status</Text>
+            {!status && (
+              <Text style={styles.unselectedStatusHint}>Tap a status to begin tracking</Text>
+            )}
+          </View>
+
           <View style={styles.statusGrid}>
             {(Object.keys(STATUS_CONFIG) as MediaStatus[]).map((st) => {
               const config = STATUS_CONFIG[st];
@@ -630,7 +788,7 @@ function TrackModalFormContent({
               {/* Seasons & Episodes Breakdown Accordion */}
               <Text style={styles.sectionTitle}>Seasons & Episodes</Text>
               <Text style={styles.sectionSubHelp}>
-                Tap any episode to mark as watched or unwatched. Tap season to view details.
+                Tap any episode to mark as watched. Tap a season header to expand its episodes.
               </Text>
 
               <View style={styles.seasonsAccordionContainer}>
@@ -641,7 +799,6 @@ function TrackModalFormContent({
                   const episodesList = episodesBySeason[sNum] || [];
                   const isLoadingSeason = loadingSeasonEpisodes[sNum];
 
-                  // Count watched in this season
                   let seasonWatched = 0;
                   for (let i = 1; i <= epCount; i++) {
                     if (watchedKeys.has(`s${sNum}_e${i}`)) seasonWatched++;
@@ -655,12 +812,22 @@ function TrackModalFormContent({
                         style={styles.seasonHeader}
                         onPress={() => handleToggleSeasonExpand(sNum)}>
                         <View style={styles.seasonHeaderLeft}>
-                          <Ionicons
-                            name={isSeasonComplete ? 'checkmark-circle' : 'layers-outline'}
-                            size={18}
-                            color={isSeasonComplete ? '#22c55e' : '#38bdf8'}
-                          />
-                          <View>
+                          {showMediaImages && season.posterPath ? (
+                            <Image
+                              source={{
+                                uri: TMDBService.getImageUrl(season.posterPath, 'w185') || '',
+                              }}
+                              style={styles.seasonPosterThumb}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <Ionicons
+                              name={isSeasonComplete ? 'checkmark-circle' : 'layers-outline'}
+                              size={18}
+                              color={isSeasonComplete ? '#22c55e' : '#38bdf8'}
+                            />
+                          )}
+                          <View style={styles.seasonTitleGroup}>
                             <Text style={styles.seasonNameText}>
                               {season.name || `Season ${sNum}`}
                             </Text>
@@ -730,6 +897,19 @@ function TrackModalFormContent({
                                         <Ionicons name="checkmark" size={14} color="#ffffff" />
                                       )}
                                     </View>
+
+                                    {/* Episode 16:9 thumbnail if setting enabled */}
+                                    {showMediaImages && detail?.stillPath ? (
+                                      <Image
+                                        source={{
+                                          uri:
+                                            TMDBService.getImageUrl(detail.stillPath, 'w185') ||
+                                            '',
+                                        }}
+                                        style={styles.episodeStillThumb}
+                                        contentFit="cover"
+                                      />
+                                    ) : null}
 
                                     <View style={styles.episodeTextContainer}>
                                       <Text
@@ -902,7 +1082,9 @@ function TrackModalFormContent({
                   {durationLabel ? (
                     <Text style={styles.durationSummaryText}>{durationLabel}</Text>
                   ) : (
-                    <Text style={styles.datesSubText}>Added {getRelativeTime(addedAt)}</Text>
+                    <Text style={styles.datesSubText}>
+                      {existingRecord ? `Added ${getRelativeTime(addedAt)}` : 'Set start & finish dates'}
+                    </Text>
                   )}
                 </View>
               </View>
@@ -1020,12 +1202,22 @@ function TrackModalFormContent({
             <Pressable
               style={({ pressed }) => [
                 styles.saveButton,
+                !status && styles.saveButtonDisabled,
                 pressed && styles.buttonPressed,
               ]}
-              onPress={handleSave}>
-              <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
+              onPress={handleSave}
+              disabled={!status}>
+              <Ionicons
+                name={status ? 'checkmark-circle' : 'add-circle-outline'}
+                size={18}
+                color="#ffffff"
+              />
               <Text style={styles.saveButtonText}>
-                {existingRecord ? 'Update Tracking' : 'Save to My List'}
+                {existingRecord
+                  ? 'Update Tracking'
+                  : status
+                  ? 'Save to My List'
+                  : 'Select a Status to Track'}
               </Text>
             </Pressable>
 
@@ -1122,16 +1314,16 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 140, // Generous padding so text inputs are never covered by Android keyboard
+    paddingBottom: 140, // Prevents keyboard overlap on Android
   },
   mediaSummary: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    paddingBottom: 16,
+    paddingBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#1e2433',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   posterWrapper: {
     width: 60,
@@ -1207,6 +1399,138 @@ const styles = StyleSheet.create({
   loadingDetailsText: {
     color: '#38bdf8',
     fontSize: 11,
+  },
+  richInfoSection: {
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e2433',
+    gap: 10,
+  },
+  taglineText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontStyle: 'italic',
+    lineHeight: 16,
+  },
+  genreChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  genreChip: {
+    backgroundColor: '#1a1f2b',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#262d3d',
+  },
+  genreChipText: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  synopsisContainer: {
+    backgroundColor: '#161922',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#232838',
+  },
+  synopsisText: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  expandOverviewBtn: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  expandOverviewText: {
+    color: '#38bdf8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  castSection: {
+    marginTop: 2,
+  },
+  subSectionTitle: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  castCarousel: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingBottom: 4,
+  },
+  castCard: {
+    width: 64,
+    alignItems: 'center',
+  },
+  castAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#1e2433',
+    marginBottom: 4,
+  },
+  castAvatarFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  castName: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+    width: '100%',
+  },
+  castCharacter: {
+    color: '#64748b',
+    fontSize: 9,
+    textAlign: 'center',
+    width: '100%',
+  },
+  metaInfoBox: {
+    backgroundColor: '#161922',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#232838',
+    gap: 6,
+  },
+  metaInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  metaInfoLabel: {
+    color: '#64748b',
+    fontSize: 11,
+    fontWeight: '700',
+    minWidth: 70,
+  },
+  metaInfoValue: {
+    color: '#e2e8f0',
+    fontSize: 11,
+    flex: 1,
+    lineHeight: 15,
+  },
+  statusHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  unselectedStatusHint: {
+    color: '#fbbf24',
+    fontSize: 11,
+    fontWeight: '600',
   },
   sectionTitle: {
     color: '#e2e8f0',
@@ -1348,12 +1672,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
+    padding: 10,
   },
   seasonHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flex: 1,
+  },
+  seasonPosterThumb: {
+    width: 32,
+    height: 48,
+    borderRadius: 4,
+    backgroundColor: '#1e2433',
+  },
+  seasonTitleGroup: {
     flex: 1,
   },
   seasonNameText: {
@@ -1412,7 +1745,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#1a1f2b',
   },
@@ -1422,7 +1755,7 @@ const styles = StyleSheet.create({
   episodeLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     flex: 1,
     marginRight: 8,
   },
@@ -1438,6 +1771,12 @@ const styles = StyleSheet.create({
   checkboxWatched: {
     backgroundColor: '#22c55e',
     borderColor: '#22c55e',
+  },
+  episodeStillThumb: {
+    width: 60,
+    height: 36,
+    borderRadius: 4,
+    backgroundColor: '#1e2433',
   },
   episodeTextContainer: {
     flex: 1,
@@ -1690,6 +2029,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 10,
     gap: 8,
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#1e293b',
+    opacity: 0.6,
   },
   saveButtonText: {
     color: '#ffffff',
