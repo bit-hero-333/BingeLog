@@ -11,6 +11,7 @@ import {
   Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useMedia } from '@/context/MediaContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { TMDBService } from '@/services/tmdb';
@@ -1068,13 +1069,56 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      {/* App Info */}
+      {/* TMDB Legal Attribution & Branding Card */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <View style={styles.tmdbAttributionHeader}>
+          <Image
+            source={require('@/assets/images/tmdb/tmdb-logo-short.png')}
+            style={styles.tmdbLogoImage}
+            contentFit="contain"
+          />
+        </View>
+
+        <Text style={[styles.tmdbLegalText, { color: colors.textSecondary }]}>
+          This product uses the TMDB API but is not endorsed or certified by TMDB.
+        </Text>
+
+        <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 10 }]} />
+
+        <View style={styles.tmdbMetaRow}>
+          <Ionicons name="film-outline" size={14} color={colors.primary} />
+          <Text style={[styles.tmdbMetaText, { color: colors.textMuted }]}>
+            All movie and TV metadata, posters, backdrops, and cast information are provided courtesy of{' '}
+            <Text style={{ color: colors.primary, fontWeight: '700' }}>The Movie Database (TMDB)</Text>.
+          </Text>
+        </View>
+      </View>
+
+      {/* App Identity, AI Development Credits & Disclaimers */}
       <View style={[styles.infoCard, { backgroundColor: colors.cardSelected, borderColor: colors.cardBorder }]}>
-        <Text style={[styles.infoTitle, { color: colors.text }]}>PersonalMediaTracker</Text>
+        <View style={styles.appTitleBadgeRow}>
+          <Text style={[styles.infoTitle, { color: colors.text }]}>CineLog</Text>
+          <View style={[styles.vibeBadge, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
+            <Ionicons name="sparkles" size={11} color={colors.primary} />
+            <Text style={[styles.vibeBadgeText, { color: colors.primary }]}>Vibe-Coded</Text>
+          </View>
+        </View>
+
         <Text style={[styles.infoSub, { color: colors.textSecondary }]}>
           MyAnimeList-inspired tracker for Movies & TV Shows.
         </Text>
-        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 1.0.5 • Expo SDK 57</Text>
+
+        <Text style={[styles.infoAiCredit, { color: colors.textSecondary }]}>
+          Crafted with heavy AI assistance and vibe-coded with care as an independent personal tracking project.
+        </Text>
+
+        <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, width: '100%', marginVertical: 10 }]} />
+
+        <Text style={[styles.disclaimerText, { color: colors.textMuted }]}>
+          Independent hobby project. Not affiliated with, endorsed by, or associated with MyAnimeList (MAL) or The Movie Database (TMDB). All trademarks and copyrights belong to their respective owners.
+        </Text>
+
+        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 1.0.5 • Build 2026.10 • Expo SDK 57</Text>
       </View>
     </ScrollView>
   );
@@ -1661,6 +1705,53 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
   },
+  tmdbAttributionHeader: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+    marginBottom: 6,
+  },
+  tmdbLogoImage: {
+    width: 140,
+    height: 24,
+  },
+  tmdbLegalText: {
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    fontWeight: '600',
+    paddingHorizontal: 8,
+  },
+  tmdbMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  tmdbMetaText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  appTitleBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  vibeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  vibeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
   infoTitle: {
     fontSize: 15,
     fontWeight: '800',
@@ -1671,9 +1762,23 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
+  infoAiCredit: {
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 6,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingHorizontal: 8,
+  },
+  disclaimerText: {
+    fontSize: 10,
+    lineHeight: 15,
+    textAlign: 'center',
+    paddingHorizontal: 6,
+  },
   infoVersion: {
     fontSize: 11,
-    marginTop: 8,
+    marginTop: 10,
     fontWeight: '700',
   },
 });

@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "PersonalMediaTracker",
-    "slug": "PersonalMediaTracker",
+    "name": "CineLog",
+    "slug": "CineLog",
     "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "personalmediatracker",
+    "scheme": "cinelog",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"

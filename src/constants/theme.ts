@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 
 export type ThemeMode = 'dark' | 'light';
 
-export type ThemePresetId = 'midnight' | 'amoled' | 'emerald' | 'crimson' | 'ochre' | 'custom';
+export type ThemePresetId = 'midnight' | 'amoled' | 'emerald' | 'crimson' | 'ochre' | 'tmdb' | 'custom';
 
 export interface ThemeColors {
   background: string;
@@ -42,6 +42,14 @@ export const THEME_PRESET_METAS: ThemePresetMeta[] = [
     accentPreview: '#38bdf8',
     darkBgPreview: '#0d1017',
     lightBgPreview: '#f8fafc',
+  },
+  {
+    id: 'tmdb',
+    label: 'TMDB Deep Ocean',
+    description: 'Official TMDB dark blue (#0d253f), cyan (#01b4e4) & mint (#90cea1)',
+    accentPreview: '#01b4e4',
+    darkBgPreview: '#0d253f',
+    lightBgPreview: '#f0f9ff',
   },
   {
     id: 'amoled',
@@ -296,9 +304,53 @@ export const PRESET_THEMES: Record<Exclude<ThemePresetId, 'custom'>, { dark: The
       success: '#16a34a',
     },
   },
+  tmdb: {
+    dark: {
+      background: '#0d253f',
+      card: '#13385c',
+      cardBorder: '#1c4d7e',
+      cardSelected: '#19426c',
+      primary: '#01b4e4',
+      primaryBg: 'rgba(1, 180, 228, 0.16)',
+      primaryText: '#01b4e4',
+      text: '#f0f9ff',
+      textSecondary: '#90cea1',
+      textMuted: '#67a3b6',
+      inputBg: '#091c30',
+      headerBg: '#0d253f',
+      tabBg: '#0d253f',
+      tabBorder: '#173c62',
+      divider: '#1c4d7e',
+      danger: '#ef4444',
+      warning: '#f59e0b',
+      success: '#90cea1',
+    },
+    light: {
+      background: '#f0f9ff',
+      card: '#ffffff',
+      cardBorder: '#bae6fd',
+      cardSelected: '#e0f2fe',
+      primary: '#01b4e4',
+      primaryBg: 'rgba(1, 180, 228, 0.12)',
+      primaryText: '#ffffff',
+      text: '#0d253f',
+      textSecondary: '#0284c7',
+      textMuted: '#51869e',
+      inputBg: '#f8fafc',
+      headerBg: '#ffffff',
+      tabBg: '#ffffff',
+      tabBorder: '#bae6fd',
+      divider: '#bae6fd',
+      danger: '#dc2626',
+      warning: '#d97706',
+      success: '#10b981',
+    },
+  },
 };
 
 export const QUICK_ACCENTS = [
+  { name: 'TMDB Cyan', hex: '#01b4e4' },
+  { name: 'TMDB Mint', hex: '#90cea1' },
   { name: 'Sky Blue', hex: '#38bdf8' },
   { name: 'Royal Blue', hex: '#3b82f6' },
   { name: 'Neon Purple', hex: '#a855f7' },
