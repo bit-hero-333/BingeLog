@@ -122,10 +122,12 @@ export interface TrackedItem {
   seasons?: SeasonInfo[];
   watchedEpisodeKeys?: string[]; // Keys like "s1_e1", "s2_e14" for granular episode tracking
 
+  // Viewing Progress & Rewatch Tracking (Movies & TV Shows)
+  rewatchCount?: number;
+
   // Movie Tracking Fields
   runtimeMinutes?: number | null;
   minutesWatched?: number | null;
-  rewatchCount?: number;
 
   // Rich Details
   tagline?: string;

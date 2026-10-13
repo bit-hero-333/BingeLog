@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   SHOW_SEASON_EPISODE_IMAGES: '@pmt_show_season_episode_images',
   SHOW_ACTOR_IMAGES: '@pmt_show_actor_images',
   SHOW_ALL_CAST: '@pmt_show_all_cast',
+  SHOW_SEASON_SPECIALS: '@pmt_show_season_specials',
   SIZING_CONFIG: '@pmt_sizing_config',
   THEME_CONFIG: '@pmt_theme_config',
 };
@@ -198,6 +199,27 @@ export const StorageService = {
       return true;
     } catch (e) {
       console.error('Failed to save show all cast setting', e);
+      return false;
+    }
+  },
+
+  async getShowSeasonSpecials(): Promise<boolean> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.SHOW_SEASON_SPECIALS);
+      if (val === null) return false;
+      return val === 'true';
+    } catch (e) {
+      console.error('Failed to get show season specials setting', e);
+      return false;
+    }
+  },
+
+  async saveShowSeasonSpecials(enabled: boolean): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SHOW_SEASON_SPECIALS, enabled ? 'true' : 'false');
+      return true;
+    } catch (e) {
+      console.error('Failed to save show season specials setting', e);
       return false;
     }
   },

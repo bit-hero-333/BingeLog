@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -54,6 +55,8 @@ export default function SettingsScreen() {
     setShowActorImages,
     showAllCast,
     setShowAllCast,
+    showSeasonSpecials,
+    setShowSeasonSpecials,
     sizingConfig,
     setSizingConfig,
   } = useMedia();
@@ -470,12 +473,12 @@ export default function SettingsScreen() {
                     { color: previewOppositeMode ? (isDark ? '#0f172a' : '#f8fafc') : colors.text },
                   ]}
                   numberOfLines={1}>
-                  The Amazing World of Gumball
+                  Sample Media Title (Preview)
                 </Text>
                 <View style={styles.sampleBadgesRow}>
                   <View style={[styles.sampleStatusPill, { backgroundColor: colors.primaryBg }]}>
                     <Text style={[styles.sampleStatusPillText, { color: colors.primary }]}>
-                      Watching • 8/240
+                      Watching • 8/24
                     </Text>
                   </View>
                   <View style={styles.sampleRatingTag}>
@@ -919,6 +922,23 @@ export default function SettingsScreen() {
             thumbColor="#ffffff"
           />
         </View>
+
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleTextContainer}>
+            <Text style={[styles.toggleLabel, { color: colors.text }]}>Season Specials (Season 0)</Text>
+            <Text style={[styles.toggleDescription, { color: colors.textSecondary }]}>
+              Show specials and bonus episodes in the seasons list. Excludes them from regular completion counts.
+            </Text>
+          </View>
+          <Switch
+            value={showSeasonSpecials}
+            onValueChange={(val) => {
+              void setShowSeasonSpecials(val);
+            }}
+            trackColor={{ false: '#334155', true: colors.primary }}
+            thumbColor="#ffffff"
+          />
+        </View>
       </View>
 
       {/* ============================================================== */}
@@ -1010,21 +1030,27 @@ export default function SettingsScreen() {
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <View style={styles.cardHeader}>
           <Ionicons name="information-circle" size={20} color="#fbbf24" />
-          <Text style={[styles.cardTitle, { color: colors.text }]}>How to get a Free TMDB Key</Text>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>How to get a free TMDB API key</Text>
         </View>
 
         <View style={styles.stepList}>
           <View style={styles.stepItem}>
             <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>1</Text>
             <Text style={[styles.stepText, { color: colors.textSecondary }]}>
-              Go to <Text style={[styles.bold, { color: colors.text }]}>themoviedb.org</Text> and sign up for a free account.
+              Go to{' '}
+              <Text
+                style={[styles.bold, { color: colors.primary, textDecorationLine: 'underline' }]}
+                onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
+                themoviedb.org
+              </Text>{' '}
+              and sign up for a free account.
             </Text>
           </View>
 
           <View style={styles.stepItem}>
             <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>2</Text>
             <Text style={[styles.stepText, { color: colors.textSecondary }]}>
-              Click your avatar at top right → <Text style={[styles.bold, { color: colors.text }]}>Settings</Text> →{' '}
+              Click your avatar in the top-right corner → <Text style={[styles.bold, { color: colors.text }]}>Settings</Text> →{' '}
               <Text style={[styles.bold, { color: colors.text }]}>API</Text>.
             </Text>
           </View>
@@ -1039,7 +1065,7 @@ export default function SettingsScreen() {
           <View style={styles.stepItem}>
             <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>4</Text>
             <Text style={[styles.stepText, { color: colors.textSecondary }]}>
-              Copy the <Text style={[styles.bold, { color: colors.text }]}>API Key (v3)</Text> or <Text style={[styles.bold, { color: colors.text }]}>API Read Access Token</Text> and paste it above!
+              Copy your <Text style={[styles.bold, { color: colors.text }]}>API Key (v3)</Text> or <Text style={[styles.bold, { color: colors.text }]}>API Read Access Token</Text> and paste it above.
             </Text>
           </View>
         </View>
@@ -1089,7 +1115,11 @@ export default function SettingsScreen() {
           <Ionicons name="film-outline" size={14} color={colors.primary} />
           <Text style={[styles.tmdbMetaText, { color: colors.textMuted }]}>
             All movie and TV metadata, posters, backdrops, and cast information are provided courtesy of{' '}
-            <Text style={{ color: colors.primary, fontWeight: '700' }}>The Movie Database (TMDB)</Text>.
+            <Text
+              style={{ color: colors.primary, fontWeight: '700', textDecorationLine: 'underline' }}
+              onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
+              The Movie Database (TMDB)
+            </Text>.
           </Text>
         </View>
       </View>
@@ -1118,7 +1148,7 @@ export default function SettingsScreen() {
           Independent hobby project. Not affiliated with, endorsed by, or associated with MyAnimeList (MAL) or The Movie Database (TMDB). All trademarks and copyrights belong to their respective owners.
         </Text>
 
-        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 1.0.6 • Build 2026.10 • Expo SDK 57</Text>
+        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 1.0.7 • Build 2026.10 • Expo SDK 57</Text>
       </View>
     </ScrollView>
   );

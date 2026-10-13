@@ -174,6 +174,15 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack }: MediaC
                   <Text style={styles.userScoreText}>{currentTracked.userScore}/10</Text>
                 </View>
               )}
+
+              {Boolean(currentTracked.rewatchCount && currentTracked.rewatchCount > 0) && (
+                <View style={[styles.rewatchChip, { backgroundColor: colors.primaryBg }]}>
+                  <Ionicons name="repeat" size={11} color={colors.primary} />
+                  <Text style={[styles.rewatchChipText, { color: colors.primary }]}>
+                    {currentTracked.rewatchCount}×
+                  </Text>
+                </View>
+              )}
             </View>
           ) : (
             <Pressable
@@ -373,6 +382,18 @@ const styles = StyleSheet.create({
   },
   userScoreText: {
     color: '#fbbf24',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  rewatchChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  rewatchChipText: {
     fontSize: 11,
     fontWeight: '700',
   },

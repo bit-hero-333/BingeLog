@@ -266,11 +266,11 @@ export const TMDBService = {
 
       const rawSeasons = data.seasons || [];
       const seasons: SeasonInfo[] = rawSeasons
-        .filter((s) => s.season_number > 0)
+        .filter((s) => s.season_number >= 0)
         .map((s) => ({
           seasonNumber: s.season_number,
           episodeCount: s.episode_count,
-          name: s.name,
+          name: s.name || (s.season_number === 0 ? 'Specials' : `Season ${s.season_number}`),
           airDate: s.air_date,
           posterPath: s.poster_path,
           overview: s.overview,

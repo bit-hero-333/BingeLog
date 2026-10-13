@@ -38,6 +38,8 @@ interface MediaContextType {
   setShowActorImages: (enabled: boolean) => Promise<boolean>;
   showAllCast: boolean;
   setShowAllCast: (enabled: boolean) => Promise<boolean>;
+  showSeasonSpecials: boolean;
+  setShowSeasonSpecials: (enabled: boolean) => Promise<boolean>;
 
   // Granular sizing
   sizingConfig: SizingConfig;
@@ -56,6 +58,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   const [showSeasonEpisodeImages, setShowSeasonEpisodeImagesState] = useState(true);
   const [showActorImages, setShowActorImagesState] = useState(true);
   const [showAllCast, setShowAllCastState] = useState(false);
+  const [showSeasonSpecials, setShowSeasonSpecialsState] = useState(false);
   const [sizingConfig, setSizingConfigState] = useState<SizingConfig>(DEFAULT_SIZING_CONFIG);
   const [activeDiscoverFilter, setActiveDiscoverFilter] = useState<DiscoverFilter | null>(null);
   const [isLoadingStorage, setIsLoadingStorage] = useState(true);
@@ -69,6 +72,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           savedSeasonEpImages,
           savedActorImages,
           savedAllCast,
+          savedSeasonSpecials,
           savedSizing,
         ] = await Promise.all([
           StorageService.getApiKey(),
@@ -76,6 +80,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           StorageService.getShowSeasonEpisodeImages(),
           StorageService.getShowActorImages(),
           StorageService.getShowAllCast(),
+          StorageService.getShowSeasonSpecials(),
           StorageService.getSizingConfig(),
         ]);
         if (savedKey) setApiKeyState(savedKey);
@@ -83,6 +88,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setShowSeasonEpisodeImagesState(savedSeasonEpImages);
         setShowActorImagesState(savedActorImages);
         setShowAllCastState(savedAllCast);
+        setShowSeasonSpecialsState(savedSeasonSpecials);
         setSizingConfigState(savedSizing);
       } catch (e) {
         console.error('Failed to load initial data', e);
@@ -153,6 +159,14 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     const success = await StorageService.saveShowAllCast(enabled);
     if (success) {
       setShowAllCastState(enabled);
+    }
+    return success;
+  };
+
+  const setShowSeasonSpecials = async (enabled: boolean): Promise<boolean> => {
+    const success = await StorageService.saveShowSeasonSpecials(enabled);
+    if (success) {
+      setShowSeasonSpecialsState(enabled);
     }
     return success;
   };
@@ -232,6 +246,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setShowActorImages,
         showAllCast,
         setShowAllCast,
+        showSeasonSpecials,
+        setShowSeasonSpecials,
         sizingConfig,
         setSizingConfig,
         activeDiscoverFilter,

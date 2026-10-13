@@ -72,9 +72,12 @@ function TrackModalFormContent({
     showSeasonEpisodeImages,
     showActorImages,
     showAllCast,
+    showSeasonSpecials,
     sizingConfig,
     setActiveDiscoverFilter,
   } = useMedia();
+
+  const [localShowSpecials, setLocalShowSpecials] = useState<boolean>(showSeasonSpecials);
 
   const isTracked = 'status' in item;
   const id = item.id;
@@ -133,7 +136,7 @@ function TrackModalFormContent({
       existingRecord.watchedEpisodeKeys.forEach((k) => keys.add(k));
     } else if (existingRecord?.currentProgress && existingRecord.currentProgress > 0) {
       let remaining = existingRecord.currentProgress;
-      const seasonList = existingRecord.seasons || seasons;
+      const seasonList = (existingRecord.seasons || seasons).filter((s) => s.seasonNumber > 0);
       if (seasonList.length > 0) {
         for (const s of seasonList) {
           for (let e = 1; e <= s.episodeCount && remaining > 0; e++) {
@@ -230,8 +233,26 @@ function TrackModalFormContent({
     }
   };
 
-  // Total watched episodes count derived from watchedKeys
-  const watchedEpisodesCount = watchedKeys.size;
+  // Regular episodes count (seasons > 0)
+  const regularEpisodesCount = useMemo(() => {
+    let count = 0;
+    watchedKeys.forEach((k) => {
+      if (!k.startsWith('s0_')) count++;
+    });
+    return count;
+  }, [watchedKeys]);
+
+  // Specials watched count (season 0)
+  const specialsEpisodesCount = useMemo(() => {
+    let count = 0;
+    watchedKeys.forEach((k) => {
+      if (k.startsWith('s0_')) count++;
+    });
+    return count;
+  }, [watchedKeys]);
+
+  // Total canonical watched episodes count (excluding specials from progress totals)
+  const watchedEpisodesCount = regularEpisodesCount;
 
   // Responsive UI Scales derived from sizingConfig
   const synopsisFontSize =
@@ -435,7 +456,8 @@ function TrackModalFormContent({
 
   // Master episode counter: increment next unwatched episode
   const handleIncrementNextEpisode = () => {
-    const targetSeasons = seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }];
+    const regularList = seasons.filter((s) => s.seasonNumber > 0);
+    const targetSeasons = regularList.length > 0 ? regularList : (seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }]);
     setWatchedKeys((prev) => {
       const next = new Set(prev);
       for (const s of targetSeasons) {
@@ -443,7 +465,11 @@ function TrackModalFormContent({
           const key = `s${s.seasonNumber}_e${e}`;
           if (!next.has(key)) {
             next.add(key);
-            if (totalEpisodes && next.size >= totalEpisodes && status !== 'completed') {
+            let regularWatched = 0;
+            next.forEach((k) => {
+              if (!k.startsWith('s0_')) regularWatched++;
+            });
+            if (totalEpisodes && regularWatched >= totalEpisodes && status !== 'completed') {
               setStatus('completed');
               if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
             } else if (!status || status === 'plan_to_watch') {
@@ -460,7 +486,8 @@ function TrackModalFormContent({
 
   // Master episode counter: decrement last watched episode
   const handleDecrementLastEpisode = () => {
-    const targetSeasons = seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }];
+    const regularList = seasons.filter((s) => s.seasonNumber > 0);
+    const targetSeasons = regularList.length > 0 ? regularList : (seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }]);
     setWatchedKeys((prev) => {
       const next = new Set(prev);
       for (let si = targetSeasons.length - 1; si >= 0; si--) {
@@ -477,10 +504,15 @@ function TrackModalFormContent({
     });
   };
 
-  // Mark entire show as watched
+  // Mark entire show as watched (regular seasons)
   const handleMarkEntireShowWatched = () => {
-    const targetSeasons = seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }];
+    const regularList = seasons.filter((s) => s.seasonNumber > 0);
+    const targetSeasons = regularList.length > 0 ? regularList : (seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }]);
     const next = new Set<string>();
+    // Preserve any existing specials that were already marked watched
+    watchedKeys.forEach((k) => {
+      if (k.startsWith('s0_')) next.add(k);
+    });
     for (const s of targetSeasons) {
       for (let e = 1; e <= s.episodeCount; e++) {
         next.add(`s${s.seasonNumber}_e${e}`);
@@ -498,6 +530,50 @@ function TrackModalFormContent({
       setStatus('watching');
       setFinishedAt('');
     }
+  };
+
+  // TV Show fresh rewatch flow
+  const handleStartTvRewatch = () => {
+    Alert.alert(
+      'Start New Rewatch Run',
+      `Starting a rewatch will increment your total rewatch count to ${rewatchCount + 1} and reset your current watched episodes to 0 so you can track your new run from Episode 1.\n\nYour score, reviews, and completion history are preserved. Ready to begin?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Start Rewatch',
+          style: 'default',
+          onPress: () => {
+            setRewatchCount((c) => c + 1);
+            setStatus('watching');
+            setWatchedKeys(new Set<string>());
+            setStartedAt(getTodayDDMMYYYY());
+            setFinishedAt('');
+          },
+        },
+      ]
+    );
+  };
+
+  // Movie fresh rewatch flow
+  const handleStartMovieRewatch = () => {
+    Alert.alert(
+      'Start Movie Rewatch',
+      `Starting a rewatch will increment your rewatch count to ${rewatchCount + 1} and reset watched minutes to 0m so you can track your rewatch run.\n\nYour score and review are preserved. Ready to begin?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Start Rewatch',
+          style: 'default',
+          onPress: () => {
+            setRewatchCount((c) => c + 1);
+            setStatus('watching');
+            setMinutesWatched(0);
+            setStartedAt(getTodayDDMMYYYY());
+            setFinishedAt('');
+          },
+        },
+      ]
+    );
   };
 
   // Status Change with Date and Progress Sync
@@ -569,7 +645,7 @@ function TrackModalFormContent({
       // Movie
       runtimeMinutes,
       minutesWatched: mediaType === 'movie' ? minutesWatched : undefined,
-      rewatchCount: mediaType === 'movie' ? rewatchCount : undefined,
+      rewatchCount: rewatchCount > 0 ? rewatchCount : undefined,
 
       // Rich metadata
       tagline: detailedInfo?.tagline || existingRecord?.tagline,
@@ -622,13 +698,20 @@ function TrackModalFormContent({
   const finishedIsoForLabel = parseDDMMYYYYtoIso(finishedAt);
   const durationLabel = getDurationLabel(startedIsoForLabel, finishedIsoForLabel, status === 'completed');
 
-  // Display seasons
-  const displaySeasons: SeasonInfo[] =
-    seasons.length > 0
-      ? seasons
-      : totalEpisodes
-      ? [{ seasonNumber: 1, episodeCount: totalEpisodes, name: 'Season 1' }]
-      : [];
+  // Check if specials exist in seasons list
+  const hasSpecials = useMemo(() => {
+    return seasons.some((s) => s.seasonNumber === 0);
+  }, [seasons]);
+
+  // Display seasons (respecting local/global showSeasonSpecials toggle)
+  const displaySeasons: SeasonInfo[] = useMemo(() => {
+    if (seasons.length === 0) {
+      return totalEpisodes
+        ? [{ seasonNumber: 1, episodeCount: totalEpisodes, name: 'Season 1' }]
+        : [];
+    }
+    return localShowSpecials ? seasons : seasons.filter((s) => s.seasonNumber > 0);
+  }, [seasons, totalEpisodes, localShowSpecials]);
 
   const rawCastList = detailedInfo?.cast || [];
   const displayCast = localShowAllCast ? rawCastList : rawCastList.slice(0, 10);
@@ -1046,7 +1129,9 @@ function TrackModalFormContent({
                     <Text style={styles.sectionTitle}>Episodes Watched</Text>
                     <Text style={styles.progressSubtitle}>
                       {totalEpisodes
-                        ? `Overall: ${watchedEpisodesCount} of ${totalEpisodes} episodes`
+                        ? `Overall: ${watchedEpisodesCount} of ${totalEpisodes} episodes${
+                            specialsEpisodesCount > 0 ? ` (+${specialsEpisodesCount} specials)` : ''
+                          }`
                         : `${watchedEpisodesCount} episodes watched`}
                     </Text>
                   </View>
@@ -1101,13 +1186,70 @@ function TrackModalFormContent({
                     <Text style={styles.quickPillText}>Reset (0)</Text>
                   </Pressable>
                 </View>
+
+                {/* TV Rewatch Counter */}
+                <View style={styles.rewatchRow}>
+                  <View style={styles.rewatchInfo}>
+                    <Ionicons name="repeat" size={16} color="#38bdf8" />
+                    <Text style={styles.rewatchText}>Rewatched:</Text>
+                    <Text style={styles.rewatchCount}>
+                      {rewatchCount > 0 ? `${rewatchCount}×` : '0 times'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.rewatchControlGroup}>
+                    <Pressable
+                      style={[styles.rewatchMiniBtn, rewatchCount <= 0 && styles.stepperDisabled]}
+                      onPress={() => setRewatchCount((c) => Math.max(0, c - 1))}
+                      disabled={rewatchCount <= 0}>
+                      <Ionicons name="remove" size={14} color="#ffffff" />
+                    </Pressable>
+                    <Pressable
+                      style={styles.rewatchMiniBtn}
+                      onPress={() => setRewatchCount((c) => c + 1)}>
+                      <Ionicons name="add" size={14} color="#ffffff" />
+                    </Pressable>
+                    <Pressable
+                      style={styles.rewatchBtn}
+                      onPress={handleStartTvRewatch}>
+                      <Ionicons name="refresh" size={13} color="#ffffff" />
+                      <Text style={styles.rewatchBtnText}>Start Rewatch</Text>
+                    </Pressable>
+                  </View>
+                </View>
               </View>
 
               {/* Seasons & Episodes Breakdown Accordion */}
-              <Text style={styles.sectionTitle}>Seasons & Episodes</Text>
-              <Text style={styles.sectionSubHelp}>
-                Tap any episode to mark as watched. Tap a season header to expand its episodes.
-              </Text>
+              <View style={styles.seasonsHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>Seasons & Episodes</Text>
+                  <Text style={styles.sectionSubHelp}>
+                    Tap any episode to mark as watched. Tap a season header to expand.
+                  </Text>
+                </View>
+
+                {hasSpecials && (
+                  <Pressable
+                    style={[
+                      styles.specialsToggleBtn,
+                      localShowSpecials && styles.specialsToggleBtnActive,
+                    ]}
+                    onPress={() => setLocalShowSpecials((v) => !v)}>
+                    <Ionicons
+                      name={localShowSpecials ? 'sparkles' : 'sparkles-outline'}
+                      size={12}
+                      color={localShowSpecials ? '#38bdf8' : '#94a3b8'}
+                    />
+                    <Text
+                      style={[
+                        styles.specialsToggleBtnText,
+                        localShowSpecials && styles.specialsToggleBtnTextActive,
+                      ]}>
+                      Specials {localShowSpecials ? 'On' : 'Off'}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
 
               <View style={styles.seasonsAccordionContainer}>
                 {displaySeasons.map((season) => {
@@ -1140,17 +1282,38 @@ function TrackModalFormContent({
                             />
                           ) : (
                             <Ionicons
-                              name={isSeasonComplete ? 'checkmark-circle' : 'layers-outline'}
+                              name={
+                                isSeasonComplete
+                                  ? 'checkmark-circle'
+                                  : sNum === 0
+                                  ? 'sparkles'
+                                  : 'layers-outline'
+                              }
                               size={18}
-                              color={isSeasonComplete ? '#22c55e' : '#38bdf8'}
+                              color={
+                                isSeasonComplete
+                                  ? '#22c55e'
+                                  : sNum === 0
+                                  ? '#fbbf24'
+                                  : '#38bdf8'
+                              }
                             />
                           )}
                           <View style={styles.seasonTitleGroup}>
-                            <Text style={[styles.seasonNameText, { fontSize: seasonHeaderFontSize }]}>
-                              {season.name || `Season ${sNum}`}
-                            </Text>
+                            <View style={styles.seasonNameRow}>
+                              <Text style={[styles.seasonNameText, { fontSize: seasonHeaderFontSize }]}>
+                                {sNum === 0
+                                  ? (season.name || 'Specials')
+                                  : (season.name || `Season ${sNum}`)}
+                              </Text>
+                              {sNum === 0 && (
+                                <View style={styles.specialsBadge}>
+                                  <Text style={styles.specialsBadgeText}>Special</Text>
+                                </View>
+                              )}
+                            </View>
                             <Text style={styles.seasonMetaText}>
-                              {seasonWatched} / {epCount} watched
+                              {seasonWatched} / {epCount} watched{sNum === 0 ? ' (Bonus)' : ''}
                             </Text>
                           </View>
                         </View>
@@ -1389,14 +1552,30 @@ function TrackModalFormContent({
                 <View style={styles.rewatchInfo}>
                   <Ionicons name="repeat" size={16} color="#38bdf8" />
                   <Text style={styles.rewatchText}>Rewatched:</Text>
-                  <Text style={styles.rewatchCount}>{rewatchCount} times</Text>
+                  <Text style={styles.rewatchCount}>
+                    {rewatchCount > 0 ? `${rewatchCount}×` : '0 times'}
+                  </Text>
                 </View>
-                <Pressable
-                  style={styles.rewatchBtn}
-                  onPress={() => setRewatchCount((c) => c + 1)}>
-                  <Ionicons name="add" size={14} color="#ffffff" />
-                  <Text style={styles.rewatchBtnText}>Rewatch</Text>
-                </Pressable>
+
+                <View style={styles.rewatchControlGroup}>
+                  <Pressable
+                    style={[styles.rewatchMiniBtn, rewatchCount <= 0 && styles.stepperDisabled]}
+                    onPress={() => setRewatchCount((c) => Math.max(0, c - 1))}
+                    disabled={rewatchCount <= 0}>
+                    <Ionicons name="remove" size={14} color="#ffffff" />
+                  </Pressable>
+                  <Pressable
+                    style={styles.rewatchMiniBtn}
+                    onPress={() => setRewatchCount((c) => c + 1)}>
+                    <Ionicons name="add" size={14} color="#ffffff" />
+                  </Pressable>
+                  <Pressable
+                    style={styles.rewatchBtn}
+                    onPress={handleStartMovieRewatch}>
+                    <Ionicons name="refresh" size={13} color="#ffffff" />
+                    <Text style={styles.rewatchBtnText}>Start Rewatch</Text>
+                  </Pressable>
+                </View>
               </View>
             </View>
           )}
@@ -2299,18 +2478,83 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+  rewatchControlGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  rewatchMiniBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#1e2433',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#2b3345',
+  },
   rewatchBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: '#0284c7',
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderRadius: 6,
   },
   rewatchBtnText: {
     color: '#ffffff',
     fontSize: 11,
+    fontWeight: '700',
+  },
+  seasonsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    marginBottom: 4,
+    gap: 8,
+  },
+  specialsToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#0f172a',
+  },
+  specialsToggleBtnActive: {
+    borderColor: '#38bdf8',
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+  },
+  specialsToggleBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94a3b8',
+  },
+  specialsToggleBtnTextActive: {
+    color: '#38bdf8',
+    fontWeight: '700',
+  },
+  seasonNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  specialsBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.18)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+  },
+  specialsBadgeText: {
+    color: '#fbbf24',
+    fontSize: 10,
     fontWeight: '700',
   },
   scoreHeaderRow: {
