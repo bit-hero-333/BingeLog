@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, Text, StyleSheet, Pressable, View } from 'react-native';
 import { MediaStatus, STATUS_CONFIG } from '@/types/media';
 import { useAppTheme } from '@/context/ThemeContext';
+import { useMedia } from '@/context/MediaContext';
 
 export type FilterStatus = 'all' | MediaStatus;
 
@@ -17,6 +18,7 @@ export function StatusFilterChips({
   counts,
 }: StatusFilterChipsProps) {
   const { colors } = useAppTheme();
+  const { triggerHaptic } = useMedia();
 
   const options: { id: FilterStatus; label: string; color: string }[] = [
     { id: 'all', label: 'All', color: colors.primary },
@@ -47,7 +49,10 @@ export function StatusFilterChips({
                 borderColor: opt.color,
               },
             ]}
-            onPress={() => onSelect(opt.id)}>
+            onPress={() => {
+              triggerHaptic('selection');
+              onSelect(opt.id);
+            }}>
             <Text
               style={[
                 styles.chipText,

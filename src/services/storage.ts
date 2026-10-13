@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TrackedItem, SizingConfig, DEFAULT_SIZING_CONFIG } from '@/types/media';
 import { ThemeMode, ThemePresetId } from '@/constants/theme';
+import { HapticIntensity } from '@/services/haptics';
 
 export interface SavedThemeConfig {
   mode: ThemeMode;
@@ -19,6 +20,7 @@ const STORAGE_KEYS = {
   SHOW_SEASON_SPECIALS: '@pmt_show_season_specials',
   SIZING_CONFIG: '@pmt_sizing_config',
   THEME_CONFIG: '@pmt_theme_config',
+  HAPTIC_INTENSITY: '@pmt_haptic_intensity',
 };
 
 export const StorageService = {
@@ -262,6 +264,29 @@ export const StorageService = {
       return true;
     } catch (e) {
       console.error('Failed to save theme config', e);
+      return false;
+    }
+  },
+
+  async getHapticIntensity(): Promise<HapticIntensity> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.HAPTIC_INTENSITY);
+      if (val === 'off' || val === 'light' || val === 'medium' || val === 'heavy') {
+        return val;
+      }
+      return 'medium';
+    } catch (e) {
+      console.error('Failed to get haptic intensity', e);
+      return 'medium';
+    }
+  },
+
+  async saveHapticIntensity(intensity: HapticIntensity): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.HAPTIC_INTENSITY, intensity);
+      return true;
+    } catch (e) {
+      console.error('Failed to save haptic intensity', e);
       return false;
     }
   },

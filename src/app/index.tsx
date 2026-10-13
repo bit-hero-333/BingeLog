@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Keyboard,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -23,6 +24,9 @@ type MediaFilter = 'all' | 'movie' | 'tv';
 
 export default function DiscoverScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const numColumns = width >= 1100 ? 3 : width >= 700 ? 2 : 1;
+
   const { colors } = useAppTheme();
   const {
     apiKey,
@@ -32,6 +36,7 @@ export default function DiscoverScreen() {
     isLoadingStorage,
     activeDiscoverFilter,
     setActiveDiscoverFilter,
+    triggerHaptic,
   } = useMedia();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -173,6 +178,7 @@ export default function DiscoverScreen() {
   };
 
   const handleFilterChange = (filter: MediaFilter) => {
+    triggerHaptic('selection');
     setSelectedFilter(filter);
   };
 
@@ -320,7 +326,10 @@ export default function DiscoverScreen() {
         </View>
       ) : (
         <FlatList
+          key={`discover-grid-${numColumns}`}
           data={items}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : undefined}
           keyExtractor={(item) => `${item.media_type || 'm'}-${item.id}`}
           renderItem={({ item }) => {
             const mediaType: MediaType = item.media_type || 'movie';
@@ -331,6 +340,7 @@ export default function DiscoverScreen() {
                 trackedRecord={trackedRecord}
                 onPress={() => handleOpenTrackModal(item)}
                 onQuickTrack={() => handleOpenTrackModal(item)}
+                style={numColumns > 1 ? styles.gridCard : undefined}
               />
             );
           }}
@@ -601,5 +611,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     marginTop: 4,
+  },
+  columnWrapper: {
+    gap: 12,
+  },
+  gridCard: {
+    flex: 1,
+    marginBottom: 12,
   },
 });

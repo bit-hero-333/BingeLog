@@ -7,6 +7,7 @@ import {
   TextInput,
   Pressable,
   RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -23,7 +24,10 @@ type SortOption = 'updated' | 'score' | 'title';
 
 export default function MyListScreen() {
   const router = useRouter();
-  const { trackedItems, saveItem, saveItems, removeItem, stats, apiKey } = useMedia();
+  const { width } = useWindowDimensions();
+  const numColumns = width >= 1100 ? 3 : width >= 700 ? 2 : 1;
+
+  const { trackedItems, saveItem, saveItems, removeItem, stats, apiKey, triggerHaptic } = useMedia();
   const { colors } = useAppTheme();
 
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>('all');
@@ -139,11 +143,13 @@ export default function MyListScreen() {
   };
 
   const handleCardPress = (item: TrackedItem) => {
+    triggerHaptic('selection');
     setActiveItem(item);
     setModalVisible(true);
   };
 
   const cycleSort = () => {
+    triggerHaptic('selection');
     if (sortBy === 'updated') setSortBy('score');
     else if (sortBy === 'score') setSortBy('title');
     else setSortBy('updated');
@@ -208,13 +214,17 @@ export default function MyListScreen() {
 
       {/* Main List */}
       <FlatList
+        key={`mylist-grid-${numColumns}`}
         data={displayedItems}
+        numColumns={numColumns}
+        columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : undefined}
         keyExtractor={(item) => `${item.mediaType}-${item.id}`}
         renderItem={({ item }) => (
           <MediaCard
             item={item}
             trackedRecord={item}
             onPress={() => handleCardPress(item)}
+            style={numColumns > 1 ? styles.gridCard : undefined}
           />
         )}
         contentContainerStyle={styles.listContent}
@@ -382,5 +392,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '700',
+  },
+  columnWrapper: {
+    gap: 12,
+  },
+  gridCard: {
+    flex: 1,
+    marginBottom: 12,
   },
 });

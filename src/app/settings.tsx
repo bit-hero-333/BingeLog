@@ -34,6 +34,7 @@ import {
   SIZING_PRESETS,
 } from '@/types/media';
 
+
 const SCALES: ElementScale[] = ['small', 'medium', 'large', 'xlarge'];
 
 const SCALE_LABELS: Record<ElementScale, string> = {
@@ -68,6 +69,8 @@ export default function SettingsScreen() {
     setShowSeasonSpecials,
     sizingConfig,
     setSizingConfig,
+    hapticIntensity,
+    setHapticIntensity,
   } = useMedia();
 
   const {
@@ -1092,7 +1095,72 @@ export default function SettingsScreen() {
       </View>
 
       {/* ============================================================== */}
-      {/* 3. TMDB API KEY SECTION */}
+      {/* 3. HAPTIC FEEDBACK & TACTILE RESPONSES */}
+      {/* ============================================================== */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="hardware-chip-outline" size={20} color={colors.primary} />
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Haptic Feedback</Text>
+        </View>
+
+        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+          Control tactile vibrations for button presses, status updates, episode checkmarks, and rewatch steppers. Tap any level to test.
+        </Text>
+
+        <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>FEEDBACK INTENSITY</Text>
+        <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+          {(
+            [
+              { id: 'off', label: 'Off', icon: 'volume-mute-outline' },
+              { id: 'light', label: 'Light', icon: 'phone-portrait-outline' },
+              { id: 'medium', label: 'Medium', icon: 'hardware-chip-outline' },
+              { id: 'heavy', label: 'Heavy', icon: 'flash-outline' },
+            ] as const
+          ).map((opt) => {
+            const isSelected = hapticIntensity === opt.id;
+            return (
+              <Pressable
+                key={opt.id}
+                style={[
+                  styles.modeSegmentBtn,
+                  isSelected && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                ]}
+                onPress={() => {
+                  void setHapticIntensity(opt.id);
+                }}>
+                <Ionicons
+                  name={opt.icon}
+                  size={15}
+                  color={isSelected ? '#ffffff' : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.modeSegmentText,
+                    { color: isSelected ? '#ffffff' : colors.textSecondary },
+                  ]}>
+                  {opt.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={[styles.hapticHintRow, { backgroundColor: colors.cardSelected, borderColor: colors.cardBorder }]}>
+          <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
+          <Text style={[styles.hapticHintText, { color: colors.textSecondary }]}>
+            {hapticIntensity === 'off'
+              ? 'Tactile feedback is completely disabled.'
+              : hapticIntensity === 'light'
+              ? 'Gentle subtle clicks on taps and toggles.'
+              : hapticIntensity === 'medium'
+              ? 'Standard balanced tactile feel for key interactions (Default).'
+              : 'Strong, distinct vibrations for maximum tactile response.'}
+          </Text>
+        </View>
+      </View>
+
+      {/* ============================================================== */}
+      {/* 4. TMDB API KEY SECTION */}
       {/* ============================================================== */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <View style={styles.cardHeader}>
@@ -1470,7 +1538,7 @@ export default function SettingsScreen() {
           Independent hobby project. Not affiliated with, endorsed by, or associated with MyAnimeList (MAL) or The Movie Database (TMDB). All trademarks and copyrights belong to their respective owners.
         </Text>
 
-        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 1.0.8 • Build 2026.10 • Expo SDK 57</Text>
+        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 1.0.9 • Build 2026.10 • Expo SDK 57</Text>
       </View>
     </ScrollView>
   );
@@ -2266,5 +2334,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 10,
     fontWeight: '700',
+  },
+  hapticHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  hapticHintText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

@@ -1,21 +1,24 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, StyleProp, ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { TMDBMediaItem, TrackedItem, STATUS_CONFIG, MediaType } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
 import { formatDateDisplay, getRelativeTime, formatRuntime } from '@/utils/date';
 import { useAppTheme } from '@/context/ThemeContext';
+import { useMedia } from '@/context/MediaContext';
 
 interface MediaCardProps {
   item: TMDBMediaItem | TrackedItem;
   trackedRecord?: TrackedItem;
   onPress: () => void;
   onQuickTrack?: () => void;
+  style?: StyleProp<ViewStyle>;
 }
 
-export function MediaCard({ item, trackedRecord, onPress, onQuickTrack }: MediaCardProps) {
+export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }: MediaCardProps) {
   const { colors } = useAppTheme();
+  const { triggerHaptic } = useMedia();
   // Normalize fields between TMDBMediaItem and TrackedItem
   const isTrackedItem = 'status' in item;
   const title = ('title' in item && item.title) ? item.title : ('name' in item ? item.name : 'Untitled');
@@ -59,9 +62,13 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack }: MediaC
       style={({ pressed }) => [
         styles.card,
         { backgroundColor: colors.card, borderColor: colors.cardBorder },
+        style,
         pressed && styles.cardPressed,
       ]}
-      onPress={onPress}
+      onPress={() => {
+        triggerHaptic('selection');
+        onPress();
+      }}
       android_ripple={{ color: 'rgba(255, 255, 255, 0.05)' }}>
       {/* Poster */}
       <View style={[styles.posterContainer, { backgroundColor: colors.cardSelected }]}>

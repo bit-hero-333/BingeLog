@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { StorageService } from '@/services/storage';
+import { HapticsService, HapticIntensity } from '@/services/haptics';
 import {
   TrackedItem,
   MediaType,
@@ -46,6 +47,11 @@ interface MediaContextType {
   sizingConfig: SizingConfig;
   setSizingConfig: (config: SizingConfig) => Promise<boolean>;
 
+  // Haptic feedback
+  hapticIntensity: HapticIntensity;
+  setHapticIntensity: (intensity: HapticIntensity) => Promise<boolean>;
+  triggerHaptic: (type?: 'selection' | 'impact' | 'success' | 'warning' | 'error') => void;
+
   // Active Discover filter
   activeDiscoverFilter: DiscoverFilter | null;
   setActiveDiscoverFilter: (filter: DiscoverFilter | null) => void;
@@ -61,6 +67,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   const [showAllCast, setShowAllCastState] = useState(false);
   const [showSeasonSpecials, setShowSeasonSpecialsState] = useState(false);
   const [sizingConfig, setSizingConfigState] = useState<SizingConfig>(DEFAULT_SIZING_CONFIG);
+  const [hapticIntensity, setHapticIntensityState] = useState<HapticIntensity>('medium');
   const [activeDiscoverFilter, setActiveDiscoverFilter] = useState<DiscoverFilter | null>(null);
   const [isLoadingStorage, setIsLoadingStorage] = useState(true);
 
@@ -75,6 +82,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           savedAllCast,
           savedSeasonSpecials,
           savedSizing,
+          savedHaptic,
         ] = await Promise.all([
           StorageService.getApiKey(),
           StorageService.getTrackedItems(),
@@ -83,6 +91,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           StorageService.getShowAllCast(),
           StorageService.getShowSeasonSpecials(),
           StorageService.getSizingConfig(),
+          StorageService.getHapticIntensity(),
         ]);
         if (savedKey) setApiKeyState(savedKey);
         if (savedItems) setTrackedItems(savedItems);
@@ -91,6 +100,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setShowAllCastState(savedAllCast);
         setShowSeasonSpecialsState(savedSeasonSpecials);
         setSizingConfigState(savedSizing);
+        setHapticIntensityState(savedHaptic);
+        HapticsService.setIntensity(savedHaptic);
       } catch (e) {
         console.error('Failed to load initial data', e);
       } finally {
@@ -186,6 +197,20 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     return success;
   };
 
+  const setHapticIntensity = async (intensity: HapticIntensity): Promise<boolean> => {
+    const success = await StorageService.saveHapticIntensity(intensity);
+    if (success) {
+      setHapticIntensityState(intensity);
+      HapticsService.setIntensity(intensity);
+      HapticsService.triggerTest(intensity);
+    }
+    return success;
+  };
+
+  const triggerHaptic = (type: 'selection' | 'impact' | 'success' | 'warning' | 'error' = 'impact') => {
+    HapticsService.trigger(type);
+  };
+
   const stats = useMemo<MediaStats>(() => {
     let watching = 0;
     let planToWatch = 0;
@@ -258,6 +283,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setShowSeasonSpecials,
         sizingConfig,
         setSizingConfig,
+        hapticIntensity,
+        setHapticIntensity,
+        triggerHaptic,
         activeDiscoverFilter,
         setActiveDiscoverFilter,
       }}>

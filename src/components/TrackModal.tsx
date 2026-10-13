@@ -11,6 +11,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -75,7 +76,11 @@ function TrackModalFormContent({
     showSeasonSpecials,
     sizingConfig,
     setActiveDiscoverFilter,
+    triggerHaptic,
   } = useMedia();
+
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 720;
 
   const [localShowSpecials, setLocalShowSpecials] = useState<boolean>(showSeasonSpecials);
 
@@ -378,6 +383,7 @@ function TrackModalFormContent({
 
   // Load episodes of a specific season when expanded
   const handleToggleSeasonExpand = (seasonNumber: number) => {
+    triggerHaptic('selection');
     if (expandedSeason === seasonNumber) {
       setExpandedSeason(null);
       return;
@@ -398,6 +404,7 @@ function TrackModalFormContent({
 
   // Toggle single episode watched
   const handleToggleEpisode = (seasonNum: number, episodeNum: number) => {
+    triggerHaptic('impact');
     const key = `s${seasonNum}_e${episodeNum}`;
     setWatchedKeys((prev) => {
       const next = new Set(prev);
@@ -422,6 +429,7 @@ function TrackModalFormContent({
 
   // Mark all episodes of a season as watched or clear
   const handleToggleWholeSeason = (seasonNum: number, episodeCount: number) => {
+    triggerHaptic('impact');
     setWatchedKeys((prev) => {
       const next = new Set(prev);
       let allWatched = true;
@@ -456,6 +464,7 @@ function TrackModalFormContent({
 
   // Master episode counter: increment next unwatched episode
   const handleIncrementNextEpisode = () => {
+    triggerHaptic('impact');
     const regularList = seasons.filter((s) => s.seasonNumber > 0);
     const targetSeasons = regularList.length > 0 ? regularList : (seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }]);
     setWatchedKeys((prev) => {
@@ -486,6 +495,7 @@ function TrackModalFormContent({
 
   // Master episode counter: decrement last watched episode
   const handleDecrementLastEpisode = () => {
+    triggerHaptic('selection');
     const regularList = seasons.filter((s) => s.seasonNumber > 0);
     const targetSeasons = regularList.length > 0 ? regularList : (seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }]);
     setWatchedKeys((prev) => {
@@ -506,6 +516,7 @@ function TrackModalFormContent({
 
   // Mark entire show as watched (regular seasons)
   const handleMarkEntireShowWatched = () => {
+    triggerHaptic('success');
     const regularList = seasons.filter((s) => s.seasonNumber > 0);
     const targetSeasons = regularList.length > 0 ? regularList : (seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }]);
     const next = new Set<string>();
@@ -525,6 +536,7 @@ function TrackModalFormContent({
 
   // Reset all watched episodes
   const handleResetAllEpisodes = () => {
+    triggerHaptic('warning');
     setWatchedKeys(new Set<string>());
     if (status === 'completed') {
       setStatus('watching');
@@ -543,6 +555,7 @@ function TrackModalFormContent({
           text: 'Start Rewatch',
           style: 'default',
           onPress: () => {
+            triggerHaptic('success');
             setRewatchCount((c) => c + 1);
             setStatus('watching');
             setWatchedKeys(new Set<string>());
@@ -565,6 +578,7 @@ function TrackModalFormContent({
           text: 'Start Rewatch',
           style: 'default',
           onPress: () => {
+            triggerHaptic('success');
             setRewatchCount((c) => c + 1);
             setStatus('watching');
             setMinutesWatched(0);
@@ -578,6 +592,7 @@ function TrackModalFormContent({
 
   // Status Change with Date and Progress Sync
   const handleStatusChange = (newStatus: MediaStatus) => {
+    triggerHaptic('selection');
     setStatus(newStatus);
 
     if (newStatus === 'completed') {
@@ -597,6 +612,7 @@ function TrackModalFormContent({
 
   // Movie minutes watched change
   const handleMinutesChange = (newVal: number) => {
+    triggerHaptic('selection');
     const minVal = 0;
     const maxVal = runtimeMinutes && runtimeMinutes > 0 ? runtimeMinutes : 999;
     const clamped = Math.max(minVal, Math.min(newVal, maxVal));
@@ -613,6 +629,7 @@ function TrackModalFormContent({
 
   const handleSave = () => {
     if (!status) {
+      triggerHaptic('warning');
       Alert.alert(
         'Select a Status',
         'Please select a tracking status (such as Watching or Plan to Watch) before adding this item to your list.'
@@ -669,6 +686,7 @@ function TrackModalFormContent({
 
       notes: notes.trim(),
     };
+    triggerHaptic('success');
     onSave(record);
     onClose();
   };
@@ -683,6 +701,7 @@ function TrackModalFormContent({
           text: 'Remove',
           style: 'destructive',
           onPress: () => {
+            triggerHaptic('warning');
             if (onRemove) onRemove(id, mediaType);
             onClose();
           },
@@ -716,24 +735,9 @@ function TrackModalFormContent({
   const rawCastList = detailedInfo?.cast || [];
   const displayCast = localShowAllCast ? rawCastList : rawCastList.slice(0, 10);
 
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
-      style={styles.overlay}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-
-      <View style={styles.sheetContainer}>
-        {/* Header Handle Bar */}
-        <View style={styles.sheetHeader}>
-          <View style={styles.handle} />
-        </View>
-
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
-          {/* Media Summary Info */}
+  // 1. Media Summary Info
+  const renderMediaSummary = () => (
+    <>
           <View style={styles.mediaSummary}>
             <View style={styles.posterWrapper}>
               {posterUrl ? (
@@ -813,7 +817,12 @@ function TrackModalFormContent({
             </View>
           </View>
 
-          {/* Rich Media Details: Tagline, Genres, Synopsis, Cast & Credits */}
+    </>
+  );
+
+  // 2. Rich Media Details (tagline, genres, synopsis, cast, creators)
+  const renderRichInfo = () => (
+    <>
           <View style={styles.richInfoSection}>
             {detailedInfo?.tagline ? (
               <Text style={styles.taglineText}>&ldquo;{detailedInfo.tagline}&rdquo;</Text>
@@ -1077,7 +1086,12 @@ function TrackModalFormContent({
             ) : null}
           </View>
 
-          {/* Status Selector */}
+    </>
+  );
+
+  // 3. Status Selector
+  const renderStatusSelector = () => (
+    <>
           <View style={styles.statusHeaderRow}>
             <Text style={styles.sectionTitle}>Status</Text>
             {!status && (
@@ -1119,8 +1133,12 @@ function TrackModalFormContent({
             })}
           </View>
 
-          {/* TV Shows: Master Counter + Seasons Breakdown */}
-          {mediaType === 'tv' && (
+    </>
+  );
+
+  // 4. TV Episodes & Seasons Breakdown
+  const renderTvSection = () => (
+    <>
             <View style={styles.tvSection}>
               {/* Master Counter Header */}
               <View style={styles.progressCard}>
@@ -1200,13 +1218,19 @@ function TrackModalFormContent({
                   <View style={styles.rewatchControlGroup}>
                     <Pressable
                       style={[styles.rewatchMiniBtn, rewatchCount <= 0 && styles.stepperDisabled]}
-                      onPress={() => setRewatchCount((c) => Math.max(0, c - 1))}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        setRewatchCount((c) => Math.max(0, c - 1));
+                      }}
                       disabled={rewatchCount <= 0}>
                       <Ionicons name="remove" size={14} color="#ffffff" />
                     </Pressable>
                     <Pressable
                       style={styles.rewatchMiniBtn}
-                      onPress={() => setRewatchCount((c) => c + 1)}>
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        setRewatchCount((c) => c + 1);
+                      }}>
                       <Ionicons name="add" size={14} color="#ffffff" />
                     </Pressable>
                     <Pressable
@@ -1480,10 +1504,12 @@ function TrackModalFormContent({
                 })}
               </View>
             </View>
-          )}
+    </>
+  );
 
-          {/* Movies Section: Viewing Progress & Rewatches (NO episode counter) */}
-          {mediaType === 'movie' && (
+  // 5. Movie Viewing Progress
+  const renderMovieSection = () => (
+    <>
             <View style={styles.progressCard}>
               <View style={styles.progressHeaderRow}>
                 <View>
@@ -1560,13 +1586,19 @@ function TrackModalFormContent({
                 <View style={styles.rewatchControlGroup}>
                   <Pressable
                     style={[styles.rewatchMiniBtn, rewatchCount <= 0 && styles.stepperDisabled]}
-                    onPress={() => setRewatchCount((c) => Math.max(0, c - 1))}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        setRewatchCount((c) => Math.max(0, c - 1));
+                      }}
                     disabled={rewatchCount <= 0}>
                     <Ionicons name="remove" size={14} color="#ffffff" />
                   </Pressable>
                   <Pressable
                     style={styles.rewatchMiniBtn}
-                    onPress={() => setRewatchCount((c) => c + 1)}>
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        setRewatchCount((c) => c + 1);
+                      }}>
                     <Ionicons name="add" size={14} color="#ffffff" />
                   </Pressable>
                   <Pressable
@@ -1578,9 +1610,12 @@ function TrackModalFormContent({
                 </View>
               </View>
             </View>
-          )}
+    </>
+  );
 
-          {/* Score Selector (0-10) */}
+  // 6. Score Selector
+  const renderScoreSelector = () => (
+    <>
           <View style={styles.scoreHeaderRow}>
             <Text style={styles.sectionTitle}>Your Score</Text>
             <Text style={styles.scoreActiveLabel}>{currentScoreLabel}</Text>
@@ -1598,7 +1633,10 @@ function TrackModalFormContent({
                     styles.scorePill,
                     isSelected && styles.scorePillActive,
                   ]}
-                  onPress={() => setScore(s)}>
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setScore(s);
+                  }}>
                   <Text
                     style={[
                       styles.scorePillText,
@@ -1611,7 +1649,12 @@ function TrackModalFormContent({
             })}
           </ScrollView>
 
-          {/* Dates & Timeline Accordion with Dynamic DatePicker */}
+    </>
+  );
+
+  // 7. Dates & Timeline
+  const renderDatesSection = () => (
+    <>
           <View style={styles.datesCard}>
             <Pressable
               style={styles.datesCardHeader}
@@ -1726,6 +1769,12 @@ function TrackModalFormContent({
             )}
           </View>
 
+    </>
+  );
+
+  // 8. Personal Notes & Action Buttons
+  const renderNotesAndActions = () => (
+    <>
           {/* Notes Input (Keyboard avoiding & accessible) */}
           <Text style={styles.sectionTitle}>Personal Notes</Text>
           <TextInput
@@ -1774,7 +1823,74 @@ function TrackModalFormContent({
               </Pressable>
             )}
           </View>
-        </ScrollView>
+    </>
+  );
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+      style={[styles.overlay, isTablet && styles.tabletOverlay]}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+
+      <View style={[styles.sheetContainer, isTablet && styles.tabletSheetContainer]}>
+        {/* Header Handle / Bar */}
+        {isTablet ? (
+          <View style={styles.tabletHeaderBar}>
+            <View style={styles.handle} />
+            <Pressable onPress={onClose} style={styles.tabletCloseButton} hitSlop={10}>
+              <Ionicons name="close" size={22} color="#94a3b8" />
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.sheetHeader}>
+            <View style={styles.handle} />
+          </View>
+        )}
+
+        {isTablet ? (
+          /* Tablet Split-Pane: Left Tracking Pane & Right Content/Episode Pane */
+          <View style={styles.tabletBodyRow}>
+            {/* Left Pane (Tracking, Scores, Dates, Notes, Actions) */}
+            <ScrollView
+              style={styles.tabletLeftPane}
+              contentContainerStyle={styles.tabletPaneContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}>
+              {renderMediaSummary()}
+              {renderStatusSelector()}
+              {renderScoreSelector()}
+              {mediaType === 'movie' && renderMovieSection()}
+              {renderDatesSection()}
+              {renderNotesAndActions()}
+            </ScrollView>
+
+            {/* Right Pane (Rich Info, Cast, TV Episodes Checklist) */}
+            <ScrollView
+              style={styles.tabletRightPane}
+              contentContainerStyle={styles.tabletPaneContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}>
+              {renderRichInfo()}
+              {mediaType === 'tv' && renderTvSection()}
+            </ScrollView>
+          </View>
+        ) : (
+          /* Phone Single-Column Stack */
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
+            {renderMediaSummary()}
+            {renderRichInfo()}
+            {renderStatusSelector()}
+            {mediaType === 'tv' && renderTvSection()}
+            {mediaType === 'movie' && renderMovieSection()}
+            {renderScoreSelector()}
+            {renderDatesSection()}
+            {renderNotesAndActions()}
+          </ScrollView>
+        )}
       </View>
 
       {/* Interactive Visual DatePicker Modal */}
@@ -2766,5 +2882,52 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     opacity: 0.8,
+  },
+  tabletOverlay: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  tabletSheetContainer: {
+    width: '94%',
+    maxWidth: 1120,
+    maxHeight: '92%',
+    height: '88%',
+    borderRadius: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+  },
+  tabletHeaderBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    position: 'relative',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e2433',
+  },
+  tabletCloseButton: {
+    position: 'absolute',
+    right: 16,
+    top: 8,
+    padding: 6,
+  },
+  tabletBodyRow: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  tabletLeftPane: {
+    flex: 0.42,
+    borderRightWidth: 1,
+    borderRightColor: '#1e2433',
+  },
+  tabletRightPane: {
+    flex: 0.58,
+  },
+  tabletPaneContent: {
+    padding: 20,
+    paddingBottom: 60,
   },
 });
