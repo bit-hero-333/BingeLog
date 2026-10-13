@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,14 @@ import { Image } from 'expo-image';
 import { useMedia } from '@/context/MediaContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { TMDBService } from '@/services/tmdb';
+import {
+  getStorageMetrics,
+  formatBytes,
+  clearImageCache,
+  exportWatchlistBackup,
+  pickAndParseBackupFile,
+  StorageMetrics,
+} from '@/services/storageMetrics';
 import {
   THEME_PRESET_METAS,
   QUICK_ACCENTS,
@@ -49,6 +57,7 @@ export default function SettingsScreen() {
     removeApiKey,
     trackedItems,
     clearData,
+    importTrackedItems,
     showSeasonEpisodeImages,
     setShowSeasonEpisodeImages,
     showActorImages,
@@ -78,6 +87,13 @@ export default function SettingsScreen() {
   const [showKey, setShowKey] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ valid: boolean; message: string } | null>(null);
+
+  // Storage Metrics & Backup State
+  const [storageMetrics, setStorageMetrics] = useState<StorageMetrics | null>(null);
+  const [isLoadingStorageMetrics, setIsLoadingStorageMetrics] = useState(false);
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   // Manual hex input state
   const [hexInput, setHexInput] = useState(customAccent || '');
@@ -135,11 +151,145 @@ export default function SettingsScreen() {
           style: 'destructive',
           onPress: async () => {
             await clearData();
+            void loadStorageMetrics();
             Alert.alert('Cleared', 'All tracked media has been removed.');
           },
         },
       ]
     );
+  };
+
+  const loadStorageMetrics = useCallback(async () => {
+    setIsLoadingStorageMetrics(true);
+    try {
+      const metrics = await getStorageMetrics(trackedItems.length);
+      setStorageMetrics(metrics);
+    } catch (err) {
+      console.warn('Failed to calculate storage metrics', err);
+    } finally {
+      setIsLoadingStorageMetrics(false);
+    }
+  }, [trackedItems.length]);
+
+  useEffect(() => {
+    void loadStorageMetrics();
+  }, [loadStorageMetrics]);
+
+  const handleClearImageCache = () => {
+    Alert.alert(
+      'Clear Image Cache',
+      'This will remove all downloaded poster, backdrop, and actor images from device storage. Images will reload automatically when viewing items.\n\nYour tracked movies, TV shows, and watch progress will NOT be affected.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear Cache',
+          style: 'destructive',
+          onPress: async () => {
+            setIsClearingCache(true);
+            try {
+              const res = await clearImageCache();
+              await loadStorageMetrics();
+              if (res.success) {
+                Alert.alert(
+                  'Cache Cleared',
+                  `Successfully freed ${formatBytes(res.freedBytes)} of internal storage!`
+                );
+              } else {
+                Alert.alert('Notice', 'Image cache was cleared.');
+              }
+            } catch {
+              Alert.alert('Error', 'Failed to clear cache.');
+            } finally {
+              setIsClearingCache(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleExportBackup = async () => {
+    if (trackedItems.length === 0) {
+      Alert.alert('No Items to Export', 'You do not have any tracked media in your library yet.');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const res = await exportWatchlistBackup(trackedItems, {
+        showSeasonEpisodeImages,
+        showActorImages,
+        showAllCast,
+        showSeasonSpecials,
+        sizingConfig,
+      });
+
+      if (!res.success && res.message) {
+        Alert.alert('Export Notice', res.message);
+      }
+    } catch {
+      Alert.alert('Export Failed', 'An error occurred while creating the backup.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImportBackup = async () => {
+    setIsImporting(true);
+    try {
+      const res = await pickAndParseBackupFile();
+      if (res.canceled) {
+        return;
+      }
+
+      if (!res.success || !res.items) {
+        Alert.alert('Import Failed', res.error || 'Could not parse backup file.');
+        return;
+      }
+
+      const backupCount = res.items.length;
+      Alert.alert(
+        'Restore Watchlist Backup',
+        `Found ${backupCount} media ${backupCount === 1 ? 'item' : 'items'} in the backup file.\n\nHow would you like to restore?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Merge with Library',
+            onPress: async () => {
+              const count = await importTrackedItems(res.items!, 'merge');
+              await loadStorageMetrics();
+              Alert.alert('Restore Complete', `Your library now contains ${count} items.`);
+            },
+          },
+          {
+            text: 'Replace Library',
+            style: 'destructive',
+            onPress: () => {
+              Alert.alert(
+                'Confirm Overwrite',
+                `This will overwrite all ${trackedItems.length} current items with the ${backupCount} items from the backup file.\n\nAre you sure?`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Replace All',
+                    style: 'destructive',
+                    onPress: async () => {
+                      const count = await importTrackedItems(res.items!, 'replace');
+                      await loadStorageMetrics();
+                      Alert.alert('Library Replaced', `Successfully restored ${count} items.`);
+                    },
+                  },
+                ]
+              );
+            },
+          },
+        ]
+      );
+    } catch {
+      Alert.alert('Import Failed', 'Failed to import backup file.');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleStepSizing = (
@@ -1071,18 +1221,190 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* Data Management Section */}
+      {/* Storage & Data Section */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <View style={styles.cardHeader}>
-          <Ionicons name="server" size={20} color={colors.primary} />
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Storage & Data</Text>
+        <View style={styles.cardHeaderWithAction}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="server" size={20} color={colors.primary} />
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Storage & Data</Text>
+          </View>
+          <Pressable
+            style={[styles.refreshStorageBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+            onPress={() => void loadStorageMetrics()}
+            disabled={isLoadingStorageMetrics}>
+            {isLoadingStorageMetrics ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="refresh-outline" size={16} color={colors.primary} />
+            )}
+          </Pressable>
         </View>
 
-        <View style={styles.dataRow}>
-          <Text style={[styles.dataLabel, { color: colors.textSecondary }]}>Saved Media Items:</Text>
-          <Text style={[styles.dataValue, { color: colors.text }]}>{trackedItems.length}</Text>
+        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+          Inspect internal device capacity, local tracking database usage, and cached media assets.
+        </Text>
+
+        {/* Device Internal Storage Gauge */}
+        <View style={[styles.deviceStorageBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+          <View style={styles.deviceStorageHeader}>
+            <View style={styles.deviceStorageLabelRow}>
+              <Ionicons name="phone-portrait-outline" size={16} color={colors.primary} />
+              <Text style={[styles.deviceStorageTitle, { color: colors.text }]}>Internal Storage</Text>
+            </View>
+            <Text style={[styles.deviceStoragePercent, { color: colors.textSecondary }]}>
+              {storageMetrics?.deviceTotalBytes ? `${storageMetrics.deviceUsedPercent}% used` : 'Calculating...'}
+            </Text>
+          </View>
+
+          {/* Progress Bar */}
+          <View style={[styles.storageBarTrack, { backgroundColor: colors.cardBorder }]}>
+            <View
+              style={[
+                styles.storageBarFill,
+                {
+                  backgroundColor: colors.primary,
+                  width: `${Math.min(100, Math.max(2, storageMetrics?.deviceUsedPercent || 0))}%`,
+                },
+              ]}
+            />
+          </View>
+
+          <View style={styles.deviceStorageFooter}>
+            <Text style={[styles.deviceStorageFootText, { color: colors.textSecondary }]}>
+              {storageMetrics?.deviceTotalBytes
+                ? `${formatBytes(storageMetrics.deviceUsedBytes)} used of ${formatBytes(storageMetrics.deviceTotalBytes)}`
+                : 'Reading device storage...'}
+            </Text>
+            <Text style={[styles.deviceStorageFootText, { color: colors.primary, fontWeight: '700' }]}>
+              {storageMetrics?.deviceFreeBytes
+                ? `${formatBytes(storageMetrics.deviceFreeBytes)} free`
+                : ''}
+            </Text>
+          </View>
         </View>
 
+        {/* CineLog Data Breakdown */}
+        <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 14 }]}>
+          CINELOG STORAGE BREAKDOWN
+        </Text>
+
+        <View style={[styles.breakdownContainer, { borderColor: colors.cardBorder }]}>
+          {/* Saved Media Library */}
+          <View style={[styles.breakdownRow, { borderBottomColor: colors.cardBorder }]}>
+            <View style={styles.breakdownIconWrap}>
+              <Ionicons name="film-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.breakdownTextWrap}>
+              <Text style={[styles.breakdownTitle, { color: colors.text }]}>Tracked Library</Text>
+              <Text style={[styles.breakdownSubtitle, { color: colors.textSecondary }]}>
+                {trackedItems.length} {trackedItems.length === 1 ? 'item' : 'items'} saved with watch progress
+              </Text>
+            </View>
+            <Text style={[styles.breakdownSize, { color: colors.text }]}>
+              {formatBytes(storageMetrics?.librarySizeBytes || 0)}
+            </Text>
+          </View>
+
+          {/* Preferences & Config */}
+          <View style={[styles.breakdownRow, { borderBottomColor: colors.cardBorder }]}>
+            <View style={styles.breakdownIconWrap}>
+              <Ionicons name="options-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.breakdownTextWrap}>
+              <Text style={[styles.breakdownTitle, { color: colors.text }]}>Settings & Themes</Text>
+              <Text style={[styles.breakdownSubtitle, { color: colors.textSecondary }]}>
+                UI scales, display toggles, custom theme
+              </Text>
+            </View>
+            <Text style={[styles.breakdownSize, { color: colors.text }]}>
+              {formatBytes(storageMetrics?.configSizeBytes || 0)}
+            </Text>
+          </View>
+
+          {/* Image & Poster Cache */}
+          <View style={styles.breakdownRow}>
+            <View style={styles.breakdownIconWrap}>
+              <Ionicons name="image-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.breakdownTextWrap}>
+              <Text style={[styles.breakdownTitle, { color: colors.text }]}>Image & Poster Cache</Text>
+              <Text style={[styles.breakdownSubtitle, { color: colors.textSecondary }]}>
+                Downloaded posters, backdrops, actor photos
+              </Text>
+            </View>
+            <Text style={[styles.breakdownSize, { color: colors.text }]}>
+              {formatBytes(storageMetrics?.imageCacheSizeBytes || 0)}
+            </Text>
+          </View>
+        </View>
+
+        {/* Clear Image Cache Button */}
+        <Pressable
+          style={[
+            styles.clearCacheBtn,
+            { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+            isClearingCache && styles.btnDisabled,
+          ]}
+          onPress={handleClearImageCache}
+          disabled={isClearingCache}>
+          {isClearingCache ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="brush-outline" size={16} color={colors.primary} />
+          )}
+          <Text style={[styles.clearCacheBtnText, { color: colors.primary }]}>
+            Clear Image Cache
+          </Text>
+        </Pressable>
+
+        <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
+
+        {/* Backup & Restore Section */}
+        <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>
+          BACKUP & RESTORE
+        </Text>
+        <Text style={[styles.backupDesc, { color: colors.textSecondary }]}>
+          Export your watchlist, ratings, reviews, and progress to an offline JSON file, or restore from a previous backup.
+        </Text>
+
+        <View style={styles.backupButtonsRow}>
+          <Pressable
+            style={[
+              styles.backupBtn,
+              { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+              (isExporting || trackedItems.length === 0) && styles.btnDisabled,
+            ]}
+            onPress={handleExportBackup}
+            disabled={isExporting || trackedItems.length === 0}>
+            {isExporting ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="share-outline" size={16} color={colors.primary} />
+            )}
+            <Text style={[styles.backupBtnText, { color: colors.primary }]}>Export Backup</Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.backupBtn,
+              { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+              isImporting && styles.btnDisabled,
+            ]}
+            onPress={handleImportBackup}
+            disabled={isImporting}>
+            {isImporting ? (
+              <ActivityIndicator size="small" color={colors.text} />
+            ) : (
+              <Ionicons name="folder-open-outline" size={16} color={colors.text} />
+            )}
+            <Text style={[styles.backupBtnText, { color: colors.text }]}>Import Backup</Text>
+          </Pressable>
+        </View>
+
+        <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
+
+        {/* Danger Zone: Clear All Tracked Data */}
+        <Text style={[styles.subControlLabel, { color: '#ef4444' }]}>DANGER ZONE</Text>
         <Pressable
           style={[
             styles.clearBtn,
@@ -1148,7 +1470,7 @@ export default function SettingsScreen() {
           Independent hobby project. Not affiliated with, endorsed by, or associated with MyAnimeList (MAL) or The Movie Database (TMDB). All trademarks and copyrights belong to their respective owners.
         </Text>
 
-        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 1.0.7 • Build 2026.10 • Expo SDK 57</Text>
+        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 1.0.8 • Build 2026.10 • Expo SDK 57</Text>
       </View>
     </ScrollView>
   );
@@ -1727,6 +2049,140 @@ const styles = StyleSheet.create({
   clearBtnText: {
     color: '#ef4444',
     fontSize: 14,
+    fontWeight: '700',
+  },
+  cardHeaderWithAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  refreshStorageBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deviceStorageBox: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  deviceStorageHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  deviceStorageLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  deviceStorageTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  deviceStoragePercent: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  storageBarTrack: {
+    height: 7,
+    borderRadius: 4,
+    overflow: 'hidden',
+    width: '100%',
+    marginBottom: 8,
+  },
+  storageBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  deviceStorageFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  deviceStorageFootText: {
+    fontSize: 11,
+  },
+  breakdownContainer: {
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+  },
+  breakdownIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  breakdownTextWrap: {
+    flex: 1,
+  },
+  breakdownTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  breakdownSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  breakdownSize: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  clearCacheBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  clearCacheBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  backupDesc: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  backupButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  backupBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  backupBtnText: {
+    fontSize: 13,
     fontWeight: '700',
   },
   infoCard: {

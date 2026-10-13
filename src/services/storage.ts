@@ -266,6 +266,43 @@ export const StorageService = {
     }
   },
 
+  async importTrackedItems(items: TrackedItem[], mode: 'merge' | 'replace'): Promise<TrackedItem[]> {
+    try {
+      let finalItems: TrackedItem[] = [];
+      if (mode === 'replace') {
+        finalItems = items.map((item) => ({
+          ...item,
+          updatedAt: item.updatedAt || new Date().toISOString(),
+        }));
+      } else {
+        const existing = await this.getTrackedItems();
+        const map = new Map<string, TrackedItem>();
+        existing.forEach((i) => map.set(`${i.mediaType}_${i.id}`, i));
+        items.forEach((i) => {
+          const key = `${i.mediaType}_${i.id}`;
+          const current = map.get(key);
+          if (current) {
+            map.set(key, {
+              ...current,
+              ...i,
+              rewatchCount: Math.max(current.rewatchCount || 0, i.rewatchCount || 0) || undefined,
+              updatedAt: new Date().toISOString(),
+            });
+          } else {
+            map.set(key, { ...i, updatedAt: i.updatedAt || new Date().toISOString() });
+          }
+        });
+        finalItems = Array.from(map.values());
+      }
+
+      await AsyncStorage.setItem(STORAGE_KEYS.TRACKED_ITEMS, JSON.stringify(finalItems));
+      return finalItems;
+    } catch (e) {
+      console.error('Failed to import tracked items', e);
+      throw e;
+    }
+  },
+
   async clearAllData(): Promise<boolean> {
     try {
       await AsyncStorage.multiRemove([STORAGE_KEYS.TRACKED_ITEMS]);

@@ -30,6 +30,7 @@ interface MediaContextType {
   getTrackedStatus: (id: number, mediaType: MediaType) => TrackedItem | undefined;
   stats: MediaStats;
   clearData: () => Promise<void>;
+  importTrackedItems: (items: TrackedItem[], mode: 'merge' | 'replace') => Promise<number>;
 
   // Display toggles
   showSeasonEpisodeImages: boolean;
@@ -139,6 +140,12 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     setTrackedItems([]);
   };
 
+  const importTrackedItems = async (items: TrackedItem[], mode: 'merge' | 'replace'): Promise<number> => {
+    const updated = await StorageService.importTrackedItems(items, mode);
+    setTrackedItems(updated);
+    return updated.length;
+  };
+
   const setShowSeasonEpisodeImages = async (enabled: boolean): Promise<boolean> => {
     const success = await StorageService.saveShowSeasonEpisodeImages(enabled);
     if (success) {
@@ -240,6 +247,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         getTrackedStatus,
         stats,
         clearData,
+        importTrackedItems,
         showSeasonEpisodeImages,
         setShowSeasonEpisodeImages,
         showActorImages,
