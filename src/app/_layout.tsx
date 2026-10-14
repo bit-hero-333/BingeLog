@@ -49,7 +49,7 @@ function TabLayoutContent() {
           name="index"
           options={{
             title: 'Discover',
-            headerTitle: 'CineLog',
+            headerTitle: 'BingeLog',
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="compass-outline" size={size} color={color} />
             ),

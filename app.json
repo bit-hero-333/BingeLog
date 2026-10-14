@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "CineLog",
+    "name": "BingeLog",
     "slug": "PersonalMediaTracker",
-    "version": "1.0.9",
+    "version": "0.1.10",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "cinelog",
+    "scheme": "bingelog",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"

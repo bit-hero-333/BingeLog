@@ -1,56 +1,91 @@
-# Welcome to your Expo app 👋
+# BingeLog 🍿
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+> A MyAnimeList-inspired tracker for Movies & TV Shows, built with React Native and Expo SDK 57.
 
-## Get started
+---
 
-1. Install dependencies
+> [!IMPORTANT]
+> ### ⚠️ Personal Hobby Project / "Vibe-Coded" Disclaimer
+> **BingeLog is an independent personal hobby application built with heavy AI assistance (vibe-coding).**
+>
+> - **Zero Tech Support:** The creator is not a full-time software developer and will not provide technical support, troubleshooting, or bug fixes for external users.
+> - **Issues & Discussions Disabled:** GitHub Issues, Pull Requests, Discussions, and Wiki are intentionally disabled.
+> - **Provided "As-Is":** This code is released under the MIT License for educational, personal, and hobbyist enjoyment. If you choose to use or compile it, you do so at your own discretion. Feel free to fork and customize it however you like!
 
+---
+
+## ✨ Features
+
+- **🎬 MAL-Style Media Tracking:** Track Movies, TV Series, and Anime with familiar statuses: *Watching*, *Completed*, *On-Hold*, *Dropped*, and *Plan to Watch*.
+- **📺 Episode Progress & Rewatching:** Granular episode counters, season breakdowns, rewatch counters, 1–10 score rating, and personal notes.
+- **📱 Responsive Layout & Tablet Split-Pane:** Custom-tailored layouts for both mobile phones and tablets (including large screens like the Galaxy Tab S9 FE+ with adaptive 4–6 column grids and side-by-side inspection panes).
+- **📳 Customizable Haptic Feedback:** Native tactile responses with selectable intensity levels (*Light*, *Medium*, *Heavy*, or *Disabled*).
+- **🎨 Theme Engine & Live Preview:** Supports system appearance, Dark, Light, true AMOLED Black, and custom TMDB-inspired color schemes, paired with customizable UI scale settings.
+- **💾 Local-First & Privacy-Focused:** All data remains stored directly on your device. Includes detailed storage diagnostics, image cache cleanup, and export/import of full JSON backups.
+- **⚡ Direct Local Wi-Fi Sync:** Transfer and merge your library between phone and tablet seamlessly over your home Wi-Fi network using ephemeral QR pairing—no cloud servers, logins, or accounts required.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Framework:** [React Native](https://reactnative.dev/) & [Expo SDK 57](https://expo.dev/)
+- **Navigation:** [Expo Router](https://docs.expo.dev/router/introduction/) (file-based routing)
+- **Language:** TypeScript
+- **Storage:** Local storage via `@react-native-async-storage/async-storage` & `expo-file-system`
+- **Metadata:** [The Movie Database (TMDB)](https://www.themoviedb.org/) API
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js (v18 or higher recommended)
+- npm or bun
+- A free API Read Access Token or API Key from [The Movie Database (TMDB)](https://www.themoviedb.org/)
+
+### Installation
+
+1. Clone your fork of the repository:
+   ```bash
+   git clone https://github.com/<your-username>/BingeLog.git
+   cd BingeLog
+   ```
+
+2. Install dependencies:
    ```bash
    npm install
    ```
 
-2. Start the app
+3. Configure TMDB API Key:
+   - Create a `.env` file in the project root:
+     ```env
+     EXPO_PUBLIC_TMDB_API_KEY=your_tmdb_api_key_or_token_here
+     ```
+   - *Alternatively, enter your TMDB key directly in the app's Settings screen.*
 
+4. Start the development server:
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+---
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 📱 Building Standalone APK (Android)
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+To build a standalone APK without requiring local Android Studio or SDK configuration, use Expo Application Services (EAS):
 
 ```bash
-npm run reset-project
+# Log in to your Expo account
+npx eas-cli login
+
+# Build a standalone preview APK
+npx eas-cli build -p android --profile preview
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-### Other setup steps
+## ⚖️ Attribution & Disclaimers
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- **TMDB Attribution:** This product uses the TMDB API but is not endorsed or certified by [TMDB](https://www.themoviedb.org/). All movie and TV metadata, posters, backdrops, and cast information are provided courtesy of The Movie Database.
+- **MyAnimeList:** BingeLog is an independent project inspired by the MAL status tracking workflow and is not affiliated with, endorsed by, or associated with MyAnimeList Co., Ltd.
+- **License:** Released under the [MIT License](LICENSE).

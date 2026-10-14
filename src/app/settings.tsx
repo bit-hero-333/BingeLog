@@ -1351,9 +1351,9 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* CineLog Data Breakdown */}
+        {/* BingeLog Data Breakdown */}
         <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 14 }]}>
-          CINELOG STORAGE BREAKDOWN
+          BINGELOG STORAGE BREAKDOWN
         </Text>
 
         <View style={[styles.breakdownContainer, { borderColor: colors.cardBorder }]}>
@@ -1517,7 +1517,7 @@ export default function SettingsScreen() {
       {/* App Identity, AI Development Credits & Disclaimers */}
       <View style={[styles.infoCard, { backgroundColor: colors.cardSelected, borderColor: colors.cardBorder }]}>
         <View style={styles.appTitleBadgeRow}>
-          <Text style={[styles.infoTitle, { color: colors.text }]}>CineLog</Text>
+          <Text style={[styles.infoTitle, { color: colors.text }]}>BingeLog</Text>
           <View style={[styles.vibeBadge, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
             <Ionicons name="sparkles" size={11} color={colors.primary} />
             <Text style={[styles.vibeBadgeText, { color: colors.primary }]}>Vibe-Coded</Text>
@@ -1538,7 +1538,7 @@ export default function SettingsScreen() {
           Independent hobby project. Not affiliated with, endorsed by, or associated with MyAnimeList (MAL) or The Movie Database (TMDB). All trademarks and copyrights belong to their respective owners.
         </Text>
 
-        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 1.0.9 • Build 2026.10 • Expo SDK 57</Text>
+        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 0.1.10 • Build 2026.10 • Expo SDK 57</Text>
       </View>
     </ScrollView>
   );

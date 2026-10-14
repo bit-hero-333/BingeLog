@@ -168,8 +168,8 @@ export async function exportWatchlistBackup(
 ): Promise<{ success: boolean; message?: string }> {
   try {
     const backup: BackupData = {
-      app: 'CineLog',
-      version: '1.0.8',
+      app: 'BingeLog',
+      version: '0.1.10',
       exportedAt: new Date().toISOString(),
       itemCount: trackedItems.length,
       trackedItems,
@@ -177,7 +177,7 @@ export async function exportWatchlistBackup(
     };
 
     const dateStr = new Date().toISOString().split('T')[0];
-    const fileName = `cinelog-backup-${dateStr}.json`;
+    const fileName = `bingelog-backup-${dateStr}.json`;
     const file = new File(Paths.cache, fileName);
 
     if (file.exists) {
@@ -197,7 +197,7 @@ export async function exportWatchlistBackup(
 
     await Sharing.shareAsync(file.uri, {
       mimeType: 'application/json',
-      dialogTitle: 'Export CineLog Backup',
+      dialogTitle: 'Export BingeLog Backup',
       UTI: 'public.json',
     });
 
