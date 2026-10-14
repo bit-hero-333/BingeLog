@@ -1,6 +1,6 @@
 # BingeLog 🍿
 
-> A MyAnimeList-inspired tracker for Movies & TV Shows, built with React Native and Expo SDK 57.
+> A [MyAnimeList](https://myanimelist.net/)-inspired tracker for Movies & TV Shows, built with React Native and Expo SDK 57.
 
 ---
 
@@ -16,14 +16,21 @@
 
 ## ✨ Features
 
-- **🎬 MAL-Style Media Tracking:** Track Movies, TV Series, and Anime with familiar statuses: *Watching*, *Completed*, *On-Hold*, *Dropped*, and *Plan to Watch*.
-- **📺 Episode Progress & Rewatching:** Granular episode counters, season breakdowns, rewatch counters, 1–10 score rating, and personal notes.
-- **📱 Responsive Layout & Tablet Split-Pane:** Custom-tailored layouts for both mobile phones and tablets (including large screens with adaptive 2–3 column grids and side-by-side inspection panes).
-- **📳 Customizable Haptic Feedback:** Native tactile responses with selectable intensity levels (*Light*, *Medium*, *Heavy*, or *Disabled*).
-- **🎨 Theme Engine & Live Preview:** Supports system appearance, Dark, Light, true AMOLED Black, and custom TMDB-inspired color schemes, paired with customizable UI scale settings.
-- **📅 Customizable Date Formats:** Choose your preferred date display (`DD.MM.YYYY`, `MM/DD/YYYY`, `YYYY-MM-DD`, `DD/MM/YYYY`, `MMM D, YYYY`, or `D MMM YYYY`) with live previews.
-- **💾 Local-First & Privacy-Focused:** All data remains stored directly on your device. Includes detailed storage diagnostics, image cache cleanup, and export/import of full JSON backups.
-- **🛜 Dual-Mode Device Sync:** Transfer and merge your library between phone and tablet seamlessly using either **Instant Relay** (`🛜🔄` 6-digit PIN / QR) or **Air-Gapped Offline Mode** (`🛜🚫` animated camera QR flipbook)—no cloud servers, logins, or accounts required.
+### Tracking & Library
+- **Status Workflows:** Track Movies, TV Series, and Anime with familiar statuses: *Watching*, *Completed*, *On-Hold*, *Dropped*, and *Plan to Watch*.
+- **Progress & Rewatches:** Granular episode counters, season breakdowns, rewatch tally, 1–10 score rating, and personal notes.
+- **Rich Metadata:** Synopsis, genre tags, air dates, cast carousels, and trailer previews powered by TMDB.
+
+### Interface & Customization
+- **Responsive Layouts:** Custom-tailored layouts for phones and tablets, including adaptive multi-column grids and side-by-side inspection panes on large screens.
+- **Theme Engine:** Supports system appearance, Dark, Light, true AMOLED Black, and custom color accents, paired with live preview cards.
+- **Granular Sizing Controls:** Adjustable UI density presets and steppers for text, poster cards, episode thumbnails, and cast avatars.
+- **Tactile Responses:** Native haptic feedback with selectable intensity levels (Off, Light, Medium, Heavy) using intuitive dot level indicators.
+- **Customizable Date Formats:** Choose your preferred date display (`DD.MM.YYYY`, `MM/DD/YYYY`, `YYYY-MM-DD`, `DD/MM/YYYY`, `MMM D, YYYY`, or `D MMM YYYY`) with live previews.
+
+### Data & Sync
+- **Dual-Mode Device Sync:** Transfer and merge your library between phone and tablet seamlessly using either Instant Relay (6-digit PIN / QR) or Air-Gapped Offline Mode (animated camera QR code scanner)—no cloud accounts or signups required.
+- **Local-First & Privacy-Focused:** All data remains stored directly on your device. Includes detailed storage diagnostics, image cache cleanup, and export/import of full JSON backups.
 
 ---
 
@@ -88,5 +95,5 @@ npx eas-cli build -p android --profile preview
 ## ⚖️ Attribution & Disclaimers
 
 - **TMDB Attribution:** This product uses the TMDB API but is not endorsed or certified by [TMDB](https://www.themoviedb.org/). All movie and TV metadata, posters, backdrops, and cast information are provided courtesy of The Movie Database.
-- **MyAnimeList:** BingeLog is an independent project inspired by the MAL status tracking workflow and is not affiliated with, endorsed by, or associated with MyAnimeList Co., Ltd.
+- **MyAnimeList Attribution:** BingeLog is an independent project inspired by the MAL status tracking workflow and is not affiliated with, endorsed by, or associated with [MyAnimeList](https://myanimelist.net/) (MyAnimeList Co., Ltd.).
 - **License:** Released under the [MIT License](LICENSE).

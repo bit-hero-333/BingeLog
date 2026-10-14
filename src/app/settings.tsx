@@ -1118,10 +1118,10 @@ export default function SettingsScreen() {
         <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
           {(
             [
-              { id: 'off', label: 'Off', icon: 'volume-mute-outline' },
-              { id: 'light', label: 'Light', icon: 'phone-portrait-outline' },
-              { id: 'medium', label: 'Medium', icon: 'hardware-chip-outline' },
-              { id: 'heavy', label: 'Heavy', icon: 'flash-outline' },
+              { id: 'off', label: 'Off', dots: 0 },
+              { id: 'light', label: 'Light', dots: 1 },
+              { id: 'medium', label: 'Medium', dots: 2 },
+              { id: 'heavy', label: 'Heavy', dots: 3 },
             ] as const
           ).map((opt) => {
             const isSelected = hapticIntensity === opt.id;
@@ -1135,11 +1135,25 @@ export default function SettingsScreen() {
                 onPress={() => {
                   void setHapticIntensity(opt.id);
                 }}>
-                <Ionicons
-                  name={opt.icon}
-                  size={15}
-                  color={isSelected ? '#ffffff' : colors.textSecondary}
-                />
+                {opt.dots === 0 ? (
+                  <Ionicons
+                    name="close-circle-outline"
+                    size={14}
+                    color={isSelected ? '#ffffff' : colors.textSecondary}
+                  />
+                ) : (
+                  <View style={styles.hapticDotsRow}>
+                    {Array.from({ length: opt.dots }).map((_, i) => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.hapticDot,
+                          { backgroundColor: isSelected ? '#ffffff' : colors.textSecondary },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                )}
                 <Text
                   style={[
                     styles.modeSegmentText,
@@ -1619,7 +1633,7 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={[styles.infoSub, { color: colors.textSecondary }]}>
-          MyAnimeList-inspired tracker for Movies & TV Shows.
+          Independent media tracker for Movies & TV Shows.
         </Text>
 
         <Text style={[styles.infoAiCredit, { color: colors.textSecondary }]}>
@@ -1629,10 +1643,21 @@ export default function SettingsScreen() {
         <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, width: '100%', marginVertical: 10 }]} />
 
         <Text style={[styles.disclaimerText, { color: colors.textMuted }]}>
-          Independent hobby project. Not affiliated with, endorsed by, or associated with MyAnimeList (MAL) or The Movie Database (TMDB). All trademarks and copyrights belong to their respective owners.
+          Independent hobby project. Not affiliated with, endorsed by, or associated with{' '}
+          <Text
+            style={{ color: colors.primary, textDecorationLine: 'underline' }}
+            onPress={() => void Linking.openURL('https://myanimelist.net')}>
+            MyAnimeList (MAL)
+          </Text>{' '}
+          or{' '}
+          <Text
+            style={{ color: colors.primary, textDecorationLine: 'underline' }}
+            onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
+            The Movie Database (TMDB)
+          </Text>. All trademarks, logos, and copyrights belong to their respective owners.
         </Text>
 
-        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 0.11.0 • Build 2026.10 • Expo SDK 57</Text>
+        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 0.12.0 • Build 2026.10 • Expo SDK 57</Text>
       </View>
 
       {/* Device-to-Device Sync Modal */}
@@ -2437,6 +2462,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 10,
     fontWeight: '700',
+  },
+  hapticDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    height: 14,
+  },
+  hapticDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   hapticHintRow: {
     flexDirection: 'row',
