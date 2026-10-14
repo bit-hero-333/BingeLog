@@ -1632,7 +1632,7 @@ export default function SettingsScreen() {
           Independent hobby project. Not affiliated with, endorsed by, or associated with MyAnimeList (MAL) or The Movie Database (TMDB). All trademarks and copyrights belong to their respective owners.
         </Text>
 
-        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 0.1.12 • Build 2026.10 • Expo SDK 57</Text>
+        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 0.11.0 • Build 2026.10 • Expo SDK 57</Text>
       </View>
 
       {/* Device-to-Device Sync Modal */}
