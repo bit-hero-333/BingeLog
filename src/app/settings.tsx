@@ -35,6 +35,7 @@ import {
   DATE_FORMAT_OPTIONS,
 } from '@/types/media';
 import { getTodayFormatted } from '@/utils/date';
+import { SyncModal } from '@/components/SyncModal';
 
 
 const SCALES: ElementScale[] = ['small', 'medium', 'large', 'xlarge'];
@@ -102,6 +103,7 @@ export default function SettingsScreen() {
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Manual hex input state
   const [hexInput, setHexInput] = useState(customAccent || '');
@@ -1493,6 +1495,32 @@ export default function SettingsScreen() {
 
         <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
 
+        {/* Device-to-Device Sync */}
+        <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>
+          DEVICE SYNC & TRANSFER
+        </Text>
+        <Text style={[styles.backupDesc, { color: colors.textSecondary }]}>
+          Sync your watchlist directly with your tablet or phone using 🛜🔄 Instant Relay (6-digit PIN) or 🛜🚫 Air-Gapped Offline QR.
+        </Text>
+
+        <Pressable
+          style={[styles.syncDeviceBtn, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}
+          onPress={() => {
+            triggerHaptic('selection');
+            setShowSyncModal(true);
+          }}>
+          <Ionicons name="sync-circle" size={24} color={colors.primary} />
+          <View style={styles.syncDeviceBtnTextWrap}>
+            <Text style={[styles.syncDeviceBtnTitle, { color: colors.primary }]}>Sync with Nearby Device</Text>
+            <Text style={[styles.syncDeviceBtnSub, { color: colors.textSecondary }]}>
+              🛜🔄 Instant 6-digit relay • 🛜🚫 Offline camera QR
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+        </Pressable>
+
+        <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
+
         {/* Backup & Restore Section */}
         <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>
           BACKUP & RESTORE
@@ -1604,8 +1632,17 @@ export default function SettingsScreen() {
           Independent hobby project. Not affiliated with, endorsed by, or associated with MyAnimeList (MAL) or The Movie Database (TMDB). All trademarks and copyrights belong to their respective owners.
         </Text>
 
-        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 0.1.11 • Build 2026.10 • Expo SDK 57</Text>
+        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 0.1.12 • Build 2026.10 • Expo SDK 57</Text>
       </View>
+
+      {/* Device-to-Device Sync Modal */}
+      <SyncModal
+        visible={showSyncModal}
+        onClose={() => setShowSyncModal(false)}
+        onSyncComplete={() => {
+          void getStorageMetrics(trackedItems.length).then((metrics) => setStorageMetrics(metrics));
+        }}
+      />
     </ScrollView>
   );
 }
@@ -2463,5 +2500,26 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  syncDeviceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  syncDeviceBtnTextWrap: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  syncDeviceBtnTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  syncDeviceBtnSub: {
+    fontSize: 11,
+    marginTop: 2,
   },
 });

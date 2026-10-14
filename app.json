@@ -2,7 +2,7 @@
   "expo": {
     "name": "BingeLog",
     "slug": "PersonalMediaTracker",
-    "version": "0.1.11",
+    "version": "0.1.12",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "bingelog",
@@ -35,7 +35,13 @@
           "imageWidth": 120
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow BingeLog to use your camera to scan sync QR codes from your other devices."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
