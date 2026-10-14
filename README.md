@@ -29,7 +29,7 @@
 - **Customizable Date Formats:** Choose your preferred date display (`DD.MM.YYYY`, `MM/DD/YYYY`, `YYYY-MM-DD`, `DD/MM/YYYY`, `MMM D, YYYY`, or `D MMM YYYY`) with live previews.
 
 ### Data & Sync
-- **Dual-Mode Device Sync:** Transfer and merge your library between phone and tablet seamlessly using either Instant Relay (6-digit PIN / QR) or Air-Gapped Offline Mode (animated camera QR code scanner)—no cloud accounts or signups required.
+- **Dual-Mode Device Sync:** Transfer and merge your library between different devices seamlessly using either Instant Relay (6-digit PIN / QR) or Air-Gapped Offline Mode (animated camera QR code scanner)—no cloud accounts or signups required.
 - **Local-First & Privacy-Focused:** All data remains stored directly on your device. Includes detailed storage diagnostics, image cache cleanup, and export/import of full JSON backups.
 
 ---
