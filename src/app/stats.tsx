@@ -503,12 +503,23 @@ export default function StatsScreen() {
                 : '0';
 
               return (
-                <View key={genre.name} style={styles.genreItemRow}>
-                  <View style={styles.genreLeft}>
-                    <Text style={[styles.genreRank, { color: colors.textMuted }]}>#{idx + 1}</Text>
-                    <Text style={[styles.genreName, { color: colors.text }]} numberOfLines={1} selectable={true}>
-                      {genre.name}
-                    </Text>
+                <View key={genre.name} style={styles.genreItemCard}>
+                  <View style={styles.genreMetaRow}>
+                    <View style={styles.genreLeft}>
+                      <Text style={[styles.genreRank, { color: colors.textMuted }]}>#{idx + 1}</Text>
+                      <Text style={[styles.genreName, { color: colors.text }]} selectable={true}>
+                        {genre.name}
+                      </Text>
+                    </View>
+
+                    <View style={styles.genreRight}>
+                      <Text style={[styles.genreCount, { color: colors.text }]} selectable={true}>
+                        {genre.count}
+                      </Text>
+                      <Text style={[styles.genrePct, { color: colors.textMuted }]}>
+                        ({pct}%)
+                      </Text>
+                    </View>
                   </View>
 
                   <View style={[styles.genreTrack, { backgroundColor: colors.inputBg }]}>
@@ -521,15 +532,6 @@ export default function StatsScreen() {
                         },
                       ]}
                     />
-                  </View>
-
-                  <View style={styles.genreRight}>
-                    <Text style={[styles.genreCount, { color: colors.text }]} selectable={true}>
-                      {genre.count}
-                    </Text>
-                    <Text style={[styles.genrePct, { color: colors.textMuted }]}>
-                      {pct}%
-                    </Text>
                   </View>
                 </View>
               );
@@ -815,23 +817,27 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   genresList: {
-    gap: 10,
+    gap: 12,
   },
-  genreItemRow: {
+  genreItemCard: {
+    gap: 6,
+  },
+  genreMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
   },
   genreLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 100,
+    flex: 1,
     gap: 6,
+    marginRight: 8,
   },
   genreRank: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    width: 20,
+    width: 24,
   },
   genreName: {
     fontSize: 13,
@@ -839,28 +845,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   genreTrack: {
-    flex: 1,
-    height: 8,
-    borderRadius: 4,
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   genreFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 3,
   },
   genreRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    width: 44,
-    justifyContent: 'flex-end',
   },
   genreCount: {
     fontSize: 12,
     fontWeight: '700',
   },
   genrePct: {
-    fontSize: 10,
+    fontSize: 11,
   },
   emptyContainer: {
     alignItems: 'center',
