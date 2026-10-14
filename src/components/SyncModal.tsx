@@ -9,6 +9,9 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
+  useWindowDimensions,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
@@ -42,16 +45,42 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
   const { colors } = useAppTheme();
   const {
     trackedItems,
-    saveItems,
+    importTrackedItems,
     triggerHaptic,
     showSeasonEpisodeImages,
+    setShowSeasonEpisodeImages,
     showActorImages,
+    setShowActorImages,
     showAllCast,
+    setShowAllCast,
     showSeasonSpecials,
+    setShowSeasonSpecials,
     sizingConfig,
+    setSizingConfig,
     hapticIntensity,
+    setHapticIntensity,
     dateFormat,
+    setDateFormat,
   } = useMedia();
+
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isTablet = windowWidth >= 720;
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => setKeyboardHeight(e.endCoordinates.height)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardHeight(0)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Navigation tab
   const [activeTab, setActiveTab] = useState<'send' | 'receive'>('send');
@@ -325,7 +354,7 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
 
     try {
       const merged = mergeLibraries(trackedItems, pendingPayload.trackedItems);
-      await saveItems(merged);
+      await importTrackedItems(merged, 'replace');
       triggerHaptic('success');
       Alert.alert(
         'Sync Complete! 🍿',
@@ -364,9 +393,35 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
             setIsApplyingSync(true);
             triggerHaptic('impact');
             try {
-              await saveItems(pendingPayload.trackedItems);
+              await importTrackedItems(pendingPayload.trackedItems, 'replace');
+
+              // If settings are included in incoming payload, apply them
+              if (pendingPayload.settings) {
+                if (typeof pendingPayload.settings.showSeasonEpisodeImages === 'boolean') {
+                  void setShowSeasonEpisodeImages(pendingPayload.settings.showSeasonEpisodeImages);
+                }
+                if (typeof pendingPayload.settings.showActorImages === 'boolean') {
+                  void setShowActorImages(pendingPayload.settings.showActorImages);
+                }
+                if (typeof pendingPayload.settings.showAllCast === 'boolean') {
+                  void setShowAllCast(pendingPayload.settings.showAllCast);
+                }
+                if (typeof pendingPayload.settings.showSeasonSpecials === 'boolean') {
+                  void setShowSeasonSpecials(pendingPayload.settings.showSeasonSpecials);
+                }
+                if (pendingPayload.settings.sizingConfig) {
+                  void setSizingConfig(pendingPayload.settings.sizingConfig);
+                }
+                if (pendingPayload.settings.hapticIntensity) {
+                  void setHapticIntensity(pendingPayload.settings.hapticIntensity);
+                }
+                if (pendingPayload.settings.dateFormat) {
+                  void setDateFormat(pendingPayload.settings.dateFormat);
+                }
+              }
+
               triggerHaptic('success');
-              Alert.alert('Library Replaced', 'Your library has been overwritten with the synced items.', [
+              Alert.alert('Library Replaced', `Your library has been overwritten with the ${pendingPayload.trackedItems.length} synced items.`, [
                 {
                   text: 'OK',
                   onPress: () => {
@@ -403,7 +458,30 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <View style={styles.overlay}>
-        <View style={[styles.dialogSheet, { backgroundColor: colors.background, borderColor: colors.cardBorder }]}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => {
+            if (keyboardHeight > 0) {
+              Keyboard.dismiss();
+            } else {
+              handleClose();
+            }
+          }}
+        />
+        <View
+          style={[
+            styles.dialogSheet,
+            {
+              backgroundColor: colors.background,
+              borderColor: colors.cardBorder,
+              marginBottom: keyboardHeight,
+              maxHeight: keyboardHeight > 0
+                ? Math.max(280, windowHeight - keyboardHeight - 30)
+                : isTablet
+                ? '85%'
+                : '90%',
+            },
+          ]}>
           {/* Header */}
           <View style={[styles.headerRow, { borderBottomColor: colors.cardBorder }]}>
             <View style={styles.headerLeft}>
@@ -423,7 +501,10 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
 
           {/* Review Diff Modal Sub-view */}
           {pendingPayload && diffSummary ? (
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled">
               <View style={[styles.reviewCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                 <View style={styles.reviewHeaderRow}>
                   <Ionicons name="checkmark-done-circle" size={28} color={colors.primary} />
@@ -574,7 +655,10 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
             /* ============================================================== */
             /* MAIN SEND / RECEIVE DASHBOARD */
             /* ============================================================== */
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled">
               {/* Primary Send / Receive Toggle */}
               <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
                 <Pressable

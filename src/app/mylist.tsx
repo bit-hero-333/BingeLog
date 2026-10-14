@@ -218,6 +218,8 @@ export default function MyListScreen() {
         data={displayedItems}
         numColumns={numColumns}
         columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : undefined}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         keyExtractor={(item) => `${item.mediaType}-${item.id}`}
         renderItem={({ item }) => (
           <MediaCard

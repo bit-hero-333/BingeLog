@@ -417,6 +417,8 @@ export default function SettingsScreen() {
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.contentContainer}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
       showsVerticalScrollIndicator={false}>
       {/* ============================================================== */}
       {/* 1. THEME & COLOR CUSTOMIZATION SECTION */}
@@ -1657,7 +1659,7 @@ export default function SettingsScreen() {
           </Text>. All trademarks, logos, and copyrights belong to their respective owners.
         </Text>
 
-        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 0.12.0 • Build 2026.10 • Expo SDK 57</Text>
+        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 0.12.1 • Build 2026.10 • Expo SDK 57</Text>
       </View>
 
       {/* Device-to-Device Sync Modal */}

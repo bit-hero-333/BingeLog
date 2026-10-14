@@ -7,7 +7,7 @@ import {
   Pressable,
   ScrollView,
   TextInput,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Alert,
   ActivityIndicator,
@@ -80,8 +80,24 @@ function TrackModalFormContent({
     dateFormat,
   } = useMedia();
 
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
   const isTablet = width >= 720;
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => setKeyboardHeight(e.endCoordinates.height)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardHeight(0)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const [localShowSpecials, setLocalShowSpecials] = useState<boolean>(showSeasonSpecials);
 
@@ -1828,13 +1844,32 @@ function TrackModalFormContent({
   );
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
-      style={[styles.overlay, isTablet && styles.tabletOverlay]}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
+    <View style={[styles.overlay, isTablet && styles.tabletOverlay]}>
+      <Pressable
+        style={styles.backdrop}
+        onPress={() => {
+          if (keyboardHeight > 0) {
+            Keyboard.dismiss();
+          } else {
+            onClose();
+          }
+        }}
+      />
 
-      <View style={[styles.sheetContainer, isTablet && styles.tabletSheetContainer]}>
+      <View
+        style={[
+          styles.sheetContainer,
+          isTablet && styles.tabletSheetContainer,
+          {
+            marginBottom: keyboardHeight,
+            maxHeight:
+              keyboardHeight > 0
+                ? Math.max(300, windowHeight - keyboardHeight - (isTablet ? 60 : 30))
+                : isTablet
+                ? '90%'
+                : '94%',
+          },
+        ]}>
         {/* Header Handle / Bar */}
         {isTablet ? (
           <View style={styles.tabletHeaderBar}>
@@ -1857,6 +1892,7 @@ function TrackModalFormContent({
               style={styles.tabletLeftPane}
               contentContainerStyle={styles.tabletPaneContent}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={true}>
               {renderMediaSummary()}
               {renderStatusSelector()}
@@ -1871,6 +1907,7 @@ function TrackModalFormContent({
               style={styles.tabletRightPane}
               contentContainerStyle={styles.tabletPaneContent}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={true}>
               {renderRichInfo()}
               {mediaType === 'tv' && renderTvSection()}
@@ -1879,8 +1916,12 @@ function TrackModalFormContent({
         ) : (
           /* Phone Single-Column Stack */
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: keyboardHeight > 0 ? 30 : 60 },
+            ]}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}>
             {renderMediaSummary()}
             {renderRichInfo()}
@@ -1953,7 +1994,7 @@ function TrackModalFormContent({
           onClose={() => setSelectedEpisodeForDetail(null)}
         />
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

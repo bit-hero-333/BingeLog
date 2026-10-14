@@ -330,6 +330,8 @@ export default function DiscoverScreen() {
           data={items}
           numColumns={numColumns}
           columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : undefined}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           keyExtractor={(item) => `${item.media_type || 'm'}-${item.id}`}
           renderItem={({ item }) => {
             const mediaType: MediaType = item.media_type || 'movie';
