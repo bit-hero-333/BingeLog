@@ -8,6 +8,8 @@ import {
   Pressable,
   RefreshControl,
   useWindowDimensions,
+  ScrollView,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -20,19 +22,50 @@ import { StatsHeader } from '@/components/StatsHeader';
 import { StatusFilterChips, FilterStatus } from '@/components/StatusFilterChips';
 import { TrackModal } from '@/components/TrackModal';
 
-type SortOption = 'updated' | 'score' | 'title';
+type MediaTypeFilter = 'all' | 'movie' | 'tv';
+
+type SortOption =
+  | 'updated'
+  | 'added'
+  | 'title_asc'
+  | 'title_desc'
+  | 'score_desc'
+  | 'score_asc'
+  | 'release_desc'
+  | 'release_asc';
+
+interface SortOptionConfig {
+  id: SortOption;
+  label: string;
+  shortLabel: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}
+
+const SORT_OPTIONS: SortOptionConfig[] = [
+  { id: 'updated', label: 'Recently Updated', shortLabel: 'Recent', icon: 'time-outline' },
+  { id: 'added', label: 'Date Added (Newest)', shortLabel: 'Added', icon: 'calendar-outline' },
+  { id: 'title_asc', label: 'Title (A → Z)', shortLabel: 'A → Z', icon: 'text-outline' },
+  { id: 'title_desc', label: 'Title (Z → A)', shortLabel: 'Z → A', icon: 'text-outline' },
+  { id: 'score_desc', label: 'User Score (Highest)', shortLabel: 'Score ↓', icon: 'star' },
+  { id: 'score_asc', label: 'User Score (Lowest)', shortLabel: 'Score ↑', icon: 'star-outline' },
+  { id: 'release_desc', label: 'Release Year (Newest)', shortLabel: 'Year ↓', icon: 'film-outline' },
+  { id: 'release_asc', label: 'Release Year (Oldest)', shortLabel: 'Year ↑', icon: 'film-outline' },
+];
 
 export default function MyListScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const numColumns = width >= 1100 ? 3 : width >= 700 ? 2 : 1;
 
-  const { trackedItems, saveItem, saveItems, removeItem, stats, apiKey, triggerHaptic } = useMedia();
+  const { trackedItems, saveItems, saveItem, removeItem, stats, apiKey, triggerHaptic } = useMedia();
   const { colors } = useAppTheme();
 
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaTypeFilter>('all');
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>('all');
+  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('updated');
+  const [sortModalVisible, setSortModalVisible] = useState(false);
 
   // Pull-to-refresh metadata sync state
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -42,26 +75,77 @@ export default function MyListScreen() {
   const [activeItem, setActiveItem] = useState<TrackedItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  // Status counts for chips
+  // Movie vs TV counts
+  const movieCount = useMemo(
+    () => trackedItems.filter((i) => i.mediaType === 'movie').length,
+    [trackedItems]
+  );
+  const tvCount = useMemo(
+    () => trackedItems.filter((i) => i.mediaType === 'tv').length,
+    [trackedItems]
+  );
+
+  // Status counts dynamically tailored to selected mediaTypeFilter
   const statusCounts = useMemo<Record<FilterStatus, number>>(() => {
+    const baseItems =
+      mediaTypeFilter === 'all'
+        ? trackedItems
+        : trackedItems.filter((i) => i.mediaType === mediaTypeFilter);
+
     const counts: Record<FilterStatus, number> = {
-      all: trackedItems.length,
-      watching: stats.watching,
-      plan_to_watch: stats.planToWatch,
-      completed: stats.completed,
-      on_hold: stats.onHold,
-      dropped: stats.dropped,
+      all: baseItems.length,
+      watching: 0,
+      plan_to_watch: 0,
+      completed: 0,
+      on_hold: 0,
+      dropped: 0,
     };
+
+    baseItems.forEach((i) => {
+      if (counts[i.status] !== undefined) {
+        counts[i.status]++;
+      }
+    });
+
     return counts;
-  }, [trackedItems.length, stats]);
+  }, [trackedItems, mediaTypeFilter]);
+
+  // Unique genres in current library / media type selection
+  const availableGenres = useMemo(() => {
+    const baseItems =
+      mediaTypeFilter === 'all'
+        ? trackedItems
+        : trackedItems.filter((i) => i.mediaType === mediaTypeFilter);
+
+    const genreMap = new Map<string, number>();
+    baseItems.forEach((item) => {
+      item.genres?.forEach((g) => {
+        genreMap.set(g, (genreMap.get(g) || 0) + 1);
+      });
+    });
+
+    return Array.from(genreMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [trackedItems, mediaTypeFilter]);
 
   // Filtered & sorted items
   const displayedItems = useMemo(() => {
     let result = [...trackedItems];
 
+    // Filter by Media Type
+    if (mediaTypeFilter !== 'all') {
+      result = result.filter((i) => i.mediaType === mediaTypeFilter);
+    }
+
     // Filter by status
     if (selectedStatus !== 'all') {
       result = result.filter((i) => i.status === selectedStatus);
+    }
+
+    // Filter by genre
+    if (selectedGenre) {
+      result = result.filter((i) => i.genres?.includes(selectedGenre));
     }
 
     // Filter by query
@@ -72,18 +156,35 @@ export default function MyListScreen() {
 
     // Sort
     result.sort((a, b) => {
-      if (sortBy === 'score') {
-        return (b.userScore || 0) - (a.userScore || 0);
+      switch (sortBy) {
+        case 'title_asc':
+          return a.title.localeCompare(b.title);
+        case 'title_desc':
+          return b.title.localeCompare(a.title);
+        case 'score_desc':
+          return (b.userScore || 0) - (a.userScore || 0);
+        case 'score_asc':
+          return (a.userScore || 0) - (b.userScore || 0);
+        case 'release_desc': {
+          const yearA = parseInt(a.releaseYear || '0', 10);
+          const yearB = parseInt(b.releaseYear || '0', 10);
+          return yearB - yearA;
+        }
+        case 'release_asc': {
+          const yearA = parseInt(a.releaseYear || '9999', 10);
+          const yearB = parseInt(b.releaseYear || '9999', 10);
+          return yearA - yearB;
+        }
+        case 'added':
+          return new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime();
+        case 'updated':
+        default:
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       }
-      if (sortBy === 'title') {
-        return a.title.localeCompare(b.title);
-      }
-      // 'updated'
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
 
     return result;
-  }, [trackedItems, selectedStatus, filterQuery, sortBy]);
+  }, [trackedItems, mediaTypeFilter, selectedStatus, selectedGenre, filterQuery, sortBy]);
 
   const handleRefresh = async () => {
     if (!apiKey) {
@@ -148,24 +249,10 @@ export default function MyListScreen() {
     setModalVisible(true);
   };
 
-  const cycleSort = () => {
-    triggerHaptic('selection');
-    if (sortBy === 'updated') setSortBy('score');
-    else if (sortBy === 'score') setSortBy('title');
-    else setSortBy('updated');
-  };
-
-  const getSortLabel = () => {
-    switch (sortBy) {
-      case 'score':
-        return 'Score';
-      case 'title':
-        return 'A-Z';
-      case 'updated':
-      default:
-        return 'Recent';
-    }
-  };
+  const activeSortLabel = useMemo(() => {
+    const found = SORT_OPTIONS.find((s) => s.id === sortBy);
+    return found ? found.shortLabel : 'Recent';
+  }, [sortBy]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -189,10 +276,87 @@ export default function MyListScreen() {
 
         <Pressable
           style={[styles.sortButton, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-          onPress={cycleSort}>
+          onPress={() => {
+            triggerHaptic('selection');
+            setSortModalVisible(true);
+          }}>
           <Ionicons name="swap-vertical" size={14} color={colors.primary} />
-          <Text style={[styles.sortButtonText, { color: colors.primary }]}>{getSortLabel()}</Text>
+          <Text style={[styles.sortButtonText, { color: colors.primary }]}>{activeSortLabel}</Text>
         </Pressable>
+      </View>
+
+      {/* Media Type Segmented Pills (All | Movies | TV Shows) */}
+      <View style={styles.mediaTypeSection}>
+        <View style={[styles.mediaTypeSegmentContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <Pressable
+            style={[
+              styles.mediaTypePill,
+              mediaTypeFilter === 'all' && [styles.mediaTypePillActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
+            ]}
+            onPress={() => {
+              triggerHaptic('selection');
+              setMediaTypeFilter('all');
+            }}>
+            <Ionicons
+              name="layers-outline"
+              size={13}
+              color={mediaTypeFilter === 'all' ? colors.primary : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.mediaTypePillText,
+                { color: mediaTypeFilter === 'all' ? colors.primary : colors.textSecondary },
+              ]}>
+              All ({trackedItems.length})
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.mediaTypePill,
+              mediaTypeFilter === 'movie' && [styles.mediaTypePillActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
+            ]}
+            onPress={() => {
+              triggerHaptic('selection');
+              setMediaTypeFilter('movie');
+            }}>
+            <Ionicons
+              name="film-outline"
+              size={13}
+              color={mediaTypeFilter === 'movie' ? colors.primary : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.mediaTypePillText,
+                { color: mediaTypeFilter === 'movie' ? colors.primary : colors.textSecondary },
+              ]}>
+              Movies ({movieCount})
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.mediaTypePill,
+              mediaTypeFilter === 'tv' && [styles.mediaTypePillActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
+            ]}
+            onPress={() => {
+              triggerHaptic('selection');
+              setMediaTypeFilter('tv');
+            }}>
+            <Ionicons
+              name="tv-outline"
+              size={13}
+              color={mediaTypeFilter === 'tv' ? colors.primary : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.mediaTypePillText,
+                { color: mediaTypeFilter === 'tv' ? colors.primary : colors.textSecondary },
+              ]}>
+              TV Shows ({tvCount})
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Sync Banner notification */}
@@ -211,6 +375,58 @@ export default function MyListScreen() {
           counts={statusCounts}
         />
       </View>
+
+      {/* Optional Genre Filter Chips */}
+      {availableGenres.length > 0 && (
+        <View style={[styles.genreChipsRowContainer, { borderBottomColor: colors.divider }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.genreScrollContent}>
+            <Pressable
+              style={[
+                styles.genreChip,
+                { backgroundColor: selectedGenre === null ? colors.primaryBg : colors.card, borderColor: selectedGenre === null ? colors.primary : colors.cardBorder },
+              ]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setSelectedGenre(null);
+              }}>
+              <Text
+                style={[
+                  styles.genreChipText,
+                  { color: selectedGenre === null ? colors.primary : colors.textSecondary, fontWeight: selectedGenre === null ? '700' : '500' },
+                ]}>
+                All Genres
+              </Text>
+            </Pressable>
+
+            {availableGenres.map(({ name, count }) => {
+              const isSelected = selectedGenre === name;
+              return (
+                <Pressable
+                  key={name}
+                  style={[
+                    styles.genreChip,
+                    {
+                      backgroundColor: isSelected ? colors.primaryBg : colors.card,
+                      borderColor: isSelected ? colors.primary : colors.cardBorder,
+                    },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setSelectedGenre(isSelected ? null : name);
+                  }}>
+                  <Text
+                    style={[
+                      styles.genreChipText,
+                      { color: isSelected ? colors.primary : colors.textSecondary, fontWeight: isSelected ? '700' : '500' },
+                    ]}>
+                    {name} ({count})
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Main List */}
       <FlatList
@@ -255,15 +471,15 @@ export default function MyListScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="bookmark-outline" size={52} color={colors.textMuted} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            <Text style={[styles.emptyTitle, { color: colors.text }]} selectable={true}>
               {trackedItems.length === 0
                 ? 'Your list is empty'
                 : 'No matching titles found'}
             </Text>
-            <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
+            <Text style={[styles.emptySub, { color: colors.textSecondary }]} selectable={true}>
               {trackedItems.length === 0
                 ? 'Explore trending movies & TV shows and add them to your tracker.'
-                : 'Try changing your status filter or search keyword.'}
+                : 'Try changing your filters, genre selection, or search keyword.'}
             </Text>
 
             {trackedItems.length === 0 && (
@@ -277,6 +493,72 @@ export default function MyListScreen() {
           </View>
         }
       />
+
+      {/* Sort Options Modal */}
+      <Modal
+        visible={sortModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSortModalVisible(false)}>
+        <Pressable style={styles.sortModalBackdrop} onPress={() => setSortModalVisible(false)}>
+          <Pressable
+            style={[styles.sortModalCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+            onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.sortModalHeader, { borderBottomColor: colors.divider }]}>
+              <View style={styles.sortModalHeaderTitleRow}>
+                <Ionicons name="swap-vertical" size={18} color={colors.primary} />
+                <Text style={[styles.sortModalTitle, { color: colors.text }]} selectable={true}>Sort Watchlist</Text>
+              </View>
+              <Pressable
+                onPress={() => setSortModalVisible(false)}
+                hitSlop={8}
+                style={styles.sortModalCloseBtn}>
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.sortOptionsList} showsVerticalScrollIndicator={false}>
+              {SORT_OPTIONS.map((opt) => {
+                const isSelected = sortBy === opt.id;
+                return (
+                  <Pressable
+                    key={opt.id}
+                    style={[
+                      styles.sortOptionRow,
+                      { borderBottomColor: colors.divider },
+                      isSelected && { backgroundColor: colors.primaryBg },
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setSortBy(opt.id);
+                      setSortModalVisible(false);
+                    }}>
+                    <View style={styles.sortOptionLeft}>
+                      <Ionicons
+                        name={opt.icon}
+                        size={17}
+                        color={isSelected ? colors.primary : colors.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          styles.sortOptionLabel,
+                          { color: isSelected ? colors.primary : colors.text },
+                          isSelected && { fontWeight: '700' },
+                        ]}>
+                        {opt.label}
+                      </Text>
+                    </View>
+
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={19} color={colors.primary} />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Track / Edit Modal */}
       <TrackModal
@@ -341,6 +623,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  mediaTypeSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  mediaTypeSegmentContainer: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 3,
+    gap: 4,
+  },
+  mediaTypePill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  mediaTypePillActive: {
+    borderRadius: 7,
+  },
+  mediaTypePillText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   bannerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -360,6 +671,24 @@ const styles = StyleSheet.create({
   chipsSection: {
     paddingHorizontal: 16,
     borderBottomWidth: 1,
+  },
+  genreChipsRowContainer: {
+    borderBottomWidth: 1,
+    paddingVertical: 6,
+  },
+  genreScrollContent: {
+    paddingHorizontal: 16,
+    gap: 6,
+    alignItems: 'center',
+  },
+  genreChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  genreChipText: {
+    fontSize: 11,
   },
   listContent: {
     padding: 16,
@@ -401,5 +730,60 @@ const styles = StyleSheet.create({
   gridCard: {
     flex: 1,
     marginBottom: 12,
+  },
+  sortModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  sortModalCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 16,
+    borderWidth: 1,
+    maxHeight: '80%',
+    overflow: 'hidden',
+  },
+  sortModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  sortModalHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sortModalTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  sortModalCloseBtn: {
+    padding: 4,
+  },
+  sortOptionsList: {
+    paddingVertical: 4,
+  },
+  sortOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  sortOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  sortOptionLabel: {
+    fontSize: 13,
+    fontWeight: '500',
   },
 });

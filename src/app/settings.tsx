@@ -88,8 +88,41 @@ export default function SettingsScreen() {
     setMode,
     setPreset,
     setCustomAccent,
-    resetTheme,
   } = useAppTheme();
+
+  // Collapsible Accordion Sections State
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    appearance: false,
+    sizing: false,
+    haptics: false,
+    dates: false,
+    api: false,
+    storage: false,
+    about: false,
+  });
+
+  const toggleSection = (key: string) => {
+    triggerHaptic('selection');
+    setExpandedSections((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const allExpanded = Object.values(expandedSections).every(Boolean);
+  const toggleAllSections = () => {
+    triggerHaptic('selection');
+    const next = !allExpanded;
+    setExpandedSections({
+      appearance: next,
+      sizing: next,
+      haptics: next,
+      dates: next,
+      api: next,
+      storage: next,
+      about: next,
+    });
+  };
 
   const [customKey, setCustomKey] = useState<string | null>(null);
   const inputKey = customKey !== null ? customKey : (apiKey || '');
@@ -420,18 +453,53 @@ export default function SettingsScreen() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       showsVerticalScrollIndicator={false}>
+      {/* Top Overview Bar */}
+      <View style={styles.topActionsRow}>
+        <Text style={[styles.settingsOverviewText, { color: colors.textSecondary }]}>
+          Preferences & Customization
+        </Text>
+        <Pressable
+          style={[styles.toggleAllBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+          onPress={toggleAllSections}>
+          <Ionicons
+            name={allExpanded ? 'contract-outline' : 'expand-outline'}
+            size={14}
+            color={colors.primary}
+          />
+          <Text style={[styles.toggleAllBtnText, { color: colors.primary }]}>
+            {allExpanded ? 'Collapse All' : 'Expand All'}
+          </Text>
+        </Pressable>
+      </View>
+
       {/* ============================================================== */}
       {/* 1. THEME & COLOR CUSTOMIZATION SECTION */}
       {/* ============================================================== */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <View style={styles.cardHeader}>
-          <Ionicons name="color-palette" size={20} color={colors.primary} />
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Appearance & Colors</Text>
-        </View>
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => toggleSection('appearance')}>
+          <View style={styles.accordionLeft}>
+            <Ionicons name="color-palette" size={20} color={colors.primary} />
+            <View style={styles.accordionTextGroup}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Appearance & Colors</Text>
+              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+                {mode === 'dark' ? 'Dark Mode' : 'Light Mode'} • {preset === 'custom' ? 'Custom Accent' : (THEME_PRESET_METAS.find((p) => p.id === preset)?.label || 'Theme')}
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name={expandedSections.appearance ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textSecondary}
+          />
+        </Pressable>
 
-        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-          Switch between Light and Dark mode, choose from AMOLED and curated nature presets, or pick your own custom accent colors.
-        </Text>
+        {expandedSections.appearance && (
+          <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              Switch between Light and Dark mode, choose from AMOLED and curated nature presets, or pick your own custom accent colors.
+            </Text>
 
         {/* Mode Selector: Dark vs Light */}
         <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>MODE</Text>
@@ -651,39 +719,49 @@ export default function SettingsScreen() {
               </View>
             </View>
 
-            {/* Sample Action Button */}
-            <View style={styles.sampleButtonsRow}>
-              <View style={[styles.samplePrimaryBtn, { backgroundColor: colors.primary }]}>
-                <Ionicons name="checkmark" size={14} color="#ffffff" />
-                <Text style={styles.samplePrimaryBtnText}>Save to List</Text>
-              </View>
-              <View style={[styles.sampleSecondaryBtn, { borderColor: colors.cardBorder, backgroundColor: colors.inputBg }]}>
-                <Text style={[styles.sampleSecondaryBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+                <View style={styles.sampleButtonsRow}>
+                  <View style={[styles.samplePrimaryBtn, { backgroundColor: colors.primary }]}>
+                    <Ionicons name="checkmark" size={14} color="#ffffff" />
+                    <Text style={styles.samplePrimaryBtnText}>Save to List</Text>
+                  </View>
+                  <View style={[styles.sampleSecondaryBtn, { borderColor: colors.cardBorder, backgroundColor: colors.inputBg }]}>
+                    <Text style={[styles.sampleSecondaryBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+                  </View>
+                </View>
               </View>
             </View>
           </View>
-        </View>
-
-        <Pressable style={styles.resetThemeBtn} onPress={resetTheme}>
-          <Ionicons name="refresh-outline" size={14} color={colors.textSecondary} />
-          <Text style={[styles.resetThemeBtnText, { color: colors.textSecondary }]}>
-            Reset Theme to Default (Midnight Slate)
-          </Text>
-        </Pressable>
+        )}
       </View>
 
       {/* ============================================================== */}
       {/* 2. GRANULAR SIZING & DISPLAY SETTINGS */}
       {/* ============================================================== */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <View style={styles.cardHeader}>
-          <Ionicons name="resize" size={20} color={colors.primary} />
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Element Sizes & Density</Text>
-        </View>
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => toggleSection('sizing')}>
+          <View style={styles.accordionLeft}>
+            <Ionicons name="resize" size={20} color={colors.primary} />
+            <View style={styles.accordionTextGroup}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Element Sizes & Density</Text>
+              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+                Preset: {sizingConfig.preset?.toUpperCase() || 'CUSTOM'} • Text: {sizingConfig.textSize.toUpperCase()}
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name={expandedSections.sizing ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textSecondary}
+          />
+        </Pressable>
 
-        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-          Fine-tune element sizes without overlapping or breaking layouts. Choose a preset or adjust sliders below.
-        </Text>
+        {expandedSections.sizing && (
+          <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              Fine-tune element sizes without overlapping or breaking layouts. Choose a preset or adjust sliders below.
+            </Text>
 
         {/* Master Preset Buttons */}
         <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>MASTER DENSITY PRESETS</Text>
@@ -1101,300 +1179,370 @@ export default function SettingsScreen() {
             thumbColor="#ffffff"
           />
         </View>
+          </View>
+        )}
       </View>
 
       {/* ============================================================== */}
       {/* 3. HAPTIC FEEDBACK & TACTILE RESPONSES */}
       {/* ============================================================== */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <View style={styles.cardHeader}>
-          <Ionicons name="hardware-chip-outline" size={20} color={colors.primary} />
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Haptic Feedback</Text>
-        </View>
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => toggleSection('haptics')}>
+          <View style={styles.accordionLeft}>
+            <Ionicons name="hardware-chip-outline" size={20} color={colors.primary} />
+            <View style={styles.accordionTextGroup}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Haptic Feedback</Text>
+              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+                Intensity: {hapticIntensity === 'off' ? 'Off' : `${hapticIntensity.toUpperCase()} (${hapticIntensity === 'light' ? '•' : hapticIntensity === 'medium' ? '••' : '•••'})`}
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name={expandedSections.haptics ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textSecondary}
+          />
+        </Pressable>
 
-        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-          Control tactile vibrations for button presses, status updates, episode checkmarks, and rewatch steppers. Tap any level to test.
-        </Text>
+        {expandedSections.haptics && (
+          <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              Control tactile vibrations for button presses, status updates, episode checkmarks, and rewatch steppers. Tap any level to test.
+            </Text>
 
-        <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>FEEDBACK INTENSITY</Text>
-        <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-          {(
-            [
-              { id: 'off', label: 'Off', dots: 0 },
-              { id: 'light', label: 'Light', dots: 1 },
-              { id: 'medium', label: 'Medium', dots: 2 },
-              { id: 'heavy', label: 'Heavy', dots: 3 },
-            ] as const
-          ).map((opt) => {
-            const isSelected = hapticIntensity === opt.id;
-            return (
-              <Pressable
-                key={opt.id}
-                style={[
-                  styles.modeSegmentBtn,
-                  isSelected && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
-                ]}
-                onPress={() => {
-                  void setHapticIntensity(opt.id);
-                }}>
-                {opt.dots === 0 ? (
-                  <Ionicons
-                    name="close-circle-outline"
-                    size={14}
-                    color={isSelected ? '#ffffff' : colors.textSecondary}
-                  />
-                ) : (
-                  <View style={styles.hapticDotsRow}>
-                    {Array.from({ length: opt.dots }).map((_, i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.hapticDot,
-                          { backgroundColor: isSelected ? '#ffffff' : colors.textSecondary },
-                        ]}
+            <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>FEEDBACK INTENSITY</Text>
+            <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+              {(
+                [
+                  { id: 'off', label: 'Off', dots: 0 },
+                  { id: 'light', label: 'Light', dots: 1 },
+                  { id: 'medium', label: 'Medium', dots: 2 },
+                  { id: 'heavy', label: 'Heavy', dots: 3 },
+                ] as const
+              ).map((opt) => {
+                const isSelected = hapticIntensity === opt.id;
+                return (
+                  <Pressable
+                    key={opt.id}
+                    style={[
+                      styles.modeSegmentBtn,
+                      isSelected && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                    ]}
+                    onPress={() => {
+                      void setHapticIntensity(opt.id);
+                    }}>
+                    {opt.dots === 0 ? (
+                      <Ionicons
+                        name="close-circle-outline"
+                        size={14}
+                        color={isSelected ? '#ffffff' : colors.textSecondary}
                       />
-                    ))}
-                  </View>
-                )}
-                <Text
-                  style={[
-                    styles.modeSegmentText,
-                    { color: isSelected ? '#ffffff' : colors.textSecondary },
-                  ]}>
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+                    ) : (
+                      <View style={styles.hapticDotsRow}>
+                        {Array.from({ length: opt.dots }).map((_, i) => (
+                          <View
+                            key={i}
+                            style={[
+                              styles.hapticDot,
+                              { backgroundColor: isSelected ? '#ffffff' : colors.textSecondary },
+                            ]}
+                          />
+                        ))}
+                      </View>
+                    )}
+                    <Text
+                      style={[
+                        styles.modeSegmentText,
+                        { color: isSelected ? '#ffffff' : colors.textSecondary },
+                      ]}>
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
 
-        <View style={[styles.hapticHintRow, { backgroundColor: colors.cardSelected, borderColor: colors.cardBorder }]}>
-          <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
-          <Text style={[styles.hapticHintText, { color: colors.textSecondary }]}>
-            {hapticIntensity === 'off'
-              ? 'Tactile feedback is completely disabled.'
-              : hapticIntensity === 'light'
-              ? 'Gentle subtle clicks on taps and toggles.'
-              : hapticIntensity === 'medium'
-              ? 'Standard balanced tactile feel for key interactions (Default).'
-              : 'Strong, distinct vibrations for maximum tactile response.'}
-          </Text>
-        </View>
+            <View style={[styles.hapticHintRow, { backgroundColor: colors.cardSelected, borderColor: colors.cardBorder }]}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
+              <Text style={[styles.hapticHintText, { color: colors.textSecondary }]}>
+                {hapticIntensity === 'off'
+                  ? 'Tactile feedback is completely disabled.'
+                  : hapticIntensity === 'light'
+                  ? 'Gentle subtle clicks on taps and toggles.'
+                  : hapticIntensity === 'medium'
+                  ? 'Standard balanced tactile feel for key interactions (Default).'
+                  : 'Strong, distinct vibrations for maximum tactile response.'}
+              </Text>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* ============================================================== */}
       {/* 4. DATE DISPLAY FORMAT & REGIONAL PREFERENCES */}
       {/* ============================================================== */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <View style={styles.cardHeader}>
-          <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Date Display Format</Text>
-        </View>
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => toggleSection('dates')}>
+          <View style={styles.accordionLeft}>
+            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+            <View style={styles.accordionTextGroup}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Date Display Format</Text>
+              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+                Format: {dateFormat} (e.g. {getTodayFormatted(dateFormat)})
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name={expandedSections.dates ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textSecondary}
+          />
+        </Pressable>
 
-        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-          Choose your preferred format for dates displayed across BingeLog (started dates, completion dates, episode air dates, and timeline logs).
-        </Text>
+        {expandedSections.dates && (
+          <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              Choose your preferred format for dates displayed across BingeLog (started dates, completion dates, episode air dates, and timeline logs).
+            </Text>
 
-        <View style={styles.dateFormatList}>
-          {DATE_FORMAT_OPTIONS.map((opt) => {
-            const isSelected = dateFormat === opt.id;
-            const liveSample = getTodayFormatted(opt.id);
-            return (
-              <Pressable
-                key={opt.id}
-                style={[
-                  styles.dateFormatOptionRow,
-                  {
-                    backgroundColor: isSelected ? colors.cardSelected : colors.inputBg,
-                    borderColor: isSelected ? colors.primary : colors.cardBorder,
-                  },
-                ]}
-                onPress={() => {
-                  triggerHaptic('selection');
-                  void setDateFormat(opt.id);
-                }}>
-                <View style={styles.dateFormatTextContainer}>
-                  <View style={styles.dateFormatTitleRow}>
-                    <Text style={[styles.dateFormatName, { color: colors.text }]}>{opt.label}</Text>
-                    <View style={[styles.dateFormatBadge, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
-                      <Text style={[styles.dateFormatBadgeText, { color: colors.primary }]}>
-                        {opt.description}
+            <View style={styles.dateFormatList}>
+              {DATE_FORMAT_OPTIONS.map((opt) => {
+                const isSelected = dateFormat === opt.id;
+                const liveSample = getTodayFormatted(opt.id);
+                return (
+                  <Pressable
+                    key={opt.id}
+                    style={[
+                      styles.dateFormatOptionRow,
+                      {
+                        backgroundColor: isSelected ? colors.cardSelected : colors.inputBg,
+                        borderColor: isSelected ? colors.primary : colors.cardBorder,
+                      },
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      void setDateFormat(opt.id);
+                    }}>
+                    <View style={styles.dateFormatTextContainer}>
+                      <View style={styles.dateFormatTitleRow}>
+                        <Text style={[styles.dateFormatName, { color: colors.text }]}>{opt.label}</Text>
+                        <View style={[styles.dateFormatBadge, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
+                          <Text style={[styles.dateFormatBadgeText, { color: colors.primary }]}>
+                            {opt.description}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.dateFormatSample, { color: colors.textSecondary }]}>
+                        Today: <Text style={{ color: colors.primary, fontWeight: '700' }}>{liveSample}</Text>
                       </Text>
                     </View>
-                  </View>
-                  <Text style={[styles.dateFormatSample, { color: colors.textSecondary }]}>
-                    Today: <Text style={{ color: colors.primary, fontWeight: '700' }}>{liveSample}</Text>
-                  </Text>
-                </View>
 
-                <View
-                  style={[
-                    styles.radioCircle,
-                    {
-                      borderColor: isSelected ? colors.primary : colors.cardBorder,
-                      backgroundColor: isSelected ? colors.primary : 'transparent',
-                    },
-                  ]}>
-                  {isSelected && <Ionicons name="checkmark" size={12} color="#ffffff" />}
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
+                    <View
+                      style={[
+                        styles.radioCircle,
+                        {
+                          borderColor: isSelected ? colors.primary : colors.cardBorder,
+                          backgroundColor: isSelected ? colors.primary : 'transparent',
+                        },
+                      ]}>
+                      {isSelected && <Ionicons name="checkmark" size={12} color="#ffffff" />}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </View>
 
       {/* ============================================================== */}
       {/* 5. TMDB API KEY SECTION */}
       {/* ============================================================== */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <View style={styles.cardHeader}>
-          <Ionicons name="key" size={20} color={colors.primary} />
-          <Text style={[styles.cardTitle, { color: colors.text }]}>TMDB API Configuration</Text>
-        </View>
-
-        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-          Enter your TMDB API Key (v3) or API Read Access Token (v4). It is saved locally on your device and never shared.
-        </Text>
-
-        <View style={[styles.inputContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-          <TextInput
-            style={[styles.input, { color: colors.text }]}
-            placeholder="Paste your TMDB key or token here..."
-            placeholderTextColor={colors.textMuted}
-            value={inputKey}
-            onChangeText={(text) => {
-              setCustomKey(text);
-              setTestResult(null);
-            }}
-            secureTextEntry={!showKey}
-            autoCapitalize="none"
-            autoCorrect={false}
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => toggleSection('api')}>
+          <View style={styles.accordionLeft}>
+            <Ionicons name="key" size={20} color={colors.primary} />
+            <View style={styles.accordionTextGroup}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>TMDB API Configuration</Text>
+              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+                Status: {apiKey ? 'Configured & Active' : 'API Key Missing'}
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name={expandedSections.api ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textSecondary}
           />
-          <Pressable
-            style={styles.eyeBtn}
-            onPress={() => setShowKey(!showKey)}>
-            <Ionicons
-              name={showKey ? 'eye-off-outline' : 'eye-outline'}
-              size={18}
-              color={colors.textSecondary}
-            />
-          </Pressable>
-        </View>
+        </Pressable>
 
-        {testResult && (
-          <View
-            style={[
-              styles.testResultBox,
-              testResult.valid ? styles.testResultSuccess : styles.testResultError,
-            ]}>
-            <Ionicons
-              name={testResult.valid ? 'checkmark-circle' : 'alert-circle'}
-              size={16}
-              color={testResult.valid ? '#22c55e' : '#ef4444'}
-            />
-            <Text
-              style={[
-                styles.testResultText,
-                testResult.valid ? styles.testResultSuccessText : styles.testResultErrorText,
-              ]}>
-              {testResult.message}
+        {expandedSections.api && (
+          <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              Enter your TMDB API Key (v3) or API Read Access Token (v4). It is saved locally on your device and never shared.
             </Text>
+
+            <View style={[styles.inputContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                placeholder="Paste your TMDB key or token here..."
+                placeholderTextColor={colors.textMuted}
+                value={inputKey}
+                onChangeText={(text) => {
+                  setCustomKey(text);
+                  setTestResult(null);
+                }}
+                secureTextEntry={!showKey}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Pressable
+                style={styles.eyeBtn}
+                onPress={() => setShowKey(!showKey)}>
+                <Ionicons
+                  name={showKey ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color={colors.textSecondary}
+                />
+              </Pressable>
+            </View>
+
+            {testResult && (
+              <View
+                style={[
+                  styles.testResultBox,
+                  testResult.valid ? styles.testResultSuccess : styles.testResultError,
+                ]}>
+                <Ionicons
+                  name={testResult.valid ? 'checkmark-circle' : 'alert-circle'}
+                  size={16}
+                  color={testResult.valid ? '#22c55e' : '#ef4444'}
+                />
+                <Text
+                  style={[
+                    styles.testResultText,
+                    testResult.valid ? styles.testResultSuccessText : styles.testResultErrorText,
+                  ]}>
+                  {testResult.message}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.buttonRow}>
+              <Pressable
+                style={[styles.saveBtn, { backgroundColor: colors.primary }, isTesting && styles.btnDisabled]}
+                onPress={handleSaveKey}
+                disabled={isTesting}>
+                {isTesting ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-sharp" size={16} color="#ffffff" />
+                    <Text style={styles.saveBtnText}>Verify & Save Key</Text>
+                  </>
+                )}
+              </Pressable>
+
+              {apiKey && (
+                <Pressable
+                  style={styles.removeBtn}
+                  onPress={handleRemoveKey}>
+                  <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                  <Text style={styles.removeBtnText}>Remove</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {/* Guide: How to get TMDB Key */}
+            <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
+            <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>HOW TO GET A FREE KEY</Text>
+            <View style={styles.stepList}>
+              <View style={styles.stepItem}>
+                <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>1</Text>
+                <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+                  Go to{' '}
+                  <Text
+                    style={[styles.bold, { color: colors.primary, textDecorationLine: 'underline' }]}
+                    onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
+                    themoviedb.org
+                  </Text>{' '}
+                  and sign up for a free account.
+                </Text>
+              </View>
+
+              <View style={styles.stepItem}>
+                <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>2</Text>
+                <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+                  Click your avatar in the top-right corner → <Text style={[styles.bold, { color: colors.text }]}>Settings</Text> →{' '}
+                  <Text style={[styles.bold, { color: colors.text }]}>API</Text>.
+                </Text>
+              </View>
+
+              <View style={styles.stepItem}>
+                <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>3</Text>
+                <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+                  Click <Text style={[styles.bold, { color: colors.text }]}>Create</Text> (choose Developer) and accept the terms.
+                </Text>
+              </View>
+
+              <View style={styles.stepItem}>
+                <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>4</Text>
+                <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+                  Copy your <Text style={[styles.bold, { color: colors.text }]}>API Key (v3)</Text> or <Text style={[styles.bold, { color: colors.text }]}>API Read Access Token</Text> and paste it above.
+                </Text>
+              </View>
+            </View>
           </View>
         )}
-
-        <View style={styles.buttonRow}>
-          <Pressable
-            style={[styles.saveBtn, { backgroundColor: colors.primary }, isTesting && styles.btnDisabled]}
-            onPress={handleSaveKey}
-            disabled={isTesting}>
-            {isTesting ? (
-              <ActivityIndicator size="small" color="#ffffff" />
-            ) : (
-              <>
-                <Ionicons name="checkmark-sharp" size={16} color="#ffffff" />
-                <Text style={styles.saveBtnText}>Verify & Save Key</Text>
-              </>
-            )}
-          </Pressable>
-
-          {apiKey && (
-            <Pressable
-              style={styles.removeBtn}
-              onPress={handleRemoveKey}>
-              <Ionicons name="trash-outline" size={16} color="#ef4444" />
-              <Text style={styles.removeBtnText}>Remove</Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
-
-      {/* Guide: How to get TMDB Key */}
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <View style={styles.cardHeader}>
-          <Ionicons name="information-circle" size={20} color="#fbbf24" />
-          <Text style={[styles.cardTitle, { color: colors.text }]}>How to get a free TMDB API key</Text>
-        </View>
-
-        <View style={styles.stepList}>
-          <View style={styles.stepItem}>
-            <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>1</Text>
-            <Text style={[styles.stepText, { color: colors.textSecondary }]}>
-              Go to{' '}
-              <Text
-                style={[styles.bold, { color: colors.primary, textDecorationLine: 'underline' }]}
-                onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
-                themoviedb.org
-              </Text>{' '}
-              and sign up for a free account.
-            </Text>
-          </View>
-
-          <View style={styles.stepItem}>
-            <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>2</Text>
-            <Text style={[styles.stepText, { color: colors.textSecondary }]}>
-              Click your avatar in the top-right corner → <Text style={[styles.bold, { color: colors.text }]}>Settings</Text> →{' '}
-              <Text style={[styles.bold, { color: colors.text }]}>API</Text>.
-            </Text>
-          </View>
-
-          <View style={styles.stepItem}>
-            <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>3</Text>
-            <Text style={[styles.stepText, { color: colors.textSecondary }]}>
-              Click <Text style={[styles.bold, { color: colors.text }]}>Create</Text> (choose Developer) and accept the terms.
-            </Text>
-          </View>
-
-          <View style={styles.stepItem}>
-            <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>4</Text>
-            <Text style={[styles.stepText, { color: colors.textSecondary }]}>
-              Copy your <Text style={[styles.bold, { color: colors.text }]}>API Key (v3)</Text> or <Text style={[styles.bold, { color: colors.text }]}>API Read Access Token</Text> and paste it above.
-            </Text>
-          </View>
-        </View>
       </View>
 
       {/* Storage & Data Section */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <View style={styles.cardHeaderWithAction}>
-          <View style={styles.cardHeader}>
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => toggleSection('storage')}>
+          <View style={styles.accordionLeft}>
             <Ionicons name="server" size={20} color={colors.primary} />
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Storage & Data</Text>
+            <View style={styles.accordionTextGroup}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Storage & Data Management</Text>
+              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+                {storageMetrics ? `${formatBytes(storageMetrics.totalAppStorageBytes)} • ${trackedItems.length} items` : `${trackedItems.length} items`}
+              </Text>
+            </View>
           </View>
-          <Pressable
-            style={[styles.refreshStorageBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
-            onPress={() => void loadStorageMetrics()}
-            disabled={isLoadingStorageMetrics}>
-            {isLoadingStorageMetrics ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Ionicons name="refresh-outline" size={16} color={colors.primary} />
-            )}
-          </Pressable>
-        </View>
+          <View style={styles.accordionRight}>
+            <Pressable
+              style={[styles.refreshStorageBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+              onPress={(e) => {
+                e.stopPropagation();
+                void loadStorageMetrics();
+              }}
+              disabled={isLoadingStorageMetrics}>
+              {isLoadingStorageMetrics ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Ionicons name="refresh-outline" size={16} color={colors.primary} />
+              )}
+            </Pressable>
+            <Ionicons
+              name={expandedSections.storage ? 'chevron-up' : 'chevron-down'}
+              size={18}
+              color={colors.textSecondary}
+            />
+          </View>
+        </Pressable>
 
-        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-          Inspect internal device capacity, local tracking database usage, and cached media assets.
-        </Text>
+        {expandedSections.storage && (
+          <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              Inspect internal device capacity, local tracking database usage, and cached media assets.
+            </Text>
 
         {/* Device Internal Storage Gauge */}
         <View style={[styles.deviceStorageBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
@@ -1516,7 +1664,7 @@ export default function SettingsScreen() {
           DEVICE SYNC & TRANSFER
         </Text>
         <Text style={[styles.backupDesc, { color: colors.textSecondary }]}>
-          Sync your watchlist directly with your tablet or phone using 🛜🔄 Instant Relay (6-digit PIN) or 🛜🚫 Air-Gapped Offline QR.
+          Sync your watchlist directly with your tablet or phone using Instant Relay (6-digit PIN) or Air-Gapped Offline QR.
         </Text>
 
         <Pressable
@@ -1529,7 +1677,7 @@ export default function SettingsScreen() {
           <View style={styles.syncDeviceBtnTextWrap}>
             <Text style={[styles.syncDeviceBtnTitle, { color: colors.primary }]}>Sync with Nearby Device</Text>
             <Text style={[styles.syncDeviceBtnSub, { color: colors.textSecondary }]}>
-              🛜🔄 Instant 6-digit relay • 🛜🚫 Offline camera QR
+              Instant 6-digit relay • Offline camera QR
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color={colors.primary} />
@@ -1593,73 +1741,101 @@ export default function SettingsScreen() {
           <Ionicons name="trash-outline" size={16} color="#ef4444" />
           <Text style={styles.clearBtnText}>Clear All Tracked Data</Text>
         </Pressable>
-      </View>
-
-      {/* TMDB Legal Attribution & Branding Card */}
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <View style={styles.tmdbAttributionHeader}>
-          <Image
-            source={require('@/assets/images/tmdb/tmdb-logo-short.png')}
-            style={styles.tmdbLogoImage}
-            contentFit="contain"
-          />
-        </View>
-
-        <Text style={[styles.tmdbLegalText, { color: colors.textSecondary }]}>
-          This product uses the TMDB API but is not endorsed or certified by TMDB.
-        </Text>
-
-        <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 10 }]} />
-
-        <View style={styles.tmdbMetaRow}>
-          <Ionicons name="film-outline" size={14} color={colors.primary} />
-          <Text style={[styles.tmdbMetaText, { color: colors.textMuted }]}>
-            All movie and TV metadata, posters, backdrops, and cast information are provided courtesy of{' '}
-            <Text
-              style={{ color: colors.primary, fontWeight: '700', textDecorationLine: 'underline' }}
-              onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
-              The Movie Database (TMDB)
-            </Text>.
-          </Text>
-        </View>
-      </View>
-
-      {/* App Identity, AI Development Credits & Disclaimers */}
-      <View style={[styles.infoCard, { backgroundColor: colors.cardSelected, borderColor: colors.cardBorder }]}>
-        <View style={styles.appTitleBadgeRow}>
-          <Text style={[styles.infoTitle, { color: colors.text }]}>BingeLog</Text>
-          <View style={[styles.vibeBadge, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
-            <Ionicons name="sparkles" size={11} color={colors.primary} />
-            <Text style={[styles.vibeBadgeText, { color: colors.primary }]}>Vibe-Coded</Text>
           </View>
-        </View>
+        )}
+      </View>
 
-        <Text style={[styles.infoSub, { color: colors.textSecondary }]}>
-          Independent media tracker for Movies & TV Shows.
-        </Text>
+      {/* ============================================================== */}
+      {/* 7. ABOUT & LEGAL ATTRIBUTIONS SECTION */}
+      {/* ============================================================== */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => toggleSection('about')}>
+          <View style={styles.accordionLeft}>
+            <Ionicons name="information-circle-outline" size={20} color={colors.primary} />
+            <View style={styles.accordionTextGroup}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
+              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+                Version 0.13.0 • TMDB & MAL Attributions
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name={expandedSections.about ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textSecondary}
+          />
+        </Pressable>
 
-        <Text style={[styles.infoAiCredit, { color: colors.textSecondary }]}>
-          Crafted with heavy AI assistance and vibe-coded with care as an independent personal tracking project.
-        </Text>
+        {expandedSections.about && (
+          <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
+            {/* App Info & Vibe-Coded Badge */}
+            <View style={styles.appTitleBadgeRow}>
+              <Text selectable style={[styles.infoTitle, { color: colors.text }]}>BingeLog</Text>
+              <View style={[styles.vibeBadge, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
+                <Ionicons name="sparkles" size={11} color={colors.primary} />
+                <Text style={[styles.vibeBadgeText, { color: colors.primary }]}>Vibe-Coded</Text>
+              </View>
+            </View>
 
-        <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, width: '100%', marginVertical: 10 }]} />
+            <Text selectable style={[styles.infoSub, { color: colors.textSecondary }]}>
+              Independent media tracker for Movies & TV Shows.
+            </Text>
 
-        <Text style={[styles.disclaimerText, { color: colors.textMuted }]}>
-          Independent hobby project. Not affiliated with, endorsed by, or associated with{' '}
-          <Text
-            style={{ color: colors.primary, textDecorationLine: 'underline' }}
-            onPress={() => void Linking.openURL('https://myanimelist.net')}>
-            MyAnimeList (MAL)
-          </Text>{' '}
-          or{' '}
-          <Text
-            style={{ color: colors.primary, textDecorationLine: 'underline' }}
-            onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
-            The Movie Database (TMDB)
-          </Text>. All trademarks, logos, and copyrights belong to their respective owners.
-        </Text>
+            <Text selectable style={[styles.infoAiCredit, { color: colors.textSecondary }]}>
+              Crafted with heavy AI assistance and vibe-coded with care as an independent personal tracking project.
+            </Text>
 
-        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 0.12.1 • Build 2026.10 • Expo SDK 57</Text>
+            <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 12 }]} />
+
+            {/* TMDB Legal Attribution */}
+            <View style={styles.tmdbAttributionHeader}>
+              <Image
+                source={require('@/assets/images/tmdb/tmdb-logo-short.png')}
+                style={styles.tmdbLogoImage}
+                contentFit="contain"
+              />
+            </View>
+
+            <Text selectable style={[styles.tmdbLegalText, { color: colors.textSecondary }]}>
+              This product uses the TMDB API but is not endorsed or certified by TMDB.
+            </Text>
+
+            <View style={styles.tmdbMetaRow}>
+              <Ionicons name="film-outline" size={14} color={colors.primary} />
+              <Text selectable style={[styles.tmdbMetaText, { color: colors.textMuted }]}>
+                All movie and TV metadata, posters, backdrops, and cast information are provided courtesy of{' '}
+                <Text
+                  style={{ color: colors.primary, fontWeight: '700', textDecorationLine: 'underline' }}
+                  onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
+                  The Movie Database (TMDB)
+                </Text>.
+              </Text>
+            </View>
+
+            <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, width: '100%', marginVertical: 12 }]} />
+
+            <Text selectable style={[styles.disclaimerText, { color: colors.textMuted }]}>
+              Independent hobby project. Not affiliated with, endorsed by, or associated with{' '}
+              <Text
+                style={{ color: colors.primary, textDecorationLine: 'underline' }}
+                onPress={() => void Linking.openURL('https://myanimelist.net')}>
+                MyAnimeList (MAL)
+              </Text>{' '}
+              or{' '}
+              <Text
+                style={{ color: colors.primary, textDecorationLine: 'underline' }}
+                onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
+                The Movie Database (TMDB)
+              </Text>. All trademarks, logos, and copyrights belong to their respective owners.
+            </Text>
+
+            <Text selectable style={[styles.infoVersion, { color: colors.primary }]}>
+              Version 0.13.0 • Build 2026.10 • Expo SDK 57
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Device-to-Device Sync Modal */}
@@ -1687,6 +1863,61 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
+  },
+  topActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+    marginBottom: 4,
+  },
+  settingsOverviewText: {
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1,
+  },
+  toggleAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  toggleAllBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  accordionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+  },
+  accordionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  accordionTextGroup: {
+    flex: 1,
+  },
+  accordionSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  accordionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  accordionContent: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
   },
   cardHeader: {
     flexDirection: 'row',

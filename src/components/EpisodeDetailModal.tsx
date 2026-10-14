@@ -101,7 +101,7 @@ function EpisodeDetailContent({
           <Text style={[styles.headerSub, { color: colors.primary }]}>
             SEASON {seasonNumber} • EPISODE {episodeNumber}
           </Text>
-          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
+          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1} selectable={true}>
             {episodeName}
           </Text>
         </View>
@@ -186,7 +186,8 @@ function EpisodeDetailContent({
             style={[
               styles.overviewText,
               { color: colors.text, fontSize: Math.round(14 * textScaleMultiplier) },
-            ]}>
+            ]}
+            selectable={true}>
             {overview}
           </Text>
         </View>
@@ -219,7 +220,7 @@ function EpisodeDetailContent({
                     })
                   }>
                   <Ionicons name="videocam-outline" size={13} color={colors.primary} />
-                  <Text style={[styles.entityChipText, { color: colors.text }]}>{dir.name}</Text>
+                  <Text style={[styles.entityChipText, { color: colors.text }]} selectable={true}>{dir.name}</Text>
                   <Text style={[styles.entityChipRole, { color: colors.primary }]}>Dir</Text>
                 </Pressable>
               ))}
@@ -237,7 +238,7 @@ function EpisodeDetailContent({
                     })
                   }>
                   <Ionicons name="create-outline" size={13} color={colors.textSecondary} />
-                  <Text style={[styles.entityChipText, { color: colors.text }]}>{writer.name}</Text>
+                  <Text style={[styles.entityChipText, { color: colors.text }]} selectable={true}>{writer.name}</Text>
                   <Text style={[styles.entityChipRole, { color: colors.textSecondary }]}>Writer</Text>
                 </Pressable>
               ))}
@@ -282,11 +283,11 @@ function EpisodeDetailContent({
                         <Ionicons name="person" size={24} color={colors.textMuted} />
                       </View>
                     )}
-                    <Text style={[styles.actorName, { color: colors.text }]} numberOfLines={1}>
+                    <Text style={[styles.actorName, { color: colors.text }]} numberOfLines={1} selectable={true}>
                       {actor.name}
                     </Text>
                     {actor.character ? (
-                      <Text style={[styles.actorRole, { color: colors.textSecondary }]} numberOfLines={1}>
+                      <Text style={[styles.actorRole, { color: colors.textSecondary }]} numberOfLines={1} selectable={true}>
                         {actor.character}
                       </Text>
                     ) : null}

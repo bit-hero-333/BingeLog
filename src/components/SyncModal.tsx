@@ -213,6 +213,16 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
     setSyncCode(generateSyncCode());
   };
 
+  // Auto-format 6-digit sync code with dash after 3rd character
+  const handleCodeChange = (text: string) => {
+    const clean = text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    if (clean.length > 3) {
+      setReceiveInputCode(`${clean.slice(0, 3)}-${clean.slice(3)}`);
+    } else {
+      setReceiveInputCode(clean);
+    }
+  };
+
   // Handle manual 6-digit code fetch
   const handleFetchByCode = async () => {
     const clean = normalizeSyncCode(receiveInputCode);
@@ -357,7 +367,7 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
       await importTrackedItems(merged, 'replace');
       triggerHaptic('success');
       Alert.alert(
-        'Sync Complete! 🍿',
+        'Sync Complete!',
         `Successfully merged ${pendingPayload.itemCount} items into your library. You now have ${merged.length} tracked items.`,
         [
           {
@@ -720,7 +730,13 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
                         triggerHaptic('selection');
                         setSendMode('relay');
                       }}>
-                      <Text style={styles.sendModeEmoji}>🛜🔄</Text>
+                      <View style={[styles.sendModeIconBox, { backgroundColor: sendMode === 'relay' ? colors.primaryBg : colors.cardBorder }]}>
+                        <Ionicons
+                          name="flash"
+                          size={18}
+                          color={sendMode === 'relay' ? colors.primary : colors.textSecondary}
+                        />
+                      </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.sendModeTitle, { color: colors.text }]}>Instant Relay</Text>
                         <Text style={[styles.sendModeSubtitle, { color: colors.textSecondary }]}>
@@ -741,7 +757,13 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
                         triggerHaptic('selection');
                         setSendMode('offline');
                       }}>
-                      <Text style={styles.sendModeEmoji}>🛜🚫</Text>
+                      <View style={[styles.sendModeIconBox, { backgroundColor: sendMode === 'offline' ? colors.primaryBg : colors.cardBorder }]}>
+                        <Ionicons
+                          name="qr-code"
+                          size={18}
+                          color={sendMode === 'offline' ? colors.primary : colors.textSecondary}
+                        />
+                      </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.sendModeTitle, { color: colors.text }]}>Offline QR</Text>
                         <Text style={[styles.sendModeSubtitle, { color: colors.textSecondary }]}>
@@ -756,7 +778,7 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
                     <View style={[styles.codeDisplayCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                       <Text style={[styles.pinLabel, { color: colors.textSecondary }]}>YOUR 6-DIGIT SYNC CODE</Text>
                       <View style={styles.pinRow}>
-                        <Text style={[styles.pinText, { color: colors.primary }]}>{syncCode}</Text>
+                        <Text selectable style={[styles.pinText, { color: colors.primary }]}>{syncCode}</Text>
                         <Pressable style={styles.pinRefreshBtn} onPress={handleRegenerateCode}>
                           <Ionicons name="refresh-outline" size={18} color={colors.primary} />
                         </Pressable>
@@ -860,9 +882,9 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
                         placeholder="e.g. 482-915"
                         placeholderTextColor={colors.textMuted}
                         value={receiveInputCode}
-                        onChangeText={setReceiveInputCode}
+                        onChangeText={handleCodeChange}
                         autoCapitalize="characters"
-                        maxLength={10}
+                        maxLength={7}
                       />
 
                       <Pressable
@@ -899,7 +921,7 @@ export function SyncModal({ visible, onClose, onSyncComplete }: SyncModalProps) 
                     <View style={{ marginLeft: 12 }}>
                       <Text style={[styles.scanQrButtonTitle, { color: colors.primary }]}>Scan QR with Camera</Text>
                       <Text style={[styles.scanQrButtonSub, { color: colors.textSecondary }]}>
-                        Works with both 🛜🔄 Instant & 🛜🚫 Offline QRs
+                        Works with both Instant Relay & Offline QRs
                       </Text>
                     </View>
                   </Pressable>
@@ -1000,8 +1022,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 8,
   },
-  sendModeEmoji: {
-    fontSize: 22,
+  sendModeIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
   },
   sendModeTitle: {
     fontSize: 13,

@@ -105,7 +105,7 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
       {/* Content Info */}
       <View style={styles.infoContainer}>
         <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
+          <Text style={[styles.title, { color: colors.text }]} numberOfLines={2} selectable={true}>
             {title}
           </Text>
         </View>

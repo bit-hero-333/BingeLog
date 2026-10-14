@@ -15,6 +15,7 @@ import {
 } from '@/utils/date';
 import { DateFormatOption, DEFAULT_DATE_FORMAT } from '@/types/media';
 import { useMedia } from '@/context/MediaContext';
+import { useAppTheme } from '@/context/ThemeContext';
 
 interface DatePickerModalProps {
   visible: boolean;
@@ -52,6 +53,7 @@ function DatePickerContent({
   onClearDate,
 }: Omit<DatePickerModalProps, 'visible'>) {
   const { dateFormat: contextDateFormat } = useMedia();
+  const { colors } = useAppTheme();
   const activeFormat = propDateFormat || contextDateFormat || DEFAULT_DATE_FORMAT;
 
   const parsed = useMemo(() => {
@@ -125,20 +127,31 @@ function DatePickerContent({
   }, [selectedDay, daysInMonth, currentMonth, currentYear, activeFormat]);
 
   return (
-    <Pressable style={styles.dialogContainer} onPress={(e) => e.stopPropagation()}>
+    <Pressable
+      style={[
+        styles.dialogContainer,
+        { backgroundColor: colors.card, borderColor: colors.cardBorder },
+      ]}
+      onPress={(e) => e.stopPropagation()}>
       {/* Header */}
-      <View style={styles.dialogHeader}>
-        <Text style={styles.dialogTitle}>{title}</Text>
-        <Text style={styles.selectedDateBanner}>{currentFormatted}</Text>
+      <View style={[styles.dialogHeader, { borderBottomColor: colors.divider }]}>
+        <Text style={[styles.dialogTitle, { color: colors.textSecondary }]}>{title}</Text>
+        <Text style={[styles.selectedDateBanner, { color: colors.primary }]} selectable={true}>
+          {currentFormatted}
+        </Text>
       </View>
 
       {/* Quick Shortcuts */}
       <View style={styles.quickBar}>
-        <Pressable style={styles.quickBtn} onPress={handleQuickToday}>
-          <Text style={styles.quickBtnText}>Today</Text>
+        <Pressable
+          style={[styles.quickBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+          onPress={handleQuickToday}>
+          <Text style={[styles.quickBtnText, { color: colors.textSecondary }]}>Today</Text>
         </Pressable>
-        <Pressable style={styles.quickBtn} onPress={handleQuickYesterday}>
-          <Text style={styles.quickBtnText}>Yesterday</Text>
+        <Pressable
+          style={[styles.quickBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+          onPress={handleQuickYesterday}>
+          <Text style={[styles.quickBtnText, { color: colors.textSecondary }]}>Yesterday</Text>
         </Pressable>
         {onClearDate && (
           <Pressable style={styles.quickBtnDanger} onPress={handleQuickClear}>
@@ -149,25 +162,29 @@ function DatePickerContent({
 
       {/* Month / Year Navigator */}
       <View style={styles.monthNavRow}>
-        <Pressable style={styles.navArrow} onPress={handlePrevMonth}>
-          <Ionicons name="chevron-back" size={20} color="#ffffff" />
+        <Pressable
+          style={[styles.navArrow, { backgroundColor: colors.inputBg }]}
+          onPress={handlePrevMonth}>
+          <Ionicons name="chevron-back" size={20} color={colors.text} />
         </Pressable>
 
         <View style={styles.monthYearLabelContainer}>
-          <Text style={styles.monthYearText}>
+          <Text style={[styles.monthYearText, { color: colors.text }]}>
             {MONTH_NAMES[currentMonth]} {currentYear}
           </Text>
         </View>
 
-        <Pressable style={styles.navArrow} onPress={handleNextMonth}>
-          <Ionicons name="chevron-forward" size={20} color="#ffffff" />
+        <Pressable
+          style={[styles.navArrow, { backgroundColor: colors.inputBg }]}
+          onPress={handleNextMonth}>
+          <Ionicons name="chevron-forward" size={20} color={colors.text} />
         </Pressable>
       </View>
 
       {/* Weekday headers */}
       <View style={styles.weekdaysRow}>
         {WEEKDAY_NAMES.map((w, idx) => (
-          <Text key={idx} style={styles.weekdayText}>
+          <Text key={idx} style={[styles.weekdayText, { color: colors.textMuted }]}>
             {w}
           </Text>
         ))}
@@ -187,11 +204,15 @@ function DatePickerContent({
           return (
             <Pressable
               key={`day-${day}`}
-              style={[styles.dayCell, isSelected && styles.dayCellSelected]}
+              style={[
+                styles.dayCell,
+                isSelected && [styles.dayCellSelected, { backgroundColor: colors.primary }],
+              ]}
               onPress={() => setSelectedDay(day)}>
               <Text
                 style={[
                   styles.dayText,
+                  { color: colors.text },
                   isSelected && styles.dayTextSelected,
                 ]}>
                 {day}
@@ -202,11 +223,13 @@ function DatePickerContent({
       </View>
 
       {/* Actions */}
-      <View style={styles.actionRow}>
+      <View style={[styles.actionRow, { borderTopColor: colors.divider }]}>
         <Pressable style={styles.cancelBtn} onPress={onClose}>
-          <Text style={styles.cancelBtnText}>Cancel</Text>
+          <Text style={[styles.cancelBtnText, { color: colors.textSecondary }]}>Cancel</Text>
         </Pressable>
-        <Pressable style={styles.confirmBtn} onPress={handleConfirm}>
+        <Pressable
+          style={[styles.confirmBtn, { backgroundColor: colors.primary }]}
+          onPress={handleConfirm}>
           <Text style={styles.confirmBtnText}>Confirm Date</Text>
         </Pressable>
       </View>

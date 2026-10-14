@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -7,6 +7,8 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +22,7 @@ import {
 } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
+import { useAppTheme } from '@/context/ThemeContext';
 import { formatDateDisplay } from '@/utils/date';
 
 interface EntityModalProps {
@@ -43,7 +46,43 @@ function EntityModalContent({
   onSelectMedia,
   onFilterInDiscover,
 }: EntityModalContentProps) {
-  const { apiKey, showActorImages, sizingConfig, dateFormat } = useMedia();
+  const { apiKey, showActorImages, sizingConfig, dateFormat, triggerHaptic } = useMedia();
+  const { colors } = useAppTheme();
+
+  const [translateY] = useState(() => new Animated.Value(0));
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 5,
+        onPanResponderMove: (_, gestureState) => {
+          if (gestureState.dy > 0) {
+            translateY.setValue(gestureState.dy);
+          }
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 70 || gestureState.vy > 0.6) {
+            triggerHaptic('selection');
+            Animated.timing(translateY, {
+              toValue: 600,
+              duration: 160,
+              useNativeDriver: true,
+            }).start(() => {
+              onClose();
+              translateY.setValue(0);
+            });
+          } else {
+            Animated.spring(translateY, {
+              toValue: 0,
+              useNativeDriver: true,
+              bounciness: 4,
+            }).start();
+          }
+        },
+      }),
+    [onClose, triggerHaptic, translateY]
+  );
 
   const [isLoading, setIsLoading] = useState(Boolean(apiKey));
   const [personData, setPersonData] = useState<PersonFullDetails | null>(null);
@@ -113,10 +152,18 @@ function EntityModalContent({
     <View style={styles.overlay}>
       <Pressable style={styles.backdrop} onPress={onClose} />
 
-      <View style={styles.sheetContainer}>
+      <Animated.View
+        style={[
+          styles.sheetContainer,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.cardBorder,
+            transform: [{ translateY }],
+          },
+        ]}>
         {/* Top Handle */}
-        <View style={styles.sheetHeader}>
-          <View style={styles.handle} />
+        <View style={styles.sheetHeader} {...panResponder.panHandlers}>
+          <View style={[styles.handle, { backgroundColor: colors.divider }]} />
         </View>
 
         <ScrollView
@@ -124,7 +171,7 @@ function EntityModalContent({
           showsVerticalScrollIndicator={false}>
           {/* Header with Close */}
           <View style={styles.headerRow}>
-            <View style={styles.entityTypeBadge}>
+            <View style={[styles.entityTypeBadge, { backgroundColor: colors.primaryBg }]}>
               <Ionicons
                 name={
                   entity.type === 'person'
@@ -134,9 +181,9 @@ function EntityModalContent({
                     : 'business'
                 }
                 size={12}
-                color="#38bdf8"
+                color={colors.primary}
               />
-              <Text style={styles.entityTypeBadgeText}>
+              <Text style={[styles.entityTypeBadgeText, { color: colors.primary }]}>
                 {entity.type === 'person'
                   ? 'PEOPLE / CAST'
                   : entity.type === 'genre'
@@ -146,14 +193,14 @@ function EntityModalContent({
             </View>
 
             <Pressable onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={20} color="#94a3b8" />
+              <Ionicons name="close" size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#38bdf8" />
-              <Text style={styles.loadingText}>Fetching details from TMDB...</Text>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Fetching details from TMDB...</Text>
             </View>
           ) : (
             <>
@@ -173,21 +220,23 @@ function EntityModalContent({
                       contentFit="cover"
                     />
                   ) : (
-                    <View style={[styles.personPortrait, styles.portraitFallback]}>
-                      <Ionicons name="person" size={32} color="#64748b" />
+                    <View style={[styles.personPortrait, styles.portraitFallback, { backgroundColor: colors.cardBorder }]}>
+                      <Ionicons name="person" size={32} color={colors.textSecondary} />
                     </View>
                   )}
 
                   <View style={styles.profileDetails}>
-                    <Text style={styles.entityName}>{personData?.name || entity.name}</Text>
+                    <Text style={[styles.entityName, { color: colors.text }]} selectable={true}>
+                      {personData?.name || entity.name}
+                    </Text>
                     {entity.role ? (
-                      <Text style={styles.roleSub}>{entity.role}</Text>
+                      <Text style={[styles.roleSub, { color: colors.textSecondary }]} selectable={true}>{entity.role}</Text>
                     ) : personData?.knownForDepartment ? (
-                      <Text style={styles.roleSub}>Known for: {personData.knownForDepartment}</Text>
+                      <Text style={[styles.roleSub, { color: colors.textSecondary }]} selectable={true}>Known for: {personData.knownForDepartment}</Text>
                     ) : null}
 
                     {personData?.birthday ? (
-                      <Text style={styles.metaInfoText}>
+                      <Text style={[styles.metaInfoText, { color: colors.textMuted }]} selectable={true}>
                         Born: {formatDateDisplay(personData.birthday, dateFormat)}
                         {personData.placeOfBirth ? ` in ${personData.placeOfBirth}` : ''}
                       </Text>
@@ -200,7 +249,7 @@ function EntityModalContent({
               {(entity.type === 'company' || entity.type === 'network') && (
                 <View style={styles.profileBanner}>
                   {companyData?.logoPath ? (
-                    <View style={styles.companyLogoWrapper}>
+                    <View style={[styles.companyLogoWrapper, { backgroundColor: colors.inputBg }]}>
                       <Image
                         source={{
                           uri: TMDBService.getImageUrl(companyData.logoPath, 'w185') || '',
@@ -210,20 +259,22 @@ function EntityModalContent({
                       />
                     </View>
                   ) : (
-                    <View style={[styles.personPortrait, styles.portraitFallback]}>
-                      <Ionicons name="business-outline" size={32} color="#64748b" />
+                    <View style={[styles.personPortrait, styles.portraitFallback, { backgroundColor: colors.cardBorder }]}>
+                      <Ionicons name="business-outline" size={32} color={colors.textSecondary} />
                     </View>
                   )}
 
                   <View style={styles.profileDetails}>
-                    <Text style={styles.entityName}>{companyData?.name || entity.name}</Text>
+                    <Text style={[styles.entityName, { color: colors.text }]} selectable={true}>
+                      {companyData?.name || entity.name}
+                    </Text>
                     {companyData?.headquarters ? (
-                      <Text style={styles.metaInfoText}>
+                      <Text style={[styles.metaInfoText, { color: colors.textMuted }]} selectable={true}>
                         Headquarters: {companyData.headquarters}
                       </Text>
                     ) : null}
                     {companyData?.originCountry ? (
-                      <Text style={styles.metaInfoText}>
+                      <Text style={[styles.metaInfoText, { color: colors.textMuted }]} selectable={true}>
                         Country: {companyData.originCountry}
                       </Text>
                     ) : null}
@@ -234,31 +285,32 @@ function EntityModalContent({
               {/* Genre Banner */}
               {entity.type === 'genre' && (
                 <View style={styles.genreBanner}>
-                  <View style={styles.genreIconCircle}>
-                    <Ionicons name="film" size={24} color="#38bdf8" />
+                  <View style={[styles.genreIconCircle, { backgroundColor: colors.primaryBg }]}>
+                    <Ionicons name="film" size={24} color={colors.primary} />
                   </View>
                   <View>
-                    <Text style={styles.entityName}>{entity.name}</Text>
-                    <Text style={styles.roleSub}>Browse popular movies & TV shows</Text>
+                    <Text style={[styles.entityName, { color: colors.text }]} selectable={true}>{entity.name}</Text>
+                    <Text style={[styles.roleSub, { color: colors.textSecondary }]}>Browse popular movies & TV shows</Text>
                   </View>
                 </View>
               )}
 
               {/* Biography / Description */}
               {(personData?.biography || companyData?.description) ? (
-                <View style={styles.bioCard}>
-                  <Text style={styles.bioTitle}>
+                <View style={[styles.bioCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                  <Text style={[styles.bioTitle, { color: colors.textSecondary }]}>
                     {entity.type === 'person' ? 'Biography' : 'About'}
                   </Text>
                   <Text
-                    style={[styles.bioText, { fontSize: bioFontSize }]}
-                    numberOfLines={bioExpanded ? undefined : 4}>
+                    style={[styles.bioText, { fontSize: bioFontSize, color: colors.text }]}
+                    numberOfLines={bioExpanded ? undefined : 4}
+                    selectable={true}>
                     {personData?.biography || companyData?.description}
                   </Text>
                   <Pressable
                     style={styles.expandBioBtn}
                     onPress={() => setBioExpanded(!bioExpanded)}>
-                    <Text style={styles.expandBioText}>
+                    <Text style={[styles.expandBioText, { color: colors.primary }]}>
                       {bioExpanded ? 'Show less' : 'Read full biography...'}
                     </Text>
                   </Pressable>
@@ -269,6 +321,7 @@ function EntityModalContent({
               <Pressable
                 style={({ pressed }) => [
                   styles.filterActionBtn,
+                  { backgroundColor: colors.primary },
                   pressed && styles.btnPressed,
                 ]}
                 onPress={handleApplyFilter}>
@@ -282,14 +335,14 @@ function EntityModalContent({
               {knownWorks.length > 0 && (
                 <View style={styles.knownWorksSection}>
                   <View style={styles.sectionHeaderRow}>
-                    <Text style={styles.sectionTitle}>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>
                       {entity.type === 'person'
                         ? 'Known Works / Filmography'
                         : entity.type === 'genre'
                         ? `Top ${entity.name} Titles`
                         : 'Top Productions'}
                     </Text>
-                    <Text style={styles.countText}>{knownWorks.length} titles</Text>
+                    <Text style={[styles.countText, { color: colors.textSecondary }]}>{knownWorks.length} titles</Text>
                   </View>
 
                   <ScrollView
@@ -304,7 +357,7 @@ function EntityModalContent({
                       return (
                         <Pressable
                           key={`entity-work-${work.id}-${work.media_type || 'm'}`}
-                          style={styles.workCard}
+                          style={[styles.workCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
                           onPress={() => {
                             if (onSelectMedia) {
                               onSelectMedia(work);
@@ -320,23 +373,23 @@ function EntityModalContent({
                               />
                             ) : (
                               <View style={[styles.workPoster, styles.posterFallback]}>
-                                <Ionicons name="film-outline" size={20} color="#64748b" />
+                                <Ionicons name="film-outline" size={20} color={colors.textSecondary} />
                               </View>
                             )}
                             {work.vote_average ? (
                               <View style={styles.ratingBadge}>
                                 <Ionicons name="star" size={9} color="#f59e0b" />
-                                <Text style={styles.ratingBadgeText}>
+                                <Text style={styles.ratingBadgeText} selectable={true}>
                                   {work.vote_average.toFixed(1)}
                                 </Text>
                               </View>
                             ) : null}
                           </View>
 
-                          <Text style={styles.workTitle} numberOfLines={2}>
+                          <Text style={[styles.workTitle, { color: colors.text }]} numberOfLines={2} selectable={true}>
                             {workTitle}
                           </Text>
-                          <Text style={styles.workYear}>
+                          <Text style={[styles.workYear, { color: colors.textSecondary }]} selectable={true}>
                             {workYear ? workYear : (work.media_type || '').toUpperCase()}
                           </Text>
                         </Pressable>
@@ -348,7 +401,7 @@ function EntityModalContent({
             </>
           )}
         </ScrollView>
-      </View>
+      </Animated.View>
     </View>
   );
 }

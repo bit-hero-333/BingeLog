@@ -12,10 +12,13 @@ import {
   Alert,
   ActivityIndicator,
   useWindowDimensions,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useAppTheme } from '@/context/ThemeContext';
 import {
   TMDBMediaItem,
   TrackedItem,
@@ -83,6 +86,43 @@ function TrackModalFormContent({
   const { width, height: windowHeight } = useWindowDimensions();
   const isTablet = width >= 720;
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  const { colors } = useAppTheme();
+
+  const [translateY] = useState(() => new Animated.Value(0));
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 5,
+        onPanResponderMove: (_, gestureState) => {
+          if (gestureState.dy > 0) {
+            translateY.setValue(gestureState.dy);
+          }
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 70 || gestureState.vy > 0.6) {
+            triggerHaptic('selection');
+            Animated.timing(translateY, {
+              toValue: 600,
+              duration: 160,
+              useNativeDriver: true,
+            }).start(() => {
+              onClose();
+              translateY.setValue(0);
+            });
+          } else {
+            Animated.spring(translateY, {
+              toValue: 0,
+              useNativeDriver: true,
+              bounciness: 4,
+            }).start();
+          }
+        },
+      }),
+    [onClose, triggerHaptic, translateY]
+  );
 
   useEffect(() => {
     const showSub = Keyboard.addListener(
@@ -755,54 +795,54 @@ function TrackModalFormContent({
   // 1. Media Summary Info
   const renderMediaSummary = () => (
     <>
-          <View style={styles.mediaSummary}>
-            <View style={styles.posterWrapper}>
+          <View style={[styles.mediaSummary, { borderBottomColor: colors.divider }]}>
+            <View style={[styles.posterWrapper, { backgroundColor: colors.cardBorder }]}>
               {posterUrl ? (
                 <Image source={{ uri: posterUrl }} style={styles.poster} contentFit="cover" />
               ) : (
                 <View style={[styles.poster, styles.posterFallback]}>
-                  <Ionicons name="film-outline" size={24} color="#64748b" />
+                  <Ionicons name="film-outline" size={24} color={colors.textSecondary} />
                 </View>
               )}
             </View>
 
             <View style={styles.summaryDetails}>
               <View style={styles.titleRow}>
-                <Text style={styles.mediaTitle} numberOfLines={2}>
+                <Text style={[styles.mediaTitle, { color: colors.text }]} numberOfLines={2} selectable={true}>
                   {title}
                 </Text>
                 <View style={styles.headerActions}>
                   {syncFeedback ? (
-                    <View style={styles.syncFeedbackBadge}>
-                      <Text style={styles.syncFeedbackText}>{syncFeedback}</Text>
+                    <View style={[styles.syncFeedbackBadge, { backgroundColor: colors.primaryBg }]}>
+                      <Text style={[styles.syncFeedbackText, { color: colors.primary }]}>{syncFeedback}</Text>
                     </View>
                   ) : null}
                   {apiKey ? (
                     <Pressable
                       onPress={handleSyncTMDB}
-                      style={styles.syncButton}
+                      style={[styles.syncButton, { backgroundColor: colors.inputBg }]}
                       disabled={isSyncing}
                       hitSlop={8}>
                       {isSyncing ? (
-                        <ActivityIndicator size="small" color="#38bdf8" />
+                        <ActivityIndicator size="small" color={colors.primary} />
                       ) : (
-                        <Ionicons name="cloud-download-outline" size={19} color="#38bdf8" />
+                        <Ionicons name="cloud-download-outline" size={19} color={colors.primary} />
                       )}
                     </Pressable>
                   ) : null}
                   <Pressable onPress={onClose} style={styles.closeButton} hitSlop={8}>
-                    <Ionicons name="close" size={20} color="#94a3b8" />
+                    <Ionicons name="close" size={20} color={colors.textSecondary} />
                   </Pressable>
                 </View>
               </View>
 
               <View style={styles.metaBadgeRow}>
-                <View style={styles.typeTag}>
-                  <Text style={styles.typeTagText}>{mediaType.toUpperCase()}</Text>
+                <View style={[styles.typeTag, { backgroundColor: colors.primaryBg }]}>
+                  <Text style={[styles.typeTagText, { color: colors.primary }]}>{mediaType.toUpperCase()}</Text>
                 </View>
 
                 {mediaType === 'tv' && (totalEpisodes || totalSeasons) ? (
-                  <Text style={styles.metaText}>
+                  <Text style={[styles.metaText, { color: colors.textSecondary }]} selectable={true}>
                     {totalEpisodes ? `${totalEpisodes} eps` : ''}
                     {totalEpisodes && totalSeasons ? ' • ' : ''}
                     {totalSeasons ? `${totalSeasons} season${totalSeasons > 1 ? 's' : ''}` : ''}
@@ -810,25 +850,31 @@ function TrackModalFormContent({
                 ) : null}
 
                 {mediaType === 'movie' && runtimeMinutes ? (
-                  <Text style={styles.metaText}>{formatRuntime(runtimeMinutes)}</Text>
+                  <Text style={[styles.metaText, { color: colors.textSecondary }]} selectable={true}>
+                    {formatRuntime(runtimeMinutes)}
+                  </Text>
                 ) : null}
 
                 {releaseYear ? (
-                  <Text style={styles.metaText}>({releaseYear})</Text>
+                  <Text style={[styles.metaText, { color: colors.textSecondary }]} selectable={true}>
+                    ({releaseYear})
+                  </Text>
                 ) : null}
 
                 {voteAverage ? (
                   <View style={styles.ratingTag}>
                     <Ionicons name="star" size={11} color="#f59e0b" />
-                    <Text style={styles.ratingTagText}>{voteAverage.toFixed(1)}</Text>
+                    <Text style={styles.ratingTagText} selectable={true}>
+                      {voteAverage.toFixed(1)}
+                    </Text>
                   </View>
                 ) : null}
               </View>
 
               {isLoadingDetails && (
                 <View style={styles.loadingDetailsRow}>
-                  <ActivityIndicator size="small" color="#38bdf8" />
-                  <Text style={styles.loadingDetailsText}>Loading extra info...</Text>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={[styles.loadingDetailsText, { color: colors.primary }]}>Loading extra info...</Text>
                 </View>
               )}
             </View>
@@ -840,9 +886,11 @@ function TrackModalFormContent({
   // 2. Rich Media Details (tagline, genres, synopsis, cast, creators)
   const renderRichInfo = () => (
     <>
-          <View style={styles.richInfoSection}>
+          <View style={[styles.richInfoSection, { borderBottomColor: colors.divider }]}>
             {detailedInfo?.tagline ? (
-              <Text style={styles.taglineText}>&ldquo;{detailedInfo.tagline}&rdquo;</Text>
+              <Text style={[styles.taglineText, { color: colors.textSecondary }]} selectable={true}>
+                &ldquo;{detailedInfo.tagline}&rdquo;
+              </Text>
             ) : null}
 
             {detailedInfo?.genres && detailedInfo.genres.length > 0 ? (
@@ -852,7 +900,12 @@ function TrackModalFormContent({
                     key={g.id}
                     style={[
                       styles.genreChip,
-                      { paddingVertical: tagPadV, paddingHorizontal: tagPadH },
+                      {
+                        paddingVertical: tagPadV,
+                        paddingHorizontal: tagPadH,
+                        backgroundColor: colors.inputBg,
+                        borderColor: colors.cardBorder,
+                      },
                     ]}
                     onPress={() =>
                       setSelectedEntity({
@@ -861,25 +914,28 @@ function TrackModalFormContent({
                         name: g.name,
                       })
                     }>
-                    <Text style={[styles.genreChipText, { fontSize: tagFontSize }]}>{g.name}</Text>
-                    <Ionicons name="search" size={9} color="#94a3b8" />
+                    <Text style={[styles.genreChipText, { fontSize: tagFontSize, color: colors.textSecondary }]}>
+                      {g.name}
+                    </Text>
+                    <Ionicons name="search" size={9} color={colors.textMuted} />
                   </Pressable>
                 ))}
               </View>
             ) : null}
 
             {overview ? (
-              <View style={styles.synopsisContainer}>
+              <View style={[styles.synopsisContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
                 <Text
-                  style={[styles.synopsisText, { fontSize: synopsisFontSize }]}
-                  numberOfLines={overviewExpanded ? undefined : 3}>
+                  style={[styles.synopsisText, { fontSize: synopsisFontSize, color: colors.text }]}
+                  numberOfLines={overviewExpanded ? undefined : 3}
+                  selectable={true}>
                   {overview}
                 </Text>
                 {overview.length > 140 ? (
                   <Pressable
                     onPress={() => setOverviewExpanded(!overviewExpanded)}
                     style={styles.expandOverviewBtn}>
-                    <Text style={styles.expandOverviewText}>
+                    <Text style={[styles.expandOverviewText, { color: colors.primary }]}>
                       {overviewExpanded ? 'Show less' : 'Read more...'}
                     </Text>
                   </Pressable>
@@ -891,19 +947,19 @@ function TrackModalFormContent({
             {rawCastList.length > 0 ? (
               <View style={styles.castSection}>
                 <View style={styles.subSectionHeaderRow}>
-                  <Text style={styles.subSectionTitle}>
+                  <Text style={[styles.subSectionTitle, { color: colors.textSecondary }]}>
                     {localShowAllCast ? `Full Cast (${rawCastList.length})` : `Top Cast (${Math.min(10, rawCastList.length)})`}
                   </Text>
                   {rawCastList.length > 10 ? (
                     <Pressable
-                      style={styles.toggleCastBtn}
+                      style={[styles.toggleCastBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
                       onPress={() => setLocalShowAllCast(!localShowAllCast)}>
                       <Ionicons
                         name={localShowAllCast ? 'funnel-outline' : 'people-outline'}
                         size={12}
-                        color="#38bdf8"
+                        color={colors.primary}
                       />
-                      <Text style={styles.toggleCastBtnText}>
+                      <Text style={[styles.toggleCastBtnText, { color: colors.primary }]}>
                         {localShowAllCast ? 'Show Top 10' : `Show All (${rawCastList.length})`}
                       </Text>
                     </Pressable>
@@ -950,21 +1006,23 @@ function TrackModalFormContent({
                               width: actorAvatarSize,
                               height: actorAvatarSize,
                               borderRadius: actorAvatarSize / 2,
+                              backgroundColor: colors.cardBorder,
                             },
                           ]}>
                           <Ionicons
                             name="person"
                             size={Math.max(12, actorAvatarSize * 0.4)}
-                            color="#64748b"
+                            color={colors.textSecondary}
                           />
                         </View>
                       )}
                       <Text
-                        style={[styles.castName, { fontSize: actorNameFontSize }]}
-                        numberOfLines={1}>
+                        style={[styles.castName, { fontSize: actorNameFontSize, color: colors.text }]}
+                        numberOfLines={1}
+                        selectable={true}>
                         {actor.name}
                       </Text>
-                      <Text style={styles.castCharacter} numberOfLines={1}>
+                      <Text style={[styles.castCharacter, { color: colors.textMuted }]} numberOfLines={1} selectable={true}>
                         {actor.character}
                       </Text>
                     </Pressable>
@@ -979,15 +1037,15 @@ function TrackModalFormContent({
               detailedInfo?.writers?.length ||
               detailedInfo?.studios?.length ||
               detailedInfo?.networks?.length) ? (
-              <View style={styles.metaInfoBox}>
+              <View style={[styles.metaInfoBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
                 {detailedInfo.directors && detailedInfo.directors.length > 0 ? (
                   <View style={styles.metaInfoRow}>
-                    <Text style={styles.metaInfoLabel}>Director:</Text>
+                    <Text style={[styles.metaInfoLabel, { color: colors.textSecondary }]}>Director:</Text>
                     <View style={styles.metaEntityPillsRow}>
                       {detailedInfo.directors.map((d) => (
                         <Pressable
                           key={`dir-${d.id}`}
-                          style={styles.metaClickableChip}
+                          style={[styles.metaClickableChip, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                           onPress={() =>
                             setSelectedEntity({
                               type: 'person',
@@ -996,8 +1054,8 @@ function TrackModalFormContent({
                               role: 'Director',
                             })
                           }>
-                          <Text style={styles.metaClickableChipText}>{d.name}</Text>
-                          <Ionicons name="chevron-forward" size={10} color="#38bdf8" />
+                          <Text style={[styles.metaClickableChipText, { color: colors.text }]}>{d.name}</Text>
+                          <Ionicons name="chevron-forward" size={10} color={colors.primary} />
                         </Pressable>
                       ))}
                     </View>
@@ -1006,12 +1064,12 @@ function TrackModalFormContent({
 
                 {detailedInfo.creators && detailedInfo.creators.length > 0 ? (
                   <View style={styles.metaInfoRow}>
-                    <Text style={styles.metaInfoLabel}>Created by:</Text>
+                    <Text style={[styles.metaInfoLabel, { color: colors.textSecondary }]}>Created by:</Text>
                     <View style={styles.metaEntityPillsRow}>
                       {detailedInfo.creators.map((c) => (
                         <Pressable
                           key={`creator-${c.id}`}
-                          style={styles.metaClickableChip}
+                          style={[styles.metaClickableChip, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                           onPress={() =>
                             setSelectedEntity({
                               type: 'person',
@@ -1020,8 +1078,8 @@ function TrackModalFormContent({
                               role: 'Creator',
                             })
                           }>
-                          <Text style={styles.metaClickableChipText}>{c.name}</Text>
-                          <Ionicons name="chevron-forward" size={10} color="#38bdf8" />
+                          <Text style={[styles.metaClickableChipText, { color: colors.text }]}>{c.name}</Text>
+                          <Ionicons name="chevron-forward" size={10} color={colors.primary} />
                         </Pressable>
                       ))}
                     </View>
@@ -1030,12 +1088,12 @@ function TrackModalFormContent({
 
                 {detailedInfo.writers && detailedInfo.writers.length > 0 ? (
                   <View style={styles.metaInfoRow}>
-                    <Text style={styles.metaInfoLabel}>Writers:</Text>
+                    <Text style={[styles.metaInfoLabel, { color: colors.textSecondary }]}>Writers:</Text>
                     <View style={styles.metaEntityPillsRow}>
                       {detailedInfo.writers.map((w) => (
                         <Pressable
                           key={`writer-${w.id}`}
-                          style={styles.metaClickableChip}
+                          style={[styles.metaClickableChip, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                           onPress={() =>
                             setSelectedEntity({
                               type: 'person',
@@ -1044,8 +1102,8 @@ function TrackModalFormContent({
                               role: w.role || 'Writer',
                             })
                           }>
-                          <Text style={styles.metaClickableChipText}>{w.name}</Text>
-                          <Ionicons name="chevron-forward" size={10} color="#38bdf8" />
+                          <Text style={[styles.metaClickableChipText, { color: colors.text }]}>{w.name}</Text>
+                          <Ionicons name="chevron-forward" size={10} color={colors.primary} />
                         </Pressable>
                       ))}
                     </View>
@@ -1054,12 +1112,12 @@ function TrackModalFormContent({
 
                 {detailedInfo.studios && detailedInfo.studios.length > 0 ? (
                   <View style={styles.metaInfoRow}>
-                    <Text style={styles.metaInfoLabel}>Studios:</Text>
+                    <Text style={[styles.metaInfoLabel, { color: colors.textSecondary }]}>Studios:</Text>
                     <View style={styles.metaEntityPillsRow}>
                       {detailedInfo.studios.map((s) => (
                         <Pressable
                           key={`studio-${s.id}`}
-                          style={styles.metaClickableChip}
+                          style={[styles.metaClickableChip, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                           onPress={() =>
                             setSelectedEntity({
                               type: 'company',
@@ -1068,8 +1126,8 @@ function TrackModalFormContent({
                               logoPath: s.logoPath,
                             })
                           }>
-                          <Text style={styles.metaClickableChipText}>{s.name}</Text>
-                          <Ionicons name="chevron-forward" size={10} color="#38bdf8" />
+                          <Text style={[styles.metaClickableChipText, { color: colors.text }]}>{s.name}</Text>
+                          <Ionicons name="chevron-forward" size={10} color={colors.primary} />
                         </Pressable>
                       ))}
                     </View>
@@ -1078,12 +1136,12 @@ function TrackModalFormContent({
 
                 {detailedInfo.networks && detailedInfo.networks.length > 0 ? (
                   <View style={styles.metaInfoRow}>
-                    <Text style={styles.metaInfoLabel}>Network:</Text>
+                    <Text style={[styles.metaInfoLabel, { color: colors.textSecondary }]}>Network:</Text>
                     <View style={styles.metaEntityPillsRow}>
                       {detailedInfo.networks.map((n) => (
                         <Pressable
                           key={`net-${n.id}`}
-                          style={styles.metaClickableChip}
+                          style={[styles.metaClickableChip, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                           onPress={() =>
                             setSelectedEntity({
                               type: 'network',
@@ -1092,8 +1150,8 @@ function TrackModalFormContent({
                               logoPath: n.logoPath,
                             })
                           }>
-                          <Text style={styles.metaClickableChipText}>{n.name}</Text>
-                          <Ionicons name="chevron-forward" size={10} color="#38bdf8" />
+                          <Text style={[styles.metaClickableChipText, { color: colors.text }]}>{n.name}</Text>
+                          <Ionicons name="chevron-forward" size={10} color={colors.primary} />
                         </Pressable>
                       ))}
                     </View>
@@ -1110,7 +1168,7 @@ function TrackModalFormContent({
   const renderStatusSelector = () => (
     <>
           <View style={styles.statusHeaderRow}>
-            <Text style={styles.sectionTitle}>Status</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Status</Text>
             {!status && (
               <Text style={styles.unselectedStatusHint}>Tap a status to begin tracking</Text>
             )}
@@ -1125,6 +1183,10 @@ function TrackModalFormContent({
                   key={st}
                   style={[
                     styles.statusButton,
+                    {
+                      backgroundColor: colors.inputBg,
+                      borderColor: colors.cardBorder,
+                    },
                     isSelected && {
                       backgroundColor: config.bgColor,
                       borderColor: config.color,
@@ -1141,6 +1203,7 @@ function TrackModalFormContent({
                   <Text
                     style={[
                       styles.statusButtonText,
+                      { color: colors.textSecondary },
                       isSelected && { color: config.color, fontWeight: '700' },
                     ]}>
                     {config.shortLabel}
@@ -1158,11 +1221,11 @@ function TrackModalFormContent({
     <>
             <View style={styles.tvSection}>
               {/* Master Counter Header */}
-              <View style={styles.progressCard}>
+              <View style={[styles.progressCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
                 <View style={styles.progressHeaderRow}>
                   <View>
-                    <Text style={styles.sectionTitle}>Episodes Watched</Text>
-                    <Text style={styles.progressSubtitle}>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Episodes Watched</Text>
+                    <Text style={[styles.progressSubtitle, { color: colors.textSecondary }]}>
                       {totalEpisodes
                         ? `Overall: ${watchedEpisodesCount} of ${totalEpisodes} episodes${
                             specialsEpisodesCount > 0 ? ` (+${specialsEpisodesCount} specials)` : ''
@@ -1172,8 +1235,8 @@ function TrackModalFormContent({
                   </View>
 
                   {totalEpisodes ? (
-                    <View style={styles.fractionBadge}>
-                      <Text style={styles.fractionBadgeText}>
+                    <View style={[styles.fractionBadge, { backgroundColor: colors.primaryBg }]}>
+                      <Text style={[styles.fractionBadgeText, { color: colors.primary }]}>
                         {watchedEpisodesCount} / {totalEpisodes}
                       </Text>
                     </View>
@@ -1183,15 +1246,15 @@ function TrackModalFormContent({
                 {/* Master Stepper */}
                 <View style={styles.stepperContainer}>
                   <Pressable
-                    style={[styles.stepperBtn, watchedEpisodesCount <= 0 && styles.stepperDisabled]}
+                    style={[styles.stepperBtn, { backgroundColor: colors.primary }, watchedEpisodesCount <= 0 && styles.stepperDisabled]}
                     onPress={handleDecrementLastEpisode}
                     disabled={watchedEpisodesCount <= 0}>
                     <Ionicons name="remove" size={18} color="#ffffff" />
                   </Pressable>
 
                   <View style={styles.stepperValueContainer}>
-                    <Text style={styles.stepperValue}>{watchedEpisodesCount}</Text>
-                    <Text style={styles.stepperSubLabel}>
+                    <Text style={[styles.stepperValue, { color: colors.text }]} selectable={true}>{watchedEpisodesCount}</Text>
+                    <Text style={[styles.stepperSubLabel, { color: colors.textSecondary }]}>
                       {totalEpisodes ? `of ${totalEpisodes}` : 'watched'}
                     </Text>
                   </View>
@@ -1199,6 +1262,7 @@ function TrackModalFormContent({
                   <Pressable
                     style={[
                       styles.stepperBtn,
+                      { backgroundColor: colors.primary },
                       totalEpisodes !== null && watchedEpisodesCount >= totalEpisodes && styles.stepperDisabled,
                     ]}
                     onPress={handleIncrementNextEpisode}
@@ -1209,49 +1273,55 @@ function TrackModalFormContent({
 
                 {/* Master Quick Actions */}
                 <View style={styles.quickActionsRow}>
-                  <Pressable style={styles.quickPill} onPress={handleIncrementNextEpisode}>
-                    <Text style={styles.quickPillText}>+1 Ep</Text>
+                  <Pressable
+                    style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                    onPress={handleIncrementNextEpisode}>
+                    <Text style={[styles.quickPillText, { color: colors.textSecondary }]}>+1 Ep</Text>
                   </Pressable>
                   {totalEpisodes ? (
-                    <Pressable style={styles.quickPill} onPress={handleMarkEntireShowWatched}>
-                      <Text style={styles.quickPillText}>All ({totalEpisodes})</Text>
+                    <Pressable
+                      style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                      onPress={handleMarkEntireShowWatched}>
+                      <Text style={[styles.quickPillText, { color: colors.textSecondary }]}>All ({totalEpisodes})</Text>
                     </Pressable>
                   ) : null}
-                  <Pressable style={styles.quickPill} onPress={handleResetAllEpisodes}>
-                    <Text style={styles.quickPillText}>Reset (0)</Text>
+                  <Pressable
+                    style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                    onPress={handleResetAllEpisodes}>
+                    <Text style={[styles.quickPillText, { color: colors.textSecondary }]}>Reset (0)</Text>
                   </Pressable>
                 </View>
 
                 {/* TV Rewatch Counter */}
-                <View style={styles.rewatchRow}>
+                <View style={[styles.rewatchRow, { borderTopColor: colors.divider }]}>
                   <View style={styles.rewatchInfo}>
-                    <Ionicons name="repeat" size={16} color="#38bdf8" />
-                    <Text style={styles.rewatchText}>Rewatched:</Text>
-                    <Text style={styles.rewatchCount}>
+                    <Ionicons name="repeat" size={16} color={colors.primary} />
+                    <Text style={[styles.rewatchText, { color: colors.textSecondary }]}>Rewatched:</Text>
+                    <Text style={[styles.rewatchCount, { color: colors.text }]}>
                       {rewatchCount > 0 ? `${rewatchCount}×` : '0 times'}
                     </Text>
                   </View>
 
                   <View style={styles.rewatchControlGroup}>
                     <Pressable
-                      style={[styles.rewatchMiniBtn, rewatchCount <= 0 && styles.stepperDisabled]}
+                      style={[styles.rewatchMiniBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }, rewatchCount <= 0 && styles.stepperDisabled]}
                       onPress={() => {
                         triggerHaptic('selection');
                         setRewatchCount((c) => Math.max(0, c - 1));
                       }}
                       disabled={rewatchCount <= 0}>
-                      <Ionicons name="remove" size={14} color="#ffffff" />
+                      <Ionicons name="remove" size={14} color={colors.text} />
                     </Pressable>
                     <Pressable
-                      style={styles.rewatchMiniBtn}
+                      style={[styles.rewatchMiniBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                       onPress={() => {
                         triggerHaptic('selection');
                         setRewatchCount((c) => c + 1);
                       }}>
-                      <Ionicons name="add" size={14} color="#ffffff" />
+                      <Ionicons name="add" size={14} color={colors.text} />
                     </Pressable>
                     <Pressable
-                      style={styles.rewatchBtn}
+                      style={[styles.rewatchBtn, { backgroundColor: colors.primary }]}
                       onPress={handleStartTvRewatch}>
                       <Ionicons name="refresh" size={13} color="#ffffff" />
                       <Text style={styles.rewatchBtnText}>Start Rewatch</Text>
@@ -1263,8 +1333,8 @@ function TrackModalFormContent({
               {/* Seasons & Episodes Breakdown Accordion */}
               <View style={styles.seasonsHeaderRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.sectionTitle}>Seasons & Episodes</Text>
-                  <Text style={styles.sectionSubHelp}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Seasons & Episodes</Text>
+                  <Text style={[styles.sectionSubHelp, { color: colors.textSecondary }]}>
                     Tap any episode to mark as watched. Tap a season header to expand.
                   </Text>
                 </View>
@@ -1273,18 +1343,20 @@ function TrackModalFormContent({
                   <Pressable
                     style={[
                       styles.specialsToggleBtn,
-                      localShowSpecials && styles.specialsToggleBtnActive,
+                      { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                      localShowSpecials && [styles.specialsToggleBtnActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
                     ]}
                     onPress={() => setLocalShowSpecials((v) => !v)}>
                     <Ionicons
                       name={localShowSpecials ? 'sparkles' : 'sparkles-outline'}
                       size={12}
-                      color={localShowSpecials ? '#38bdf8' : '#94a3b8'}
+                      color={localShowSpecials ? colors.primary : colors.textSecondary}
                     />
                     <Text
                       style={[
                         styles.specialsToggleBtnText,
-                        localShowSpecials && styles.specialsToggleBtnTextActive,
+                        { color: colors.textSecondary },
+                        localShowSpecials && [styles.specialsToggleBtnTextActive, { color: colors.primary }],
                       ]}>
                       Specials {localShowSpecials ? 'On' : 'Off'}
                     </Text>
@@ -1307,7 +1379,7 @@ function TrackModalFormContent({
                   const isSeasonComplete = seasonWatched >= epCount && epCount > 0;
 
                   return (
-                    <View key={`season-${sNum}`} style={styles.seasonCard}>
+                    <View key={`season-${sNum}`} style={[styles.seasonCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                       {/* Season Header */}
                       <Pressable
                         style={styles.seasonHeader}
@@ -1336,13 +1408,13 @@ function TrackModalFormContent({
                                   ? '#22c55e'
                                   : sNum === 0
                                   ? '#fbbf24'
-                                  : '#38bdf8'
+                                  : colors.primary
                               }
                             />
                           )}
                           <View style={styles.seasonTitleGroup}>
                             <View style={styles.seasonNameRow}>
-                              <Text style={[styles.seasonNameText, { fontSize: seasonHeaderFontSize }]}>
+                              <Text style={[styles.seasonNameText, { fontSize: seasonHeaderFontSize, color: colors.text }]} selectable={true}>
                                 {sNum === 0
                                   ? (season.name || 'Specials')
                                   : (season.name || `Season ${sNum}`)}
@@ -1353,7 +1425,7 @@ function TrackModalFormContent({
                                 </View>
                               )}
                             </View>
-                            <Text style={styles.seasonMetaText}>
+                            <Text style={[styles.seasonMetaText, { color: colors.textSecondary }]} selectable={true}>
                               {seasonWatched} / {epCount} watched{sNum === 0 ? ' (Bonus)' : ''}
                             </Text>
                           </View>
@@ -1363,6 +1435,7 @@ function TrackModalFormContent({
                           <Pressable
                             style={[
                               styles.seasonCompleteBtn,
+                              { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
                               isSeasonComplete && styles.seasonCompleteBtnActive,
                             ]}
                             onPress={(e) => {
@@ -1372,6 +1445,7 @@ function TrackModalFormContent({
                             <Text
                               style={[
                                 styles.seasonCompleteBtnText,
+                                { color: colors.primary },
                                 isSeasonComplete && styles.seasonCompleteBtnTextActive,
                               ]}>
                               {isSeasonComplete ? 'Reset' : 'Complete'}
@@ -1381,18 +1455,18 @@ function TrackModalFormContent({
                           <Ionicons
                             name={isExpanded ? 'chevron-up' : 'chevron-down'}
                             size={18}
-                            color="#94a3b8"
+                            color={colors.textSecondary}
                           />
                         </View>
                       </Pressable>
 
                       {/* Expanded Episodes List */}
                       {isExpanded && (
-                        <View style={styles.episodesListContainer}>
+                        <View style={[styles.episodesListContainer, { backgroundColor: colors.background, borderTopColor: colors.divider }]}>
                           {isLoadingSeason ? (
                             <View style={styles.episodesLoadingRow}>
-                              <ActivityIndicator size="small" color="#38bdf8" />
-                              <Text style={styles.episodesLoadingText}>Loading episode details...</Text>
+                              <ActivityIndicator size="small" color={colors.primary} />
+                              <Text style={[styles.episodesLoadingText, { color: colors.primary }]}>Loading episode details...</Text>
                             </View>
                           ) : (
                             Array.from({ length: epCount }).map((_, idx) => {
@@ -1406,7 +1480,7 @@ function TrackModalFormContent({
                                   key={epKey}
                                   style={[
                                     styles.episodeRow,
-                                    { paddingVertical: epRowPadV },
+                                    { paddingVertical: epRowPadV, borderBottomColor: colors.divider },
                                     isWatched && styles.episodeRowWatched,
                                   ]}
                                   delayLongPress={350}
@@ -1427,6 +1501,7 @@ function TrackModalFormContent({
                                           width: episodeCheckboxSize,
                                           height: episodeCheckboxSize,
                                           borderRadius: Math.round(episodeCheckboxSize / 4),
+                                          borderColor: colors.cardBorder,
                                         },
                                         isWatched && styles.checkboxWatched,
                                       ]}>
@@ -1459,15 +1534,16 @@ function TrackModalFormContent({
                                       <Text
                                         style={[
                                           styles.episodeTitleText,
-                                          { fontSize: episodeTitleFontSize },
+                                          { fontSize: episodeTitleFontSize, color: colors.text },
                                           isWatched && styles.episodeTitleTextWatched,
                                         ]}
-                                        numberOfLines={1}>
+                                        numberOfLines={1}
+                                        selectable={true}>
                                         {epNum}. {detail?.name || `Episode ${epNum}`}
                                       </Text>
 
                                       {(detail?.runtime || detail?.airDate) ? (
-                                        <Text style={styles.episodeSubInfoText}>
+                                        <Text style={[styles.episodeSubInfoText, { color: colors.textMuted }]} selectable={true}>
                                           {detail?.runtime ? `${detail.runtime}m` : ''}
                                           {detail?.runtime && detail?.airDate ? ' • ' : ''}
                                           {detail?.airDate ? formatDateDisplay(detail.airDate) : ''}
@@ -1480,11 +1556,13 @@ function TrackModalFormContent({
                                     <View
                                       style={[
                                         styles.watchedBadge,
+                                        { backgroundColor: colors.inputBg },
                                         isWatched && styles.watchedBadgeActive,
                                       ]}>
                                       <Text
                                         style={[
                                           styles.watchedBadgeText,
+                                          { color: colors.textMuted },
                                           isWatched && styles.watchedBadgeTextActive,
                                         ]}>
                                         {isWatched ? 'Watched' : 'Unwatched'}
@@ -1506,7 +1584,7 @@ function TrackModalFormContent({
                                       <Ionicons
                                         name="information-circle-outline"
                                         size={20}
-                                        color="#94a3b8"
+                                        color={colors.textSecondary}
                                       />
                                     </Pressable>
                                   </View>
@@ -1527,11 +1605,11 @@ function TrackModalFormContent({
   // 5. Movie Viewing Progress
   const renderMovieSection = () => (
     <>
-            <View style={styles.progressCard}>
+            <View style={[styles.progressCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
               <View style={styles.progressHeaderRow}>
                 <View>
-                  <Text style={styles.sectionTitle}>Movie Viewing Progress</Text>
-                  <Text style={styles.progressSubtitle}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Movie Viewing Progress</Text>
+                  <Text style={[styles.progressSubtitle, { color: colors.textSecondary }]}>
                     {runtimeMinutes
                       ? `Total Runtime: ${formatRuntime(runtimeMinutes)} (${runtimeMinutes} min)`
                       : 'Track viewing time'}
@@ -1539,8 +1617,8 @@ function TrackModalFormContent({
                 </View>
 
                 {runtimeMinutes && minutesWatched > 0 ? (
-                  <View style={styles.fractionBadge}>
-                    <Text style={styles.fractionBadgeText}>
+                  <View style={[styles.fractionBadge, { backgroundColor: colors.primaryBg }]}>
+                    <Text style={[styles.fractionBadgeText, { color: colors.primary }]}>
                       {minutesWatched} / {runtimeMinutes}m
                     </Text>
                   </View>
@@ -1550,20 +1628,21 @@ function TrackModalFormContent({
               {runtimeMinutes ? (
                 <View style={styles.stepperContainer}>
                   <Pressable
-                    style={[styles.stepperBtn, minutesWatched <= 0 && styles.stepperDisabled]}
+                    style={[styles.stepperBtn, { backgroundColor: colors.primary }, minutesWatched <= 0 && styles.stepperDisabled]}
                     onPress={() => handleMinutesChange(minutesWatched - 15)}
                     disabled={minutesWatched <= 0}>
                     <Ionicons name="remove" size={18} color="#ffffff" />
                   </Pressable>
 
                   <View style={styles.stepperValueContainer}>
-                    <Text style={styles.stepperValue}>{minutesWatched}m</Text>
-                    <Text style={styles.stepperSubLabel}>watched</Text>
+                    <Text style={[styles.stepperValue, { color: colors.text }]} selectable={true}>{minutesWatched}m</Text>
+                    <Text style={[styles.stepperSubLabel, { color: colors.textSecondary }]}>watched</Text>
                   </View>
 
                   <Pressable
                     style={[
                       styles.stepperBtn,
+                      { backgroundColor: colors.primary },
                       minutesWatched >= runtimeMinutes && styles.stepperDisabled,
                     ]}
                     onPress={() => handleMinutesChange(minutesWatched + 15)}
@@ -1577,49 +1656,49 @@ function TrackModalFormContent({
                 {runtimeMinutes ? (
                   <>
                     <Pressable
-                      style={styles.quickPill}
+                      style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                       onPress={() => handleMinutesChange(runtimeMinutes)}>
-                      <Text style={styles.quickPillText}>Watched Entire Movie</Text>
+                      <Text style={[styles.quickPillText, { color: colors.textSecondary }]}>Watched Entire Movie</Text>
                     </Pressable>
                     <Pressable
-                      style={styles.quickPill}
+                      style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                       onPress={() => handleMinutesChange(minutesWatched + 30)}>
-                      <Text style={styles.quickPillText}>+30m</Text>
+                      <Text style={[styles.quickPillText, { color: colors.textSecondary }]}>+30m</Text>
                     </Pressable>
                   </>
                 ) : null}
               </View>
 
               {/* Rewatch Counter */}
-              <View style={styles.rewatchRow}>
+              <View style={[styles.rewatchRow, { borderTopColor: colors.divider }]}>
                 <View style={styles.rewatchInfo}>
-                  <Ionicons name="repeat" size={16} color="#38bdf8" />
-                  <Text style={styles.rewatchText}>Rewatched:</Text>
-                  <Text style={styles.rewatchCount}>
+                  <Ionicons name="repeat" size={16} color={colors.primary} />
+                  <Text style={[styles.rewatchText, { color: colors.textSecondary }]}>Rewatched:</Text>
+                  <Text style={[styles.rewatchCount, { color: colors.text }]}>
                     {rewatchCount > 0 ? `${rewatchCount}×` : '0 times'}
                   </Text>
                 </View>
 
                 <View style={styles.rewatchControlGroup}>
                   <Pressable
-                    style={[styles.rewatchMiniBtn, rewatchCount <= 0 && styles.stepperDisabled]}
+                    style={[styles.rewatchMiniBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }, rewatchCount <= 0 && styles.stepperDisabled]}
                       onPress={() => {
                         triggerHaptic('selection');
                         setRewatchCount((c) => Math.max(0, c - 1));
                       }}
                     disabled={rewatchCount <= 0}>
-                    <Ionicons name="remove" size={14} color="#ffffff" />
+                    <Ionicons name="remove" size={14} color={colors.text} />
                   </Pressable>
                   <Pressable
-                    style={styles.rewatchMiniBtn}
+                    style={[styles.rewatchMiniBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                       onPress={() => {
                         triggerHaptic('selection');
                         setRewatchCount((c) => c + 1);
                       }}>
-                    <Ionicons name="add" size={14} color="#ffffff" />
+                    <Ionicons name="add" size={14} color={colors.text} />
                   </Pressable>
                   <Pressable
-                    style={styles.rewatchBtn}
+                    style={[styles.rewatchBtn, { backgroundColor: colors.primary }]}
                     onPress={handleStartMovieRewatch}>
                     <Ionicons name="refresh" size={13} color="#ffffff" />
                     <Text style={styles.rewatchBtnText}>Start Rewatch</Text>
@@ -1634,7 +1713,7 @@ function TrackModalFormContent({
   const renderScoreSelector = () => (
     <>
           <View style={styles.scoreHeaderRow}>
-            <Text style={styles.sectionTitle}>Your Score</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Score</Text>
             <Text style={styles.scoreActiveLabel}>{currentScoreLabel}</Text>
           </View>
           <ScrollView
@@ -1648,7 +1727,17 @@ function TrackModalFormContent({
                   key={s}
                   style={[
                     styles.scorePill,
-                    isSelected && styles.scorePillActive,
+                    {
+                      backgroundColor: colors.inputBg,
+                      borderColor: colors.cardBorder,
+                    },
+                    isSelected && [
+                      styles.scorePillActive,
+                      {
+                        backgroundColor: colors.primary,
+                        borderColor: colors.primary,
+                      },
+                    ],
                   ]}
                   onPress={() => {
                     triggerHaptic('selection');
@@ -1657,7 +1746,8 @@ function TrackModalFormContent({
                   <Text
                     style={[
                       styles.scorePillText,
-                      isSelected && styles.scorePillTextActive,
+                      { color: colors.textSecondary },
+                      isSelected && [styles.scorePillTextActive, { color: '#ffffff' }],
                     ]}>
                     {s === 0 ? '-' : s}
                   </Text>
@@ -1672,18 +1762,18 @@ function TrackModalFormContent({
   // 7. Dates & Timeline
   const renderDatesSection = () => (
     <>
-          <View style={styles.datesCard}>
+          <View style={[styles.datesCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
             <Pressable
               style={styles.datesCardHeader}
               onPress={() => setShowDatesSection(!showDatesSection)}>
               <View style={styles.datesHeaderLeft}>
-                <Ionicons name="calendar" size={18} color="#38bdf8" />
+                <Ionicons name="calendar" size={18} color={colors.primary} />
                 <View>
-                  <Text style={styles.datesCardTitle}>Dates & Timeline ({dateFormat})</Text>
+                  <Text style={[styles.datesCardTitle, { color: colors.text }]}>Dates & Timeline ({dateFormat})</Text>
                   {durationLabel ? (
-                    <Text style={styles.durationSummaryText}>{durationLabel}</Text>
+                    <Text style={[styles.durationSummaryText, { color: colors.primary }]}>{durationLabel}</Text>
                   ) : (
-                    <Text style={styles.datesSubText}>
+                    <Text style={[styles.datesSubText, { color: colors.textSecondary }]}>
                       {existingRecord ? `Added ${getRelativeTime(addedAt)}` : 'Set start & finish dates'}
                     </Text>
                   )}
@@ -1692,34 +1782,35 @@ function TrackModalFormContent({
               <Ionicons
                 name={showDatesSection ? 'chevron-up' : 'chevron-down'}
                 size={18}
-                color="#94a3b8"
+                color={colors.textSecondary}
               />
             </Pressable>
 
             {showDatesSection && (
-              <View style={styles.datesExpandedContent}>
+              <View style={[styles.datesExpandedContent, { borderTopColor: colors.divider }]}>
                 {/* Date Added */}
                 <View style={styles.dateRow}>
                   <View style={styles.dateLabelGroup}>
-                    <Text style={styles.dateLabel}>Date Added:</Text>
-                    <Text style={styles.dateRelativeText}>
+                    <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Date Added:</Text>
+                    <Text style={[styles.dateRelativeText, { color: colors.textMuted }]}>
                       ({getRelativeTime(addedAt)})
                     </Text>
                   </View>
-                  <Text style={styles.dateStaticValue}>{formatDateDisplay(addedAt, dateFormat)}</Text>
+                  <Text style={[styles.dateStaticValue, { color: colors.text }]} selectable={true}>{formatDateDisplay(addedAt, dateFormat)}</Text>
                 </View>
 
                 {/* Started Watching Date Picker Button */}
                 <View style={styles.dateRow}>
-                  <Text style={styles.dateLabel}>Started Watching:</Text>
+                  <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Started Watching:</Text>
                   <View style={styles.dateButtonGroup}>
                     <Pressable
-                      style={styles.datePickerTriggerBtn}
+                      style={[styles.datePickerTriggerBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                       onPress={() => setDatePickerTarget('started')}>
-                      <Ionicons name="calendar-outline" size={14} color="#38bdf8" />
+                      <Ionicons name="calendar-outline" size={14} color={colors.primary} />
                       <Text
                         style={[
                           styles.datePickerTriggerText,
+                          { color: colors.text },
                           !startedAt && styles.datePickerTriggerPlaceholder,
                         ]}>
                         {startedAt || dateFormat}
@@ -1727,16 +1818,16 @@ function TrackModalFormContent({
                     </Pressable>
 
                     <Pressable
-                      style={styles.dateQuickBtn}
+                      style={[styles.dateQuickBtn, { backgroundColor: colors.card }]}
                       onPress={() => setStartedAt(getTodayFormatted(dateFormat))}>
-                      <Text style={styles.dateQuickText}>Today</Text>
+                      <Text style={[styles.dateQuickText, { color: colors.primary }]}>Today</Text>
                     </Pressable>
 
                     {startedAt ? (
                       <Pressable
                         style={styles.dateClearBtn}
                         onPress={() => setStartedAt('')}>
-                        <Ionicons name="close-circle" size={16} color="#64748b" />
+                        <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
                       </Pressable>
                     ) : null}
                   </View>
@@ -1744,15 +1835,16 @@ function TrackModalFormContent({
 
                 {/* Finished Watching Date Picker Button */}
                 <View style={styles.dateRow}>
-                  <Text style={styles.dateLabel}>Finished Watching:</Text>
+                  <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Finished Watching:</Text>
                   <View style={styles.dateButtonGroup}>
                     <Pressable
-                      style={styles.datePickerTriggerBtn}
+                      style={[styles.datePickerTriggerBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                       onPress={() => setDatePickerTarget('finished')}>
-                      <Ionicons name="calendar-outline" size={14} color="#38bdf8" />
+                      <Ionicons name="calendar-outline" size={14} color={colors.primary} />
                       <Text
                         style={[
                           styles.datePickerTriggerText,
+                          { color: colors.text },
                           !finishedAt && styles.datePickerTriggerPlaceholder,
                         ]}>
                         {finishedAt || dateFormat}
@@ -1760,16 +1852,16 @@ function TrackModalFormContent({
                     </Pressable>
 
                     <Pressable
-                      style={styles.dateQuickBtn}
+                      style={[styles.dateQuickBtn, { backgroundColor: colors.card }]}
                       onPress={() => setFinishedAt(getTodayFormatted(dateFormat))}>
-                      <Text style={styles.dateQuickText}>Today</Text>
+                      <Text style={[styles.dateQuickText, { color: colors.primary }]}>Today</Text>
                     </Pressable>
 
                     {finishedAt ? (
                       <Pressable
                         style={styles.dateClearBtn}
                         onPress={() => setFinishedAt('')}>
-                        <Ionicons name="close-circle" size={16} color="#64748b" />
+                        <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
                       </Pressable>
                     ) : null}
                   </View>
@@ -1777,9 +1869,9 @@ function TrackModalFormContent({
 
                 {/* Duration Label */}
                 {durationLabel && (
-                  <View style={styles.durationPillContainer}>
-                    <Ionicons name="time-outline" size={14} color="#38bdf8" />
-                    <Text style={styles.durationPillText}>{durationLabel}</Text>
+                  <View style={[styles.durationPillContainer, { backgroundColor: colors.primaryBg }]}>
+                    <Ionicons name="time-outline" size={14} color={colors.primary} />
+                    <Text style={[styles.durationPillText, { color: colors.primary }]}>{durationLabel}</Text>
                   </View>
                 )}
               </View>
@@ -1793,13 +1885,13 @@ function TrackModalFormContent({
   const renderNotesAndActions = () => (
     <>
           {/* Notes Input (Keyboard avoiding & accessible) */}
-          <Text style={styles.sectionTitle}>Personal Notes</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Personal Notes</Text>
           <TextInput
-            style={styles.notesInput}
+            style={[styles.notesInput, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, color: colors.text }]}
             value={notes}
             onChangeText={setNotes}
             placeholder="e.g. Favorite moments, thoughts, watched with..."
-            placeholderTextColor="#64748b"
+            placeholderTextColor={colors.textMuted}
             multiline
             numberOfLines={4}
           />
@@ -1809,6 +1901,7 @@ function TrackModalFormContent({
             <Pressable
               style={({ pressed }) => [
                 styles.saveButton,
+                { backgroundColor: colors.primary },
                 !status && styles.saveButtonDisabled,
                 pressed && styles.buttonPressed,
               ]}
@@ -1856,11 +1949,13 @@ function TrackModalFormContent({
         }}
       />
 
-      <View
+      <Animated.View
         style={[
           styles.sheetContainer,
           isTablet && styles.tabletSheetContainer,
           {
+            backgroundColor: colors.card,
+            borderColor: colors.cardBorder,
             marginBottom: keyboardHeight,
             maxHeight:
               keyboardHeight > 0
@@ -1868,19 +1963,20 @@ function TrackModalFormContent({
                 : isTablet
                 ? '90%'
                 : '94%',
+            transform: [{ translateY }],
           },
         ]}>
         {/* Header Handle / Bar */}
         {isTablet ? (
-          <View style={styles.tabletHeaderBar}>
-            <View style={styles.handle} />
+          <View style={[styles.tabletHeaderBar, { borderBottomColor: colors.divider }]} {...panResponder.panHandlers}>
+            <View style={[styles.handle, { backgroundColor: colors.divider }]} />
             <Pressable onPress={onClose} style={styles.tabletCloseButton} hitSlop={10}>
-              <Ionicons name="close" size={22} color="#94a3b8" />
+              <Ionicons name="close" size={22} color={colors.textSecondary} />
             </Pressable>
           </View>
         ) : (
-          <View style={styles.sheetHeader}>
-            <View style={styles.handle} />
+          <View style={[styles.sheetHeader, { borderBottomColor: colors.divider }]} {...panResponder.panHandlers}>
+            <View style={[styles.handle, { backgroundColor: colors.divider }]} />
           </View>
         )}
 
@@ -1889,7 +1985,7 @@ function TrackModalFormContent({
           <View style={styles.tabletBodyRow}>
             {/* Left Pane (Tracking, Scores, Dates, Notes, Actions) */}
             <ScrollView
-              style={styles.tabletLeftPane}
+              style={[styles.tabletLeftPane, { borderRightColor: colors.divider }]}
               contentContainerStyle={styles.tabletPaneContent}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
@@ -1933,7 +2029,7 @@ function TrackModalFormContent({
             {renderNotesAndActions()}
           </ScrollView>
         )}
-      </View>
+      </Animated.View>
 
       {/* Interactive Visual DatePicker Modal */}
       <DatePickerModal
