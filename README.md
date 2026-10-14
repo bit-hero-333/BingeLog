@@ -18,7 +18,7 @@
 
 - **🎬 MAL-Style Media Tracking:** Track Movies, TV Series, and Anime with familiar statuses: *Watching*, *Completed*, *On-Hold*, *Dropped*, and *Plan to Watch*.
 - **📺 Episode Progress & Rewatching:** Granular episode counters, season breakdowns, rewatch counters, 1–10 score rating, and personal notes.
-- **📱 Responsive Layout & Tablet Split-Pane:** Custom-tailored layouts for both mobile phones and tablets (including large screens like the Galaxy Tab S9 FE+ with adaptive 2–3 column grids and side-by-side inspection panes).
+- **📱 Responsive Layout & Tablet Split-Pane:** Custom-tailored layouts for both mobile phones and tablets (including large screens with adaptive 2–3 column grids and side-by-side inspection panes).
 - **📳 Customizable Haptic Feedback:** Native tactile responses with selectable intensity levels (*Light*, *Medium*, *Heavy*, or *Disabled*).
 - **🎨 Theme Engine & Live Preview:** Supports system appearance, Dark, Light, true AMOLED Black, and custom TMDB-inspired color schemes, paired with customizable UI scale settings.
 - **📅 Customizable Date Formats:** Choose your preferred date display (`DD.MM.YYYY`, `MM/DD/YYYY`, `YYYY-MM-DD`, `DD/MM/YYYY`, `MMM D, YYYY`, or `D MMM YYYY`) with live previews.
