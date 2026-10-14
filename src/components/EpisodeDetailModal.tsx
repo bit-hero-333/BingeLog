@@ -53,7 +53,7 @@ function EpisodeDetailContent({
   onToggleWatched,
   onSelectEntity,
 }: EpisodeDetailContentProps) {
-  const { apiKey, showSeasonEpisodeImages, showActorImages, sizingConfig } = useMedia();
+  const { apiKey, showSeasonEpisodeImages, showActorImages, sizingConfig, dateFormat } = useMedia();
   const { colors } = useAppTheme();
 
   const [isLoading, setIsLoading] = useState(Boolean(apiKey));
@@ -172,7 +172,7 @@ function EpisodeDetailContent({
               <View style={[styles.infoBadge, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                 <Ionicons name="calendar-outline" size={13} color={colors.textSecondary} />
                 <Text style={[styles.infoBadgeText, { color: colors.textSecondary }]}>
-                  {formatDateDisplay(airDate)}
+                  {formatDateDisplay(airDate, dateFormat)}
                 </Text>
               </View>
             ) : null}

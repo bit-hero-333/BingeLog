@@ -169,7 +169,7 @@ export async function exportWatchlistBackup(
   try {
     const backup: BackupData = {
       app: 'BingeLog',
-      version: '0.1.10',
+      version: '0.1.11',
       exportedAt: new Date().toISOString(),
       itemCount: trackedItems.length,
       trackedItems,

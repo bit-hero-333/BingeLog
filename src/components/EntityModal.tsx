@@ -43,7 +43,7 @@ function EntityModalContent({
   onSelectMedia,
   onFilterInDiscover,
 }: EntityModalContentProps) {
-  const { apiKey, showActorImages, sizingConfig } = useMedia();
+  const { apiKey, showActorImages, sizingConfig, dateFormat } = useMedia();
 
   const [isLoading, setIsLoading] = useState(Boolean(apiKey));
   const [personData, setPersonData] = useState<PersonFullDetails | null>(null);
@@ -188,7 +188,7 @@ function EntityModalContent({
 
                     {personData?.birthday ? (
                       <Text style={styles.metaInfoText}>
-                        Born: {formatDateDisplay(personData.birthday)}
+                        Born: {formatDateDisplay(personData.birthday, dateFormat)}
                         {personData.placeOfBirth ? ` in ${personData.placeOfBirth}` : ''}
                       </Text>
                     ) : null}

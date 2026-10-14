@@ -32,9 +32,9 @@ import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
 import {
   formatDateDisplay,
-  formatDateDDMMYYYY,
-  parseDDMMYYYYtoIso,
-  getTodayDDMMYYYY,
+  formatDateInput,
+  parseFormattedDateToIso,
+  getTodayFormatted,
   getRelativeTime,
   getDurationLabel,
   formatRuntime,
@@ -77,6 +77,7 @@ function TrackModalFormContent({
     sizingConfig,
     setActiveDiscoverFilter,
     triggerHaptic,
+    dateFormat,
   } = useMedia();
 
   const { width } = useWindowDimensions();
@@ -183,17 +184,17 @@ function TrackModalFormContent({
     existingRecord ? existingRecord.notes || '' : ''
   );
 
-  // Dates in DD.MM.YYYY:
+  // Dates:
   // If untracked, dates start EMPTY until user picks or selects status
   const addedAt = existingRecord?.addedAt || new Date().toISOString();
   const [startedAt, setStartedAt] = useState<string>(
     existingRecord?.startedAt
-      ? formatDateDDMMYYYY(existingRecord.startedAt)
+      ? formatDateInput(existingRecord.startedAt, dateFormat)
       : ''
   );
   const [finishedAt, setFinishedAt] = useState<string>(
     existingRecord?.finishedAt
-      ? formatDateDDMMYYYY(existingRecord.finishedAt)
+      ? formatDateInput(existingRecord.finishedAt, dateFormat)
       : ''
   );
   const [showDatesSection, setShowDatesSection] = useState(false);
@@ -417,10 +418,10 @@ function TrackModalFormContent({
       // Check auto completion
       if (totalEpisodes && next.size >= totalEpisodes && status !== 'completed') {
         setStatus('completed');
-        if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+        if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
       } else if (next.size > 0 && (!status || status === 'plan_to_watch')) {
         setStatus('watching');
-        if (!startedAt) setStartedAt(getTodayDDMMYYYY());
+        if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
       }
 
       return next;
@@ -452,10 +453,10 @@ function TrackModalFormContent({
       // Auto completion
       if (totalEpisodes && next.size >= totalEpisodes && status !== 'completed') {
         setStatus('completed');
-        if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+        if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
       } else if (next.size > 0 && (!status || status === 'plan_to_watch')) {
         setStatus('watching');
-        if (!startedAt) setStartedAt(getTodayDDMMYYYY());
+        if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
       }
 
       return next;
@@ -480,10 +481,10 @@ function TrackModalFormContent({
             });
             if (totalEpisodes && regularWatched >= totalEpisodes && status !== 'completed') {
               setStatus('completed');
-              if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+              if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
             } else if (!status || status === 'plan_to_watch') {
               setStatus('watching');
-              if (!startedAt) setStartedAt(getTodayDDMMYYYY());
+              if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
             }
             return next;
           }
@@ -531,7 +532,7 @@ function TrackModalFormContent({
     }
     setWatchedKeys(next);
     setStatus('completed');
-    if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+    if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
   };
 
   // Reset all watched episodes
@@ -559,7 +560,7 @@ function TrackModalFormContent({
             setRewatchCount((c) => c + 1);
             setStatus('watching');
             setWatchedKeys(new Set<string>());
-            setStartedAt(getTodayDDMMYYYY());
+            setStartedAt(getTodayFormatted(dateFormat));
             setFinishedAt('');
           },
         },
@@ -582,7 +583,7 @@ function TrackModalFormContent({
             setRewatchCount((c) => c + 1);
             setStatus('watching');
             setMinutesWatched(0);
-            setStartedAt(getTodayDDMMYYYY());
+            setStartedAt(getTodayFormatted(dateFormat));
             setFinishedAt('');
           },
         },
@@ -596,14 +597,14 @@ function TrackModalFormContent({
     setStatus(newStatus);
 
     if (newStatus === 'completed') {
-      if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+      if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
       if (mediaType === 'tv') {
         handleMarkEntireShowWatched();
       } else if (mediaType === 'movie' && runtimeMinutes) {
         setMinutesWatched(runtimeMinutes);
       }
     } else if (newStatus === 'watching') {
-      if (!startedAt) setStartedAt(getTodayDDMMYYYY());
+      if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
       if (status === 'completed') setFinishedAt('');
     } else {
       if (status === 'completed') setFinishedAt('');
@@ -620,10 +621,10 @@ function TrackModalFormContent({
 
     if (runtimeMinutes && clamped >= runtimeMinutes && status !== 'completed') {
       setStatus('completed');
-      if (!finishedAt) setFinishedAt(getTodayDDMMYYYY());
+      if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
     } else if (clamped > 0 && (!status || status === 'plan_to_watch')) {
       setStatus('watching');
-      if (!startedAt) setStartedAt(getTodayDDMMYYYY());
+      if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
     }
   };
 
@@ -637,8 +638,8 @@ function TrackModalFormContent({
       return;
     }
 
-    const startedIso = parseDDMMYYYYtoIso(startedAt);
-    const finishedIso = parseDDMMYYYYtoIso(finishedAt);
+    const startedIso = parseFormattedDateToIso(startedAt, dateFormat);
+    const finishedIso = parseFormattedDateToIso(finishedAt, dateFormat);
 
     const record: TrackedItem = {
       id,
@@ -713,8 +714,8 @@ function TrackModalFormContent({
   const posterUrl = TMDBService.getImageUrl(posterPath, 'w342');
   const currentScoreLabel =
     MAL_SCORES.find((s) => s.score === score)?.label || 'Select Score';
-  const startedIsoForLabel = parseDDMMYYYYtoIso(startedAt);
-  const finishedIsoForLabel = parseDDMMYYYYtoIso(finishedAt);
+  const startedIsoForLabel = parseFormattedDateToIso(startedAt, dateFormat);
+  const finishedIsoForLabel = parseFormattedDateToIso(finishedAt, dateFormat);
   const durationLabel = getDurationLabel(startedIsoForLabel, finishedIsoForLabel, status === 'completed');
 
   // Check if specials exist in seasons list
@@ -1662,7 +1663,7 @@ function TrackModalFormContent({
               <View style={styles.datesHeaderLeft}>
                 <Ionicons name="calendar" size={18} color="#38bdf8" />
                 <View>
-                  <Text style={styles.datesCardTitle}>Dates & Timeline (DD.MM.YYYY)</Text>
+                  <Text style={styles.datesCardTitle}>Dates & Timeline ({dateFormat})</Text>
                   {durationLabel ? (
                     <Text style={styles.durationSummaryText}>{durationLabel}</Text>
                   ) : (
@@ -1689,7 +1690,7 @@ function TrackModalFormContent({
                       ({getRelativeTime(addedAt)})
                     </Text>
                   </View>
-                  <Text style={styles.dateStaticValue}>{formatDateDisplay(addedAt)}</Text>
+                  <Text style={styles.dateStaticValue}>{formatDateDisplay(addedAt, dateFormat)}</Text>
                 </View>
 
                 {/* Started Watching Date Picker Button */}
@@ -1705,13 +1706,13 @@ function TrackModalFormContent({
                           styles.datePickerTriggerText,
                           !startedAt && styles.datePickerTriggerPlaceholder,
                         ]}>
-                        {startedAt || 'DD.MM.YYYY'}
+                        {startedAt || dateFormat}
                       </Text>
                     </Pressable>
 
                     <Pressable
                       style={styles.dateQuickBtn}
-                      onPress={() => setStartedAt(getTodayDDMMYYYY())}>
+                      onPress={() => setStartedAt(getTodayFormatted(dateFormat))}>
                       <Text style={styles.dateQuickText}>Today</Text>
                     </Pressable>
 
@@ -1738,13 +1739,13 @@ function TrackModalFormContent({
                           styles.datePickerTriggerText,
                           !finishedAt && styles.datePickerTriggerPlaceholder,
                         ]}>
-                        {finishedAt || 'DD.MM.YYYY'}
+                        {finishedAt || dateFormat}
                       </Text>
                     </Pressable>
 
                     <Pressable
                       style={styles.dateQuickBtn}
-                      onPress={() => setFinishedAt(getTodayDDMMYYYY())}>
+                      onPress={() => setFinishedAt(getTodayFormatted(dateFormat))}>
                       <Text style={styles.dateQuickText}>Today</Text>
                     </Pressable>
 
@@ -1898,6 +1899,7 @@ function TrackModalFormContent({
         visible={datePickerTarget !== null}
         title={datePickerTarget === 'started' ? 'Select Start Date' : 'Select Finish Date'}
         initialDate={datePickerTarget === 'started' ? startedAt : finishedAt}
+        dateFormat={dateFormat}
         onClose={() => setDatePickerTarget(null)}
         onSelectDate={(newDate) => {
           if (datePickerTarget === 'started') setStartedAt(newDate);

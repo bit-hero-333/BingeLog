@@ -1,5 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TrackedItem, SizingConfig, DEFAULT_SIZING_CONFIG } from '@/types/media';
+import {
+  TrackedItem,
+  SizingConfig,
+  DEFAULT_SIZING_CONFIG,
+  DateFormatOption,
+  DEFAULT_DATE_FORMAT,
+} from '@/types/media';
 import { ThemeMode, ThemePresetId } from '@/constants/theme';
 import { HapticIntensity } from '@/services/haptics';
 
@@ -21,6 +27,7 @@ const STORAGE_KEYS = {
   SIZING_CONFIG: '@pmt_sizing_config',
   THEME_CONFIG: '@pmt_theme_config',
   HAPTIC_INTENSITY: '@pmt_haptic_intensity',
+  DATE_FORMAT: '@pmt_date_format',
 };
 
 export const StorageService = {
@@ -287,6 +294,36 @@ export const StorageService = {
       return true;
     } catch (e) {
       console.error('Failed to save haptic intensity', e);
+      return false;
+    }
+  },
+
+  async getDateFormat(): Promise<DateFormatOption> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.DATE_FORMAT);
+      if (
+        val === 'DD.MM.YYYY' ||
+        val === 'MM/DD/YYYY' ||
+        val === 'YYYY-MM-DD' ||
+        val === 'DD/MM/YYYY' ||
+        val === 'MMM D, YYYY' ||
+        val === 'D MMM YYYY'
+      ) {
+        return val as DateFormatOption;
+      }
+      return DEFAULT_DATE_FORMAT;
+    } catch (e) {
+      console.error('Failed to get date format preference', e);
+      return DEFAULT_DATE_FORMAT;
+    }
+  },
+
+  async saveDateFormat(format: DateFormatOption): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.DATE_FORMAT, format);
+      return true;
+    } catch (e) {
+      console.error('Failed to save date format preference', e);
       return false;
     }
   },

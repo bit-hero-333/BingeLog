@@ -18,7 +18,7 @@ interface MediaCardProps {
 
 export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }: MediaCardProps) {
   const { colors } = useAppTheme();
-  const { triggerHaptic } = useMedia();
+  const { triggerHaptic, dateFormat } = useMedia();
   // Normalize fields between TMDBMediaItem and TrackedItem
   const isTrackedItem = 'status' in item;
   const title = ('title' in item && item.title) ? item.title : ('name' in item ? item.name : 'Untitled');
@@ -45,7 +45,7 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
   const getDateLabel = () => {
     if (!currentTracked) return null;
     if (currentTracked.status === 'completed' && currentTracked.finishedAt) {
-      return `Finished ${formatDateDisplay(currentTracked.finishedAt)}`;
+      return `Finished ${formatDateDisplay(currentTracked.finishedAt, dateFormat)}`;
     }
     if (currentTracked.status === 'watching' && currentTracked.startedAt) {
       return `Started ${getRelativeTime(currentTracked.startedAt)}`;

@@ -289,3 +289,28 @@ export interface DiscoverFilter {
   name: string;
 }
 
+export type DateFormatOption =
+  | 'DD.MM.YYYY'
+  | 'MM/DD/YYYY'
+  | 'YYYY-MM-DD'
+  | 'DD/MM/YYYY'
+  | 'MMM D, YYYY'
+  | 'D MMM YYYY';
+
+export interface DateFormatConfig {
+  id: DateFormatOption;
+  label: string;
+  example: string;
+  description: string;
+}
+
+export const DATE_FORMAT_OPTIONS: DateFormatConfig[] = [
+  { id: 'DD.MM.YYYY', label: 'DD.MM.YYYY', example: '14.10.2026', description: 'European dot' },
+  { id: 'MM/DD/YYYY', label: 'MM/DD/YYYY', example: '10/14/2026', description: 'US slash' },
+  { id: 'YYYY-MM-DD', label: 'YYYY-MM-DD', example: '2026-10-14', description: 'ISO standard' },
+  { id: 'DD/MM/YYYY', label: 'DD/MM/YYYY', example: '14/10/2026', description: 'Global slash' },
+  { id: 'MMM D, YYYY', label: 'MMM D, YYYY', example: 'Oct 14, 2026', description: 'Written month (US)' },
+  { id: 'D MMM YYYY', label: 'D MMM YYYY', example: '14 Oct 2026', description: 'Written month (Global)' },
+];
+
+export const DEFAULT_DATE_FORMAT: DateFormatOption = 'DD.MM.YYYY';

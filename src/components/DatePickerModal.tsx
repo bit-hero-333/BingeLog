@@ -7,14 +7,22 @@ import {
   Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getTodayDDMMYYYY, getYesterdayDDMMYYYY } from '@/utils/date';
+import {
+  formatDate,
+  parseFormattedDateToIso,
+  getTodayFormatted,
+  getYesterdayFormatted,
+} from '@/utils/date';
+import { DateFormatOption, DEFAULT_DATE_FORMAT } from '@/types/media';
+import { useMedia } from '@/context/MediaContext';
 
 interface DatePickerModalProps {
   visible: boolean;
   title: string;
-  initialDate?: string; // in DD.MM.YYYY
+  initialDate?: string;
+  dateFormat?: DateFormatOption;
   onClose: () => void;
-  onSelectDate: (dateDDMMYYYY: string) => void;
+  onSelectDate: (formattedDate: string) => void;
   onClearDate?: () => void;
 }
 
@@ -38,25 +46,27 @@ const WEEKDAY_NAMES = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 function DatePickerContent({
   title,
   initialDate,
+  dateFormat: propDateFormat,
   onClose,
   onSelectDate,
   onClearDate,
 }: Omit<DatePickerModalProps, 'visible'>) {
+  const { dateFormat: contextDateFormat } = useMedia();
+  const activeFormat = propDateFormat || contextDateFormat || DEFAULT_DATE_FORMAT;
+
   const parsed = useMemo(() => {
-    if (initialDate && initialDate.includes('.')) {
-      const parts = initialDate.split('.');
-      if (parts.length === 3) {
-        const d = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10) - 1;
-        const y = parseInt(parts[2], 10);
-        if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
-          return { day: d, month: m, year: y };
+    if (initialDate && initialDate.trim()) {
+      const iso = parseFormattedDateToIso(initialDate, activeFormat);
+      if (iso) {
+        const d = new Date(iso);
+        if (!isNaN(d.getTime())) {
+          return { day: d.getDate(), month: d.getMonth(), year: d.getFullYear() };
         }
       }
     }
     const now = new Date();
     return { day: now.getDate(), month: now.getMonth(), year: now.getFullYear() };
-  }, [initialDate]);
+  }, [initialDate, activeFormat]);
 
   const [selectedDay, setSelectedDay] = useState<number>(parsed.day);
   const [currentMonth, setCurrentMonth] = useState<number>(parsed.month);
@@ -86,20 +96,19 @@ function DatePickerContent({
   };
 
   const handleConfirm = () => {
-    const d = String(Math.min(selectedDay, daysInMonth)).padStart(2, '0');
-    const m = String(currentMonth + 1).padStart(2, '0');
-    const y = currentYear;
-    onSelectDate(`${d}.${m}.${y}`);
+    const validDay = Math.min(selectedDay, daysInMonth);
+    const dateObj = new Date(currentYear, currentMonth, validDay, 12, 0, 0);
+    onSelectDate(formatDate(dateObj, activeFormat));
     onClose();
   };
 
   const handleQuickToday = () => {
-    onSelectDate(getTodayDDMMYYYY());
+    onSelectDate(getTodayFormatted(activeFormat));
     onClose();
   };
 
   const handleQuickYesterday = () => {
-    onSelectDate(getYesterdayDDMMYYYY());
+    onSelectDate(getYesterdayFormatted(activeFormat));
     onClose();
   };
 
@@ -108,10 +117,12 @@ function DatePickerContent({
     onClose();
   };
 
-  // Preview formatted string
-  const currentFormatted = `${String(selectedDay).padStart(2, '0')}.${String(
-    currentMonth + 1
-  ).padStart(2, '0')}.${currentYear}`;
+  // Preview formatted string according to user's preferred format
+  const currentFormatted = useMemo(() => {
+    const validDay = Math.min(selectedDay, daysInMonth);
+    const dateObj = new Date(currentYear, currentMonth, validDay, 12, 0, 0);
+    return formatDate(dateObj, activeFormat);
+  }, [selectedDay, daysInMonth, currentMonth, currentYear, activeFormat]);
 
   return (
     <Pressable style={styles.dialogContainer} onPress={(e) => e.stopPropagation()}>
@@ -213,6 +224,7 @@ export function DatePickerModal(props: DatePickerModalProps) {
           key={props.initialDate || 'new'}
           title={props.title}
           initialDate={props.initialDate}
+          dateFormat={props.dateFormat}
           onClose={props.onClose}
           onSelectDate={props.onSelectDate}
           onClearDate={props.onClearDate}

@@ -7,6 +7,8 @@ import {
   SizingConfig,
   DEFAULT_SIZING_CONFIG,
   DiscoverFilter,
+  DateFormatOption,
+  DEFAULT_DATE_FORMAT,
 } from '@/types/media';
 
 interface MediaStats {
@@ -52,6 +54,10 @@ interface MediaContextType {
   setHapticIntensity: (intensity: HapticIntensity) => Promise<boolean>;
   triggerHaptic: (type?: 'selection' | 'impact' | 'success' | 'warning' | 'error') => void;
 
+  // Date format preference
+  dateFormat: DateFormatOption;
+  setDateFormat: (format: DateFormatOption) => Promise<boolean>;
+
   // Active Discover filter
   activeDiscoverFilter: DiscoverFilter | null;
   setActiveDiscoverFilter: (filter: DiscoverFilter | null) => void;
@@ -68,6 +74,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   const [showSeasonSpecials, setShowSeasonSpecialsState] = useState(false);
   const [sizingConfig, setSizingConfigState] = useState<SizingConfig>(DEFAULT_SIZING_CONFIG);
   const [hapticIntensity, setHapticIntensityState] = useState<HapticIntensity>('medium');
+  const [dateFormat, setDateFormatState] = useState<DateFormatOption>(DEFAULT_DATE_FORMAT);
   const [activeDiscoverFilter, setActiveDiscoverFilter] = useState<DiscoverFilter | null>(null);
   const [isLoadingStorage, setIsLoadingStorage] = useState(true);
 
@@ -83,6 +90,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           savedSeasonSpecials,
           savedSizing,
           savedHaptic,
+          savedDateFormat,
         ] = await Promise.all([
           StorageService.getApiKey(),
           StorageService.getTrackedItems(),
@@ -92,6 +100,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           StorageService.getShowSeasonSpecials(),
           StorageService.getSizingConfig(),
           StorageService.getHapticIntensity(),
+          StorageService.getDateFormat(),
         ]);
         if (savedKey) setApiKeyState(savedKey);
         if (savedItems) setTrackedItems(savedItems);
@@ -101,6 +110,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setShowSeasonSpecialsState(savedSeasonSpecials);
         setSizingConfigState(savedSizing);
         setHapticIntensityState(savedHaptic);
+        setDateFormatState(savedDateFormat);
         HapticsService.setIntensity(savedHaptic);
       } catch (e) {
         console.error('Failed to load initial data', e);
@@ -207,6 +217,14 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     return success;
   };
 
+  const setDateFormat = async (format: DateFormatOption): Promise<boolean> => {
+    const success = await StorageService.saveDateFormat(format);
+    if (success) {
+      setDateFormatState(format);
+    }
+    return success;
+  };
+
   const triggerHaptic = (type: 'selection' | 'impact' | 'success' | 'warning' | 'error' = 'impact') => {
     HapticsService.trigger(type);
   };
@@ -286,6 +304,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         hapticIntensity,
         setHapticIntensity,
         triggerHaptic,
+        dateFormat,
+        setDateFormat,
         activeDiscoverFilter,
         setActiveDiscoverFilter,
       }}>

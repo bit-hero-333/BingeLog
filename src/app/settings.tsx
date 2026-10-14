@@ -32,7 +32,9 @@ import {
   DensityPreset,
   ElementScale,
   SIZING_PRESETS,
+  DATE_FORMAT_OPTIONS,
 } from '@/types/media';
+import { getTodayFormatted } from '@/utils/date';
 
 
 const SCALES: ElementScale[] = ['small', 'medium', 'large', 'xlarge'];
@@ -71,6 +73,9 @@ export default function SettingsScreen() {
     setSizingConfig,
     hapticIntensity,
     setHapticIntensity,
+    triggerHaptic,
+    dateFormat,
+    setDateFormat,
   } = useMedia();
 
   const {
@@ -1160,7 +1165,68 @@ export default function SettingsScreen() {
       </View>
 
       {/* ============================================================== */}
-      {/* 4. TMDB API KEY SECTION */}
+      {/* 4. DATE DISPLAY FORMAT & REGIONAL PREFERENCES */}
+      {/* ============================================================== */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Date Display Format</Text>
+        </View>
+
+        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+          Choose your preferred format for dates displayed across BingeLog (started dates, completion dates, episode air dates, and timeline logs).
+        </Text>
+
+        <View style={styles.dateFormatList}>
+          {DATE_FORMAT_OPTIONS.map((opt) => {
+            const isSelected = dateFormat === opt.id;
+            const liveSample = getTodayFormatted(opt.id);
+            return (
+              <Pressable
+                key={opt.id}
+                style={[
+                  styles.dateFormatOptionRow,
+                  {
+                    backgroundColor: isSelected ? colors.cardSelected : colors.inputBg,
+                    borderColor: isSelected ? colors.primary : colors.cardBorder,
+                  },
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  void setDateFormat(opt.id);
+                }}>
+                <View style={styles.dateFormatTextContainer}>
+                  <View style={styles.dateFormatTitleRow}>
+                    <Text style={[styles.dateFormatName, { color: colors.text }]}>{opt.label}</Text>
+                    <View style={[styles.dateFormatBadge, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
+                      <Text style={[styles.dateFormatBadgeText, { color: colors.primary }]}>
+                        {opt.description}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.dateFormatSample, { color: colors.textSecondary }]}>
+                    Today: <Text style={{ color: colors.primary, fontWeight: '700' }}>{liveSample}</Text>
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.radioCircle,
+                    {
+                      borderColor: isSelected ? colors.primary : colors.cardBorder,
+                      backgroundColor: isSelected ? colors.primary : 'transparent',
+                    },
+                  ]}>
+                  {isSelected && <Ionicons name="checkmark" size={12} color="#ffffff" />}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* ============================================================== */}
+      {/* 5. TMDB API KEY SECTION */}
       {/* ============================================================== */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <View style={styles.cardHeader}>
@@ -1538,7 +1604,7 @@ export default function SettingsScreen() {
           Independent hobby project. Not affiliated with, endorsed by, or associated with MyAnimeList (MAL) or The Movie Database (TMDB). All trademarks and copyrights belong to their respective owners.
         </Text>
 
-        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 0.1.10 • Build 2026.10 • Expo SDK 57</Text>
+        <Text style={[styles.infoVersion, { color: colors.primary }]}>Version 0.1.11 • Build 2026.10 • Expo SDK 57</Text>
       </View>
     </ScrollView>
   );
@@ -2349,5 +2415,53 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     lineHeight: 16,
+  },
+  dateFormatList: {
+    gap: 8,
+    marginTop: 6,
+  },
+  dateFormatOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  dateFormatTextContainer: {
+    flex: 1,
+    marginRight: 10,
+  },
+  dateFormatTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 3,
+  },
+  dateFormatName: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  dateFormatBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  dateFormatBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  dateFormatSample: {
+    fontSize: 12,
+  },
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

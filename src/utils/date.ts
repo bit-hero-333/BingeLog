@@ -1,61 +1,209 @@
-export function formatDateDisplay(dateStr?: string | null): string {
+import { DateFormatOption, DEFAULT_DATE_FORMAT } from '@/types/media';
+
+const SHORT_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+const MONTH_MAP: Record<string, number> = {
+  jan: 0,
+  feb: 1,
+  mar: 2,
+  apr: 3,
+  may: 4,
+  jun: 5,
+  jul: 6,
+  aug: 7,
+  sep: 8,
+  oct: 9,
+  nov: 10,
+  dec: 11,
+};
+
+/**
+ * Format any valid date string or Date object into the specified user format.
+ */
+export function formatDate(
+  dateInput?: string | Date | null,
+  format: DateFormatOption = DEFAULT_DATE_FORMAT
+): string {
+  if (!dateInput) return '';
+  try {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    if (isNaN(d.getTime())) return typeof dateInput === 'string' ? dateInput : '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const dayNum = d.getDate();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const monthName = SHORT_MONTHS[d.getMonth()] || month;
+    const year = d.getFullYear();
+
+    switch (format) {
+      case 'MM/DD/YYYY':
+        return `${month}/${day}/${year}`;
+      case 'YYYY-MM-DD':
+        return `${year}-${month}-${day}`;
+      case 'DD/MM/YYYY':
+        return `${day}/${month}/${year}`;
+      case 'MMM D, YYYY':
+        return `${monthName} ${dayNum}, ${year}`;
+      case 'D MMM YYYY':
+        return `${dayNum} ${monthName} ${year}`;
+      case 'DD.MM.YYYY':
+      default:
+        return `${day}.${month}.${year}`;
+    }
+  } catch {
+    return typeof dateInput === 'string' ? dateInput : '';
+  }
+}
+
+/**
+ * Formats a date for display labels, returning 'Not set' when empty.
+ */
+export function formatDateDisplay(
+  dateStr?: string | null,
+  format: DateFormatOption = DEFAULT_DATE_FORMAT
+): string {
   if (!dateStr) return 'Not set';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return String(dateStr);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}.${month}.${year}`;
-  } catch {
-    return String(dateStr);
-  }
+  const formatted = formatDate(dateStr, format);
+  return formatted || String(dateStr);
 }
 
-export function formatDateDDMMYYYY(dateStr?: string | null): string {
+/**
+ * Formats a date specifically for text inputs.
+ */
+export function formatDateInput(
+  dateStr?: string | null,
+  format: DateFormatOption = DEFAULT_DATE_FORMAT
+): string {
   if (!dateStr) return '';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}.${month}.${year}`;
-  } catch {
-    return '';
-  }
+  return formatDate(dateStr, format);
 }
 
-export function parseDDMMYYYYtoIso(ddmmyyyy: string): string | null {
-  if (!ddmmyyyy) return null;
-  const parts = ddmmyyyy.trim().split('.');
-  if (parts.length === 3) {
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const year = parseInt(parts[2], 10);
-    const d = new Date(year, month, day, 12, 0, 0);
-    if (!isNaN(d.getTime())) {
-      return d.toISOString();
+/**
+ * Backwards compatibility helper for DD.MM.YYYY
+ */
+export function formatDateDDMMYYYY(dateStr?: string | null): string {
+  return formatDate(dateStr, 'DD.MM.YYYY');
+}
+
+/**
+ * Robust date parser converting user-formatted strings into ISO 8601 strings.
+ */
+export function parseFormattedDateToIso(
+  dateStr: string,
+  format: DateFormatOption = DEFAULT_DATE_FORMAT
+): string | null {
+  if (!dateStr || !dateStr.trim()) return null;
+  const trimmed = dateStr.trim();
+
+  // If already standard ISO YYYY-MM-DDTHH:mm:ss.sssZ or YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+
+  // Written month format check: "Oct 14, 2026" or "14 Oct 2026"
+  const writtenMatch1 = trimmed.match(/^([a-zA-Z]{3,})\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (writtenMatch1) {
+    const mStr = writtenMatch1[1].slice(0, 3).toLowerCase();
+    const month = MONTH_MAP[mStr];
+    const day = parseInt(writtenMatch1[2], 10);
+    const year = parseInt(writtenMatch1[3], 10);
+    if (month !== undefined && !isNaN(day) && !isNaN(year)) {
+      const d = new Date(year, month, day, 12, 0, 0);
+      if (!isNaN(d.getTime())) return d.toISOString();
     }
   }
+
+  const writtenMatch2 = trimmed.match(/^(\d{1,2})\s+([a-zA-Z]{3,})\s+(\d{4})$/);
+  if (writtenMatch2) {
+    const day = parseInt(writtenMatch2[1], 10);
+    const mStr = writtenMatch2[2].slice(0, 3).toLowerCase();
+    const month = MONTH_MAP[mStr];
+    const year = parseInt(writtenMatch2[3], 10);
+    if (month !== undefined && !isNaN(day) && !isNaN(year)) {
+      const d = new Date(year, month, day, 12, 0, 0);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    }
+  }
+
+  // Split by common delimiters: dot, slash, dash
+  const parts = trimmed.split(/[./-]/).map((p) => p.trim());
+  if (parts.length === 3) {
+    let day = 1;
+    let month = 0;
+    let year = 2026;
+
+    if (parts[0].length === 4) {
+      // YYYY-MM-DD
+      year = parseInt(parts[0], 10);
+      month = parseInt(parts[1], 10) - 1;
+      day = parseInt(parts[2], 10);
+    } else if (format === 'MM/DD/YYYY') {
+      month = parseInt(parts[0], 10) - 1;
+      day = parseInt(parts[1], 10);
+      year = parseInt(parts[2], 10);
+    } else {
+      // Default: DD.MM.YYYY or DD/MM/YYYY
+      day = parseInt(parts[0], 10);
+      month = parseInt(parts[1], 10) - 1;
+      year = parseInt(parts[2], 10);
+    }
+
+    if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+      const d = new Date(year, month, day, 12, 0, 0);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString();
+      }
+    }
+  }
+
   return null;
 }
 
-export function getTodayDDMMYYYY(): string {
+/**
+ * Backwards compatibility helper for parseDDMMYYYYtoIso
+ */
+export function parseDDMMYYYYtoIso(ddmmyyyy: string): string | null {
+  return parseFormattedDateToIso(ddmmyyyy, 'DD.MM.YYYY');
+}
+
+/**
+ * Returns today formatted in the specified date format.
+ */
+export function getTodayFormatted(format: DateFormatOption = DEFAULT_DATE_FORMAT): string {
+  return formatDate(new Date(), format);
+}
+
+/**
+ * Returns yesterday formatted in the specified date format.
+ */
+export function getYesterdayFormatted(format: DateFormatOption = DEFAULT_DATE_FORMAT): string {
   const d = new Date();
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  return `${day}.${month}.${year}`;
+  d.setDate(d.getDate() - 1);
+  return formatDate(d, format);
+}
+
+/**
+ * Backwards compatibility helpers
+ */
+export function getTodayDDMMYYYY(): string {
+  return getTodayFormatted('DD.MM.YYYY');
 }
 
 export function getYesterdayDDMMYYYY(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  return `${day}.${month}.${year}`;
+  return getYesterdayFormatted('DD.MM.YYYY');
 }
 
 export function getRelativeTime(dateStr?: string | null): string {
@@ -64,7 +212,6 @@ export function getRelativeTime(dateStr?: string | null): string {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
     const now = new Date();
-    // Normalize to date without time for day comparison
     const dDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const diffDays = Math.floor((nowDate.getTime() - dDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -119,7 +266,6 @@ export function getDurationLabel(
     return `Completed in ${days} days`;
   }
 
-  // Still watching / in progress
   const days = getDaysDifference(startDateStr, new Date().toISOString());
   if (days === null) return null;
   if (days === 0) return 'Started today';
