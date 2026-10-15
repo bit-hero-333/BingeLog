@@ -2059,7 +2059,7 @@ function TrackModalFormContent({
           setActiveDiscoverFilter(filter);
           setSelectedEntity(null);
           onClose();
-          router.push('/(tabs)');
+          router.navigate('/');
         }}
         onSelectMedia={(_media) => {
           setSelectedEntity(null);
