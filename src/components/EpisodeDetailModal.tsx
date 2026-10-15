@@ -283,11 +283,11 @@ function EpisodeDetailContent({
                         <Ionicons name="person" size={24} color={colors.textMuted} />
                       </View>
                     )}
-                    <Text style={[styles.actorName, { color: colors.text }]} numberOfLines={1} selectable={true}>
+                    <Text style={[styles.actorName, { color: colors.text }]} numberOfLines={2} selectable={true}>
                       {actor.name}
                     </Text>
                     {actor.character ? (
-                      <Text style={[styles.actorRole, { color: colors.textSecondary }]} numberOfLines={1} selectable={true}>
+                      <Text style={[styles.actorRole, { color: colors.textSecondary }]} numberOfLines={2} selectable={true}>
                         {actor.character}
                       </Text>
                     ) : null}
@@ -476,21 +476,21 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   actorCard: {
-    width: 96,
+    width: 104,
     borderRadius: 12,
     padding: 6,
     borderWidth: 1,
     alignItems: 'center',
   },
   actorPhoto: {
-    width: 80,
-    height: 96,
+    width: 88,
+    height: 105,
     borderRadius: 8,
     marginBottom: 6,
   },
   actorPhotoPlaceholder: {
-    width: 80,
-    height: 96,
+    width: 88,
+    height: 105,
     borderRadius: 8,
     marginBottom: 6,
     alignItems: 'center',
@@ -501,11 +501,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     width: '100%',
+    lineHeight: 14,
   },
   actorRole: {
     fontSize: 10,
     textAlign: 'center',
     width: '100%',
     marginTop: 2,
+    lineHeight: 13,
   },
 });

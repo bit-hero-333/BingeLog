@@ -5,6 +5,7 @@ import {
   DEFAULT_SIZING_CONFIG,
   DateFormatOption,
   DEFAULT_DATE_FORMAT,
+  AutoManualMode,
 } from '@/types/media';
 import { ThemeMode, ThemePresetId } from '@/constants/theme';
 import { HapticIntensity } from '@/services/haptics';
@@ -28,6 +29,11 @@ const STORAGE_KEYS = {
   THEME_CONFIG: '@pmt_theme_config',
   HAPTIC_INTENSITY: '@pmt_haptic_intensity',
   DATE_FORMAT: '@pmt_date_format',
+  REGION_MODE: '@pmt_region_mode',
+  SELECTED_REGION: '@pmt_selected_region',
+  TIMEZONE_MODE: '@pmt_timezone_mode',
+  SELECTED_TIMEZONE: '@pmt_selected_timezone',
+  REMINDERS_ENABLED: '@pmt_reminders_enabled',
 };
 
 export const StorageService = {
@@ -362,6 +368,100 @@ export const StorageService = {
     } catch (e) {
       console.error('Failed to import tracked items', e);
       throw e;
+    }
+  },
+
+  async getRegionMode(): Promise<AutoManualMode> {
+    try {
+      const mode = await AsyncStorage.getItem(STORAGE_KEYS.REGION_MODE);
+      return mode === 'manual' ? 'manual' : 'auto';
+    } catch {
+      return 'auto';
+    }
+  },
+
+  async saveRegionMode(mode: AutoManualMode): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.REGION_MODE, mode);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getSelectedRegion(): Promise<string> {
+    try {
+      const region = await AsyncStorage.getItem(STORAGE_KEYS.SELECTED_REGION);
+      if (region) return region;
+      const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-US';
+      const parts = locale.split('-');
+      return parts.length > 1 ? parts[1].toUpperCase() : 'US';
+    } catch {
+      return 'US';
+    }
+  },
+
+  async saveSelectedRegion(region: string): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SELECTED_REGION, region.toUpperCase());
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getTimezoneMode(): Promise<AutoManualMode> {
+    try {
+      const mode = await AsyncStorage.getItem(STORAGE_KEYS.TIMEZONE_MODE);
+      return mode === 'manual' ? 'manual' : 'auto';
+    } catch {
+      return 'auto';
+    }
+  },
+
+  async saveTimezoneMode(mode: AutoManualMode): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.TIMEZONE_MODE, mode);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getSelectedTimezone(): Promise<string> {
+    try {
+      const tz = await AsyncStorage.getItem(STORAGE_KEYS.SELECTED_TIMEZONE);
+      if (tz) return tz;
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      return 'UTC';
+    }
+  },
+
+  async saveSelectedTimezone(tz: string): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SELECTED_TIMEZONE, tz);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getRemindersEnabled(): Promise<boolean> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.REMINDERS_ENABLED);
+      return val === null ? true : val === 'true';
+    } catch {
+      return true;
+    }
+  },
+
+  async saveRemindersEnabled(enabled: boolean): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.REMINDERS_ENABLED, String(enabled));
+      return true;
+    } catch {
+      return false;
     }
   },
 

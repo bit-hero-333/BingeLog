@@ -34,6 +34,7 @@ import {
 import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
 import {
+  formatDate,
   formatDateDisplay,
   formatDateInput,
   parseFormattedDateToIso,
@@ -41,6 +42,7 @@ import {
   getRelativeTime,
   getDurationLabel,
   formatRuntime,
+  getCountdownInfo,
 } from '@/utils/date';
 import { DatePickerModal } from '@/components/DatePickerModal';
 import { EntityModal } from '@/components/EntityModal';
@@ -81,6 +83,9 @@ function TrackModalFormContent({
     setActiveDiscoverFilter,
     triggerHaptic,
     dateFormat,
+    selectedRegion,
+    selectedTimezone,
+    remindersEnabled,
   } = useMedia();
 
   const { width, height: windowHeight } = useWindowDimensions();
@@ -275,7 +280,7 @@ function TrackModalFormContent({
     setIsSyncing(true);
     setSyncFeedback(null);
     try {
-      const details = await TMDBService.getMediaDetails(id, mediaType, apiKey);
+      const details = await TMDBService.getMediaDetails(id, mediaType, apiKey, selectedRegion);
       setDetailedInfo(details);
       if (mediaType === 'tv') {
         if (details.numberOfEpisodes) setTotalEpisodes(details.numberOfEpisodes);
@@ -334,7 +339,7 @@ function TrackModalFormContent({
       : sizingConfig.castSize === 'xlarge'
       ? 68
       : 46;
-  const actorCardWidth = actorAvatarSize + 18;
+  const actorCardWidth = Math.max(76, actorAvatarSize + 32);
   const actorNameFontSize =
     sizingConfig.castSize === 'small'
       ? 9.5
@@ -420,7 +425,7 @@ function TrackModalFormContent({
   useEffect(() => {
     let isMounted = true;
     if (apiKey) {
-      TMDBService.getMediaDetails(id, mediaType, apiKey)
+      TMDBService.getMediaDetails(id, mediaType, apiKey, selectedRegion)
         .then((details) => {
           if (!isMounted) return;
           setDetailedInfo(details);
@@ -436,7 +441,7 @@ function TrackModalFormContent({
     return () => {
       isMounted = false;
     };
-  }, [id, mediaType, apiKey]);
+  }, [id, mediaType, apiKey, selectedRegion]);
 
   // Load episodes of a specific season when expanded
   const handleToggleSeasonExpand = (seasonNumber: number) => {
@@ -741,6 +746,18 @@ function TrackModalFormContent({
       lastSyncedAt: existingRecord?.lastSyncedAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
 
+      // Regional Release & Air Dates
+      releaseDate:
+        detailedInfo?.releaseDate ||
+        (typeof releaseDate === 'string' ? releaseDate : undefined) ||
+        existingRecord?.releaseDate,
+      regionalReleaseDate:
+        detailedInfo?.regionalReleaseDate || existingRecord?.regionalReleaseDate,
+      regionalReleaseType:
+        detailedInfo?.regionalReleaseType || existingRecord?.regionalReleaseType,
+      nextAirDate: detailedInfo?.nextAirDate || existingRecord?.nextAirDate,
+      nextEpisode: detailedInfo?.nextEpisode || existingRecord?.nextEpisode,
+
       notes: notes.trim(),
     };
     triggerHaptic('success');
@@ -791,6 +808,35 @@ function TrackModalFormContent({
 
   const rawCastList = detailedInfo?.cast || [];
   const displayCast = localShowAllCast ? rawCastList : rawCastList.slice(0, 10);
+
+  const effectiveMovieDate =
+    detailedInfo?.regionalReleaseDate ||
+    (existingRecord as TrackedItem)?.regionalReleaseDate ||
+    detailedInfo?.releaseDate ||
+    (existingRecord as TrackedItem)?.releaseDate ||
+    (typeof releaseDate === 'string' ? releaseDate : undefined);
+
+  const movieCountdown = useMemo(() => {
+    if (!effectiveMovieDate || !remindersEnabled || mediaType !== 'movie') return null;
+    const info = getCountdownInfo(effectiveMovieDate, selectedTimezone);
+    return info.isUpcoming ? info : null;
+  }, [effectiveMovieDate, remindersEnabled, mediaType, selectedTimezone]);
+
+  const effectiveTvNextAirDate =
+    detailedInfo?.nextAirDate ||
+    (existingRecord as TrackedItem)?.nextAirDate ||
+    detailedInfo?.nextEpisode?.airDate ||
+    (existingRecord as TrackedItem)?.nextEpisode?.airDate;
+
+  const tvNextEpisode =
+    detailedInfo?.nextEpisode ||
+    (existingRecord as TrackedItem)?.nextEpisode;
+
+  const tvCountdown = useMemo(() => {
+    if (!effectiveTvNextAirDate || !remindersEnabled || mediaType !== 'tv') return null;
+    const info = getCountdownInfo(effectiveTvNextAirDate, selectedTimezone);
+    return info.isUpcoming ? info : null;
+  }, [effectiveTvNextAirDate, remindersEnabled, mediaType, selectedTimezone]);
 
   // 1. Media Summary Info
   const renderMediaSummary = () => (
@@ -870,6 +916,50 @@ function TrackModalFormContent({
                   </View>
                 ) : null}
               </View>
+
+              {movieCountdown && (
+                <View style={[styles.countdownBanner, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
+                  <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+                  <View style={styles.countdownBannerContent}>
+                    <View style={styles.countdownBannerTop}>
+                      <Text style={[styles.countdownBannerTitle, { color: colors.text }]} numberOfLines={1}>
+                        {detailedInfo?.regionalReleaseType || 'Release'}: {formatDate(effectiveMovieDate, dateFormat)}
+                      </Text>
+                      <View style={[styles.countdownPill, { backgroundColor: colors.primary }]}>
+                        <Text style={styles.countdownPillText}>{movieCountdown.formattedCountdown}</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.countdownBannerSub, { color: colors.textSecondary }]}>
+                      Region: {selectedRegion} • Local countdown
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {tvCountdown && (
+                <View style={[styles.countdownBanner, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
+                  <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+                  <View style={styles.countdownBannerContent}>
+                    <View style={styles.countdownBannerTop}>
+                      <Text style={[styles.countdownBannerTitle, { color: colors.text }]} numberOfLines={1}>
+                        {tvNextEpisode ? `S${tvNextEpisode.seasonNumber} E${tvNextEpisode.episodeNumber}` : 'Next Episode'}: {formatDate(effectiveTvNextAirDate, dateFormat)}
+                      </Text>
+                      <View style={[styles.countdownPill, { backgroundColor: colors.primary }]}>
+                        <Text style={styles.countdownPillText}>{tvCountdown.formattedCountdown}</Text>
+                      </View>
+                    </View>
+                    {tvNextEpisode?.name ? (
+                      <Text style={[styles.countdownBannerSub, { color: colors.textSecondary }]} numberOfLines={1}>
+                        &ldquo;{tvNextEpisode.name}&rdquo;
+                      </Text>
+                    ) : (
+                      <Text style={[styles.countdownBannerSub, { color: colors.textSecondary }]}>
+                        Broadcast countdown • {selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              )}
 
               {isLoadingDetails && (
                 <View style={styles.loadingDetailsRow}>
@@ -1018,11 +1108,11 @@ function TrackModalFormContent({
                       )}
                       <Text
                         style={[styles.castName, { fontSize: actorNameFontSize, color: colors.text }]}
-                        numberOfLines={1}
+                        numberOfLines={2}
                         selectable={true}>
                         {actor.name}
                       </Text>
-                      <Text style={[styles.castCharacter, { color: colors.textMuted }]} numberOfLines={1} selectable={true}>
+                      <Text style={[styles.castCharacter, { color: colors.textMuted }]} numberOfLines={2} selectable={true}>
                         {actor.character}
                       </Text>
                     </Pressable>
@@ -2364,12 +2454,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     width: '100%',
+    lineHeight: 14,
   },
   castCharacter: {
     color: '#64748b',
     fontSize: 9,
     textAlign: 'center',
     width: '100%',
+    marginTop: 2,
+    lineHeight: 12,
   },
   metaInfoBox: {
     backgroundColor: '#161922',
@@ -3068,5 +3161,43 @@ const styles = StyleSheet.create({
   tabletPaneContent: {
     padding: 20,
     paddingBottom: 60,
+  },
+  countdownBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  countdownBannerContent: {
+    flex: 1,
+  },
+  countdownBannerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  countdownBannerTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    flex: 1,
+  },
+  countdownBannerSub: {
+    fontSize: 10.5,
+    marginTop: 1,
+  },
+  countdownPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  countdownPillText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
   },
 });

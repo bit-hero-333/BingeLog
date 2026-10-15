@@ -54,9 +54,32 @@ interface RawCreditsResponse {
   number_of_episodes?: number;
   number_of_seasons?: number;
   status?: string;
+  release_date?: string;
+  first_air_date?: string;
   created_by?: { id: number; name: string }[];
   networks?: { id: number; name: string; logo_path: string | null }[];
   production_companies?: { id: number; name: string; logo_path: string | null }[];
+  next_episode_to_air?: {
+    id?: number;
+    name?: string;
+    overview?: string;
+    air_date?: string;
+    episode_number: number;
+    season_number: number;
+  } | null;
+  release_dates?: {
+    results?: {
+      iso_3166_1: string;
+      release_dates: {
+        certification?: string;
+        descriptors?: string[];
+        iso_639_1?: string;
+        note?: string;
+        release_date: string;
+        type: number;
+      }[];
+    }[];
+  };
   seasons?: {
     season_number: number;
     episode_count: number;
@@ -216,12 +239,14 @@ export const TMDBService = {
   async getMediaDetails(
     id: number,
     type: MediaType,
-    apiKey: string
+    apiKey: string,
+    targetRegion: string = 'US'
   ): Promise<DetailedMediaInfo> {
     try {
       const endpoint = type === 'movie' ? `/movie/${id}` : `/tv/${id}`;
+      const append = type === 'movie' ? 'credits,release_dates' : 'credits';
       const data = await this.request<RawCreditsResponse>(endpoint, apiKey, {
-        append_to_response: 'credits',
+        append_to_response: append,
       });
 
       const cast = (data.credits?.cast || []).slice(0, 50).map((c) => ({
@@ -276,6 +301,60 @@ export const TMDBService = {
           overview: s.overview,
         }));
 
+      // Parse regional release date for movies
+      let regionalReleaseDate: string | undefined;
+      let regionalReleaseType: string | undefined;
+
+      if (type === 'movie' && data.release_dates?.results) {
+        const normRegion = targetRegion.toUpperCase();
+        const results = data.release_dates.results;
+        // First try selected region, then fallback to 'US'
+        const regionMatch =
+          results.find((r) => r.iso_3166_1.toUpperCase() === normRegion) ||
+          (normRegion !== 'US' ? results.find((r) => r.iso_3166_1.toUpperCase() === 'US') : undefined);
+
+        if (regionMatch && regionMatch.release_dates?.length > 0) {
+          // Priority: 3 (Theatrical), 4 (Digital), 1 (Premiere), 2 (Theatrical Ltd), any
+          const sorted = [...regionMatch.release_dates].sort((a, b) => {
+            const getPriority = (t: number) => {
+              if (t === 3) return 1;
+              if (t === 4) return 2;
+              if (t === 1) return 3;
+              if (t === 2) return 4;
+              return 5;
+            };
+            return getPriority(a.type) - getPriority(b.type);
+          });
+          const picked = sorted[0];
+          if (picked && picked.release_date) {
+            regionalReleaseDate = picked.release_date.split('T')[0];
+            const typeLabels: Record<number, string> = {
+              1: 'Premiere',
+              2: 'Theatrical (Ltd)',
+              3: 'Theatrical',
+              4: 'Digital',
+              5: 'Physical',
+              6: 'TV',
+            };
+            regionalReleaseType = typeLabels[picked.type] || 'Release';
+          }
+        }
+      }
+
+      // Parse TV next episode
+      let nextAirDate: string | undefined;
+      let nextEpisode: DetailedMediaInfo['nextEpisode'];
+
+      if (type === 'tv' && data.next_episode_to_air) {
+        nextAirDate = data.next_episode_to_air.air_date || undefined;
+        nextEpisode = {
+          seasonNumber: data.next_episode_to_air.season_number,
+          episodeNumber: data.next_episode_to_air.episode_number,
+          name: data.next_episode_to_air.name,
+          airDate: data.next_episode_to_air.air_date,
+        };
+      }
+
       return {
         runtime: data.runtime || undefined,
         numberOfEpisodes: data.number_of_episodes || undefined,
@@ -290,6 +369,11 @@ export const TMDBService = {
         studios: studios.length > 0 ? studios : undefined,
         networks: networks.length > 0 ? networks : undefined,
         status: data.status,
+        releaseDate: data.release_date || data.first_air_date || undefined,
+        regionalReleaseDate,
+        regionalReleaseType,
+        nextAirDate,
+        nextEpisode,
       };
     } catch (e) {
       console.warn('Failed to fetch detailed media info from TMDB', e);

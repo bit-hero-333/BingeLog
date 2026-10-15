@@ -1,4 +1,4 @@
-import { DateFormatOption, DEFAULT_DATE_FORMAT } from '@/types/media';
+import { DateFormatOption, DEFAULT_DATE_FORMAT, CountdownInfo } from '@/types/media';
 
 const SHORT_MONTHS = [
   'Jan',
@@ -281,3 +281,130 @@ export function formatRuntime(minutes?: number | null): string {
   if (hours > 0) return `${hours}h`;
   return `${mins}m`;
 }
+
+/**
+ * Calculates countdown information for unreleased titles or upcoming broadcast episodes.
+ * Strictly text-based (no emojis).
+ */
+export function getCountdownInfo(
+  dateInput?: string | Date | null,
+  timezone?: string
+): CountdownInfo {
+  if (!dateInput) {
+    return {
+      status: 'released',
+      daysDiff: 0,
+      formattedCountdown: '',
+      isUpcoming: false,
+    };
+  }
+
+  try {
+    const rawStr = typeof dateInput === 'string' ? dateInput : dateInput.toISOString();
+    // Parse YYYY-MM-DD
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(rawStr);
+    let targetYear: number;
+    let targetMonth: number;
+    let targetDay: number;
+
+    if (match) {
+      targetYear = parseInt(match[1], 10);
+      targetMonth = parseInt(match[2], 10) - 1;
+      targetDay = parseInt(match[3], 10);
+    } else {
+      const parsed = new Date(dateInput);
+      if (isNaN(parsed.getTime())) {
+        return { status: 'released', daysDiff: 0, formattedCountdown: '', isUpcoming: false };
+      }
+      targetYear = parsed.getFullYear();
+      targetMonth = parsed.getMonth();
+      targetDay = parsed.getDate();
+    }
+
+    let nowYear: number;
+    let nowMonth: number;
+    let nowDay: number;
+
+    try {
+      const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+      });
+      const parts = formatter.formatToParts(new Date());
+      nowYear = parseInt(parts.find((p) => p.type === 'year')?.value || '1970', 10);
+      nowMonth = parseInt(parts.find((p) => p.type === 'month')?.value || '1', 10) - 1;
+      nowDay = parseInt(parts.find((p) => p.type === 'day')?.value || '1', 10);
+    } catch {
+      const fallback = new Date();
+      nowYear = fallback.getFullYear();
+      nowMonth = fallback.getMonth();
+      nowDay = fallback.getDate();
+    }
+
+    const todayMid = new Date(nowYear, nowMonth, nowDay).getTime();
+    const targetMid = new Date(targetYear, targetMonth, targetDay).getTime();
+
+    const diffMs = targetMid - todayMid;
+    const daysDiff = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+    if (daysDiff < 0) {
+      return {
+        status: 'released',
+        daysDiff,
+        formattedCountdown: 'Released',
+        isUpcoming: false,
+      };
+    }
+
+    if (daysDiff === 0) {
+      return {
+        status: 'today',
+        daysDiff: 0,
+        formattedCountdown: 'Today',
+        isUpcoming: true,
+      };
+    }
+
+    if (daysDiff === 1) {
+      return {
+        status: 'tomorrow',
+        daysDiff: 1,
+        formattedCountdown: 'Tomorrow',
+        isUpcoming: true,
+      };
+    }
+
+    if (daysDiff < 14) {
+      return {
+        status: 'upcoming',
+        daysDiff,
+        formattedCountdown: `In ${daysDiff} days`,
+        isUpcoming: true,
+      };
+    }
+
+    if (daysDiff < 60) {
+      const weeks = Math.round(daysDiff / 7);
+      return {
+        status: 'upcoming',
+        daysDiff,
+        formattedCountdown: `In ${weeks} weeks`,
+        isUpcoming: true,
+      };
+    }
+
+    const months = Math.round(daysDiff / 30);
+    return {
+      status: 'upcoming',
+      daysDiff,
+      formattedCountdown: `In ${months} months`,
+      isUpcoming: true,
+    };
+  } catch {
+    return { status: 'released', daysDiff: 0, formattedCountdown: '', isUpcoming: false };
+  }
+}
+

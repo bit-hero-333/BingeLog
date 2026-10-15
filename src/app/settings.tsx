@@ -33,6 +33,8 @@ import {
   ElementScale,
   SIZING_PRESETS,
   DATE_FORMAT_OPTIONS,
+  POPULAR_REGIONS,
+  POPULAR_TIMEZONES,
 } from '@/types/media';
 import { getTodayFormatted } from '@/utils/date';
 import { SyncModal } from '@/components/SyncModal';
@@ -77,6 +79,16 @@ export default function SettingsScreen() {
     triggerHaptic,
     dateFormat,
     setDateFormat,
+    regionMode,
+    setRegionMode,
+    selectedRegion,
+    setSelectedRegion,
+    timezoneMode,
+    setTimezoneMode,
+    selectedTimezone,
+    setSelectedTimezone,
+    remindersEnabled,
+    setRemindersEnabled,
   } = useMedia();
 
   const {
@@ -96,6 +108,7 @@ export default function SettingsScreen() {
     sizing: false,
     haptics: false,
     dates: false,
+    regional: false,
     api: false,
     storage: false,
     about: false,
@@ -118,6 +131,7 @@ export default function SettingsScreen() {
       sizing: next,
       haptics: next,
       dates: next,
+      regional: next,
       api: next,
       storage: next,
       about: next,
@@ -1360,7 +1374,259 @@ export default function SettingsScreen() {
       </View>
 
       {/* ============================================================== */}
-      {/* 5. TMDB API KEY SECTION */}
+      {/* 5. REGION, TIMEZONE & RELEASE REMINDERS SECTION */}
+      {/* ============================================================== */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => toggleSection('regional')}>
+          <View style={styles.accordionLeft}>
+            <Ionicons name="globe-outline" size={20} color={colors.primary} />
+            <View style={styles.accordionTextGroup}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Region & Timezone</Text>
+              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+                Region: {selectedRegion} ({regionMode}) | TZ: {selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone}
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name={expandedSections.regional ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textSecondary}
+          />
+        </Pressable>
+
+        {expandedSections.regional && (
+          <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
+            {/* Upcoming Release Badges & Reminders Toggle */}
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleTextContainer}>
+                <Text style={[styles.toggleLabel, { color: colors.text }]}>Release Countdowns & Badges</Text>
+                <Text style={[styles.toggleDescription, { color: colors.textSecondary }]}>
+                  Display countdown indicators (e.g. &ldquo;Today&rdquo;, &ldquo;Tomorrow&rdquo;, &ldquo;In 4 days&rdquo;) on unreleased movies and upcoming TV episodes across your watchlist.
+                </Text>
+              </View>
+              <Switch
+                value={remindersEnabled}
+                onValueChange={(val) => {
+                  triggerHaptic('selection');
+                  void setRemindersEnabled(val);
+                }}
+                trackColor={{ false: colors.cardBorder, true: colors.primary }}
+                thumbColor="#ffffff"
+              />
+            </View>
+
+            {/* Region Mode Toggle */}
+            <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+              RELEASE REGION (MOVIES)
+            </Text>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+              Determines theatrical and digital premiere dates for movies so release countdowns match your location.
+            </Text>
+            <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+              <Pressable
+                style={[
+                  styles.modeSegmentBtn,
+                  regionMode === 'auto' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  void setRegionMode('auto');
+                }}>
+                <Ionicons
+                  name="locate-outline"
+                  size={15}
+                  color={regionMode === 'auto' ? '#ffffff' : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.modeSegmentText,
+                    { color: regionMode === 'auto' ? '#ffffff' : colors.textSecondary },
+                  ]}>
+                  Auto (System)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.modeSegmentBtn,
+                  regionMode === 'manual' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  void setRegionMode('manual');
+                }}>
+                <Ionicons
+                  name="options-outline"
+                  size={15}
+                  color={regionMode === 'manual' ? '#ffffff' : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.modeSegmentText,
+                    { color: regionMode === 'manual' ? '#ffffff' : colors.textSecondary },
+                  ]}>
+                  Manual Selection
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Popular Regions Selector */}
+            {regionMode === 'manual' && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+                  Selected: <Text style={{ color: colors.primary, fontWeight: '700' }}>{selectedRegion}</Text> - {POPULAR_REGIONS.find((r) => r.code === selectedRegion)?.name || 'Custom'}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                  {POPULAR_REGIONS.map((reg) => {
+                    const isSelected = selectedRegion === reg.code;
+                    return (
+                      <Pressable
+                        key={reg.code}
+                        style={[
+                          styles.regionChip,
+                          {
+                            backgroundColor: isSelected ? colors.primaryBg : colors.inputBg,
+                            borderColor: isSelected ? colors.primary : colors.cardBorder,
+                          },
+                        ]}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          void setSelectedRegion(reg.code);
+                        }}>
+                        <Text
+                          style={[
+                            styles.regionChipCode,
+                            { color: isSelected ? colors.primary : colors.text },
+                          ]}>
+                          {reg.code}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.regionChipName,
+                            { color: isSelected ? colors.primary : colors.textSecondary },
+                          ]}>
+                          {reg.name}
+                        </Text>
+                        {isSelected && (
+                          <Ionicons name="checkmark-circle" size={14} color={colors.primary} />
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            {/* Timezone Mode Toggle */}
+            <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 20 }]}>
+              BROADCAST TIMEZONE (EPISODES & COUNTDOWNS)
+            </Text>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+              Adjusts episode broadcast dates and today/tomorrow thresholds to your local clock.
+            </Text>
+            <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+              <Pressable
+                style={[
+                  styles.modeSegmentBtn,
+                  timezoneMode === 'auto' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  void setTimezoneMode('auto');
+                }}>
+                <Ionicons
+                  name="time-outline"
+                  size={15}
+                  color={timezoneMode === 'auto' ? '#ffffff' : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.modeSegmentText,
+                    { color: timezoneMode === 'auto' ? '#ffffff' : colors.textSecondary },
+                  ]}>
+                  Auto (System)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.modeSegmentBtn,
+                  timezoneMode === 'manual' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  void setTimezoneMode('manual');
+                }}>
+                <Ionicons
+                  name="options-outline"
+                  size={15}
+                  color={timezoneMode === 'manual' ? '#ffffff' : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.modeSegmentText,
+                    { color: timezoneMode === 'manual' ? '#ffffff' : colors.textSecondary },
+                  ]}>
+                  Manual Selection
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Timezones Selector */}
+            {timezoneMode === 'manual' && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+                  Active Timezone: <Text style={{ color: colors.primary, fontWeight: '700' }}>{selectedTimezone}</Text>
+                </Text>
+                <View style={{ gap: 6 }}>
+                  {POPULAR_TIMEZONES.map((tz) => {
+                    const isSelected = selectedTimezone === tz.id;
+                    return (
+                      <Pressable
+                        key={tz.id}
+                        style={[
+                          styles.tzRow,
+                          {
+                            backgroundColor: isSelected ? colors.primaryBg : colors.inputBg,
+                            borderColor: isSelected ? colors.primary : colors.cardBorder,
+                          },
+                        ]}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          void setSelectedTimezone(tz.id);
+                        }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.tzLabel, { color: isSelected ? colors.primary : colors.text }]}>
+                            {tz.label}
+                          </Text>
+                          <Text style={[styles.tzId, { color: colors.textSecondary }]}>
+                            {tz.id}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.radioCircle,
+                            {
+                              borderColor: isSelected ? colors.primary : colors.cardBorder,
+                              backgroundColor: isSelected ? colors.primary : 'transparent',
+                            },
+                          ]}>
+                          {isSelected && <Ionicons name="checkmark" size={12} color="#ffffff" />}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* ============================================================== */}
+      {/* 6. TMDB API KEY SECTION */}
       {/* ============================================================== */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <Pressable
@@ -1757,7 +2023,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.13.2 • TMDB & MAL Attributions
+                Version 0.14.0 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -1832,7 +2098,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary }]}>
-              Version 0.13.2 • Build 16 • Expo SDK 57
+              Version 0.14.0 • Build 17 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -2790,6 +3056,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   syncDeviceBtnSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  regionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  regionChipCode: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  regionChipName: {
+    fontSize: 12,
+  },
+  tzRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  tzLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  tzId: {
     fontSize: 11,
     marginTop: 2,
   },

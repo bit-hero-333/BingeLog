@@ -9,6 +9,7 @@ import {
   DiscoverFilter,
   DateFormatOption,
   DEFAULT_DATE_FORMAT,
+  AutoManualMode,
 } from '@/types/media';
 
 interface MediaStats {
@@ -58,6 +59,18 @@ interface MediaContextType {
   dateFormat: DateFormatOption;
   setDateFormat: (format: DateFormatOption) => Promise<boolean>;
 
+  // Regional release & timezone preferences
+  regionMode: AutoManualMode;
+  setRegionMode: (mode: AutoManualMode) => Promise<boolean>;
+  selectedRegion: string;
+  setSelectedRegion: (region: string) => Promise<boolean>;
+  timezoneMode: AutoManualMode;
+  setTimezoneMode: (mode: AutoManualMode) => Promise<boolean>;
+  selectedTimezone: string;
+  setSelectedTimezone: (tz: string) => Promise<boolean>;
+  remindersEnabled: boolean;
+  setRemindersEnabled: (enabled: boolean) => Promise<boolean>;
+
   // Active Discover filter
   activeDiscoverFilter: DiscoverFilter | null;
   setActiveDiscoverFilter: (filter: DiscoverFilter | null) => void;
@@ -75,6 +88,11 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   const [sizingConfig, setSizingConfigState] = useState<SizingConfig>(DEFAULT_SIZING_CONFIG);
   const [hapticIntensity, setHapticIntensityState] = useState<HapticIntensity>('medium');
   const [dateFormat, setDateFormatState] = useState<DateFormatOption>(DEFAULT_DATE_FORMAT);
+  const [regionMode, setRegionModeState] = useState<AutoManualMode>('auto');
+  const [selectedRegion, setSelectedRegionState] = useState<string>('US');
+  const [timezoneMode, setTimezoneModeState] = useState<AutoManualMode>('auto');
+  const [selectedTimezone, setSelectedTimezoneState] = useState<string>('UTC');
+  const [remindersEnabled, setRemindersEnabledState] = useState<boolean>(true);
   const [activeDiscoverFilter, setActiveDiscoverFilter] = useState<DiscoverFilter | null>(null);
   const [isLoadingStorage, setIsLoadingStorage] = useState(true);
 
@@ -91,6 +109,11 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           savedSizing,
           savedHaptic,
           savedDateFormat,
+          savedRegionMode,
+          savedSelectedRegion,
+          savedTzMode,
+          savedSelectedTz,
+          savedReminders,
         ] = await Promise.all([
           StorageService.getApiKey(),
           StorageService.getTrackedItems(),
@@ -101,6 +124,11 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           StorageService.getSizingConfig(),
           StorageService.getHapticIntensity(),
           StorageService.getDateFormat(),
+          StorageService.getRegionMode(),
+          StorageService.getSelectedRegion(),
+          StorageService.getTimezoneMode(),
+          StorageService.getSelectedTimezone(),
+          StorageService.getRemindersEnabled(),
         ]);
         if (savedKey) setApiKeyState(savedKey);
         if (savedItems) setTrackedItems(savedItems);
@@ -111,6 +139,11 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setSizingConfigState(savedSizing);
         setHapticIntensityState(savedHaptic);
         setDateFormatState(savedDateFormat);
+        setRegionModeState(savedRegionMode);
+        setSelectedRegionState(savedSelectedRegion);
+        setTimezoneModeState(savedTzMode);
+        setSelectedTimezoneState(savedSelectedTz);
+        setRemindersEnabledState(savedReminders);
         HapticsService.setIntensity(savedHaptic);
       } catch (e) {
         console.error('Failed to load initial data', e);
@@ -225,6 +258,54 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     return success;
   };
 
+  const setRegionMode = async (mode: AutoManualMode): Promise<boolean> => {
+    const success = await StorageService.saveRegionMode(mode);
+    if (success) {
+      setRegionModeState(mode);
+      if (mode === 'auto') {
+        const detected = await StorageService.getSelectedRegion();
+        setSelectedRegionState(detected);
+      }
+    }
+    return success;
+  };
+
+  const setSelectedRegion = async (region: string): Promise<boolean> => {
+    const success = await StorageService.saveSelectedRegion(region);
+    if (success) {
+      setSelectedRegionState(region.toUpperCase());
+    }
+    return success;
+  };
+
+  const setTimezoneMode = async (mode: AutoManualMode): Promise<boolean> => {
+    const success = await StorageService.saveTimezoneMode(mode);
+    if (success) {
+      setTimezoneModeState(mode);
+      if (mode === 'auto') {
+        const detected = await StorageService.getSelectedTimezone();
+        setSelectedTimezoneState(detected);
+      }
+    }
+    return success;
+  };
+
+  const setSelectedTimezone = async (tz: string): Promise<boolean> => {
+    const success = await StorageService.saveSelectedTimezone(tz);
+    if (success) {
+      setSelectedTimezoneState(tz);
+    }
+    return success;
+  };
+
+  const setRemindersEnabled = async (enabled: boolean): Promise<boolean> => {
+    const success = await StorageService.saveRemindersEnabled(enabled);
+    if (success) {
+      setRemindersEnabledState(enabled);
+    }
+    return success;
+  };
+
   const triggerHaptic = (type: 'selection' | 'impact' | 'success' | 'warning' | 'error' = 'impact') => {
     HapticsService.trigger(type);
   };
@@ -306,6 +387,16 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         triggerHaptic,
         dateFormat,
         setDateFormat,
+        regionMode,
+        setRegionMode,
+        selectedRegion,
+        setSelectedRegion,
+        timezoneMode,
+        setTimezoneMode,
+        selectedTimezone,
+        setSelectedTimezone,
+        remindersEnabled,
+        setRemindersEnabled,
         activeDiscoverFilter,
         setActiveDiscoverFilter,
       }}>

@@ -80,6 +80,15 @@ export interface DetailedMediaInfo {
   studios?: ProductionCompany[];
   networks?: NetworkInfo[];
   releaseDate?: string;
+  regionalReleaseDate?: string;
+  regionalReleaseType?: string;
+  nextAirDate?: string;
+  nextEpisode?: {
+    seasonNumber: number;
+    episodeNumber: number;
+    name?: string;
+    airDate?: string;
+  };
   status?: string;
 }
 
@@ -142,6 +151,18 @@ export interface TrackedItem {
   lastWatchedAt?: string | null; // Date user last updated progress
   lastSyncedAt?: string | null; // Date item was last synced with TMDB
   updatedAt: string; // ISO date of last modification
+
+  // Regional Release & Broadcast Dates
+  releaseDate?: string; // Standard release date (YYYY-MM-DD)
+  regionalReleaseDate?: string; // Regional theatrical/digital release date
+  regionalReleaseType?: string; // 'Theatrical', 'Digital', 'Premiere', 'Physical', etc.
+  nextAirDate?: string; // TV next episode air date (YYYY-MM-DD)
+  nextEpisode?: {
+    seasonNumber: number;
+    episodeNumber: number;
+    name?: string;
+    airDate?: string;
+  };
 
   notes?: string;
 }
@@ -314,3 +335,55 @@ export const DATE_FORMAT_OPTIONS: DateFormatConfig[] = [
 ];
 
 export const DEFAULT_DATE_FORMAT: DateFormatOption = 'DD.MM.YYYY';
+
+export type AutoManualMode = 'auto' | 'manual';
+
+export interface RegionOption {
+  code: string; // ISO 3166-1 alpha-2 (e.g. 'US', 'DE', 'GB')
+  name: string;
+}
+
+export const POPULAR_REGIONS: RegionOption[] = [
+  { code: 'US', name: 'United States' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'FR', name: 'France' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'KR', name: 'South Korea' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'BR', name: 'Brazil' },
+  { code: 'MX', name: 'Mexico' },
+  { code: 'IN', name: 'India' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'SE', name: 'Sweden' },
+];
+
+export interface TimezoneOption {
+  id: string;
+  label: string;
+}
+
+export const POPULAR_TIMEZONES: TimezoneOption[] = [
+  { id: 'UTC', label: 'UTC (Coordinated Universal Time)' },
+  { id: 'America/New_York', label: 'Eastern Time (US & Canada)' },
+  { id: 'America/Chicago', label: 'Central Time (US & Canada)' },
+  { id: 'America/Denver', label: 'Mountain Time (US & Canada)' },
+  { id: 'America/Los_Angeles', label: 'Pacific Time (US & Canada)' },
+  { id: 'Europe/London', label: 'London, Dublin, Lisbon (GMT/BST)' },
+  { id: 'Europe/Berlin', label: 'Berlin, Paris, Rome, Madrid (CET)' },
+  { id: 'Europe/Helsinki', label: 'Helsinki, Athens, Istanbul (EET)' },
+  { id: 'Asia/Tokyo', label: 'Tokyo, Seoul (JST/KST)' },
+  { id: 'Asia/Shanghai', label: 'Beijing, Shanghai, Hong Kong (CST)' },
+  { id: 'Australia/Sydney', label: 'Sydney, Melbourne (AEST)' },
+];
+
+export interface CountdownInfo {
+  status: 'released' | 'today' | 'tomorrow' | 'upcoming';
+  daysDiff: number;
+  formattedCountdown: string;
+  isUpcoming: boolean;
+}
+

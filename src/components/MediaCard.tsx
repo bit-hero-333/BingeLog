@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, StyleProp, ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { TMDBMediaItem, TrackedItem, STATUS_CONFIG, MediaType } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
-import { formatDateDisplay, getRelativeTime, formatRuntime } from '@/utils/date';
+import { formatDateDisplay, getRelativeTime, formatRuntime, getCountdownInfo } from '@/utils/date';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useMedia } from '@/context/MediaContext';
 
@@ -18,7 +18,7 @@ interface MediaCardProps {
 
 export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }: MediaCardProps) {
   const { colors } = useAppTheme();
-  const { triggerHaptic, dateFormat } = useMedia();
+  const { triggerHaptic, dateFormat, selectedTimezone, remindersEnabled } = useMedia();
   // Normalize fields between TMDBMediaItem and TrackedItem
   const isTrackedItem = 'status' in item;
   const title = ('title' in item && item.title) ? item.title : ('name' in item ? item.name : 'Untitled');
@@ -57,6 +57,24 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
   };
   const dateLabel = getDateLabel();
 
+  // Upcoming release countdown for unreleased movies & broadcast episodes
+  const countdownTarget = useMemo(() => {
+    if (!remindersEnabled) return null;
+    let dateStr: string | undefined;
+    if (currentTracked) {
+      if (mediaType === 'movie') {
+        dateStr = currentTracked.regionalReleaseDate || currentTracked.releaseDate;
+      } else {
+        dateStr = currentTracked.nextAirDate || currentTracked.nextEpisode?.airDate;
+      }
+    } else if ('release_date' in item || 'first_air_date' in item) {
+      dateStr = (item as TMDBMediaItem).release_date || (item as TMDBMediaItem).first_air_date;
+    }
+    if (!dateStr) return null;
+    const info = getCountdownInfo(dateStr, selectedTimezone);
+    return info.isUpcoming ? info : null;
+  }, [remindersEnabled, currentTracked, mediaType, item, selectedTimezone]);
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -91,6 +109,14 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
           <Text style={styles.mediaTypeText}>{mediaType.toUpperCase()}</Text>
         </View>
 
+        {/* Countdown Badge on Poster */}
+        {countdownTarget && (
+          <View style={[styles.countdownBadge, { backgroundColor: colors.primary }]}>
+            <Ionicons name="calendar-outline" size={9} color="#ffffff" />
+            <Text style={styles.countdownBadgeText}>{countdownTarget.formattedCountdown}</Text>
+          </View>
+        )}
+
         {/* Status Indicator Stripe */}
         {statusConfig && (
           <View
@@ -114,6 +140,16 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
           {releaseYear ? (
             <Text style={[styles.yearText, { color: colors.textSecondary }]}>{releaseYear}</Text>
           ) : null}
+
+          {/* Countdown indicator chip in meta row */}
+          {countdownTarget && (
+            <View style={[styles.countdownMetaChip, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
+              <Ionicons name="time-outline" size={10} color={colors.primary} />
+              <Text style={[styles.countdownMetaText, { color: colors.primary }]}>
+                {countdownTarget.formattedCountdown}
+              </Text>
+            </View>
+          )}
 
           {/* TV Episodes / Movie Runtime info */}
           {currentTracked ? (
@@ -425,5 +461,35 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     opacity: 0.7,
+  },
+  countdownBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+    zIndex: 2,
+  },
+  countdownBadgeText: {
+    color: '#ffffff',
+    fontSize: 9.5,
+    fontWeight: '700',
+  },
+  countdownMetaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  countdownMetaText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
 });

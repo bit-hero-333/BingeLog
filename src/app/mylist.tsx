@@ -21,6 +21,7 @@ import { MediaCard } from '@/components/MediaCard';
 import { StatsHeader } from '@/components/StatsHeader';
 import { StatusFilterChips, FilterStatus } from '@/components/StatusFilterChips';
 import { TrackModal } from '@/components/TrackModal';
+import { getCountdownInfo } from '@/utils/date';
 
 type MediaTypeFilter = 'all' | 'movie' | 'tv';
 
@@ -32,7 +33,8 @@ type SortOption =
   | 'score_desc'
   | 'score_asc'
   | 'release_desc'
-  | 'release_asc';
+  | 'release_asc'
+  | 'upcoming';
 
 interface SortOptionConfig {
   id: SortOption;
@@ -50,6 +52,7 @@ const SORT_OPTIONS: SortOptionConfig[] = [
   { id: 'score_asc', label: 'User Score (Lowest)', shortLabel: 'Score ↑', icon: 'star-outline' },
   { id: 'release_desc', label: 'Release Year (Newest)', shortLabel: 'Year ↓', icon: 'film-outline' },
   { id: 'release_asc', label: 'Release Year (Oldest)', shortLabel: 'Year ↑', icon: 'film-outline' },
+  { id: 'upcoming', label: 'Upcoming Release (Earliest)', shortLabel: 'Upcoming', icon: 'calendar-outline' },
 ];
 
 export default function MyListScreen() {
@@ -57,12 +60,23 @@ export default function MyListScreen() {
   const { width } = useWindowDimensions();
   const numColumns = width >= 1100 ? 3 : width >= 700 ? 2 : 1;
 
-  const { trackedItems, saveItems, saveItem, removeItem, stats, apiKey, triggerHaptic } = useMedia();
+  const {
+    trackedItems,
+    saveItems,
+    saveItem,
+    removeItem,
+    stats,
+    apiKey,
+    triggerHaptic,
+    selectedRegion,
+    selectedTimezone,
+  } = useMedia();
   const { colors } = useAppTheme();
 
   const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaTypeFilter>('all');
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>('all');
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+  const [filterUpcomingOnly, setFilterUpcomingOnly] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('updated');
   const [sortModalVisible, setSortModalVisible] = useState(false);
@@ -84,6 +98,18 @@ export default function MyListScreen() {
     () => trackedItems.filter((i) => i.mediaType === 'tv').length,
     [trackedItems]
   );
+
+  // Live upcoming releases count across watchlist
+  const upcomingCount = useMemo(() => {
+    return trackedItems.filter((i) => {
+      const dateStr =
+        i.mediaType === 'movie'
+          ? i.regionalReleaseDate || i.releaseDate
+          : i.nextAirDate || i.nextEpisode?.airDate;
+      if (!dateStr) return false;
+      return getCountdownInfo(dateStr, selectedTimezone).isUpcoming;
+    }).length;
+  }, [trackedItems, selectedTimezone]);
 
   // Status counts dynamically tailored to selected mediaTypeFilter
   const statusCounts = useMemo<Record<FilterStatus, number>>(() => {
@@ -148,6 +174,18 @@ export default function MyListScreen() {
       result = result.filter((i) => i.genres?.includes(selectedGenre));
     }
 
+    // Filter by upcoming releases only
+    if (filterUpcomingOnly) {
+      result = result.filter((i) => {
+        const dateStr =
+          i.mediaType === 'movie'
+            ? i.regionalReleaseDate || i.releaseDate
+            : i.nextAirDate || i.nextEpisode?.airDate;
+        if (!dateStr) return false;
+        return getCountdownInfo(dateStr, selectedTimezone).isUpcoming;
+      });
+    }
+
     // Filter by query
     if (filterQuery.trim()) {
       const q = filterQuery.toLowerCase();
@@ -157,6 +195,18 @@ export default function MyListScreen() {
     // Sort
     result.sort((a, b) => {
       switch (sortBy) {
+        case 'upcoming': {
+          const getDateMs = (i: TrackedItem) => {
+            const d =
+              i.mediaType === 'movie'
+                ? i.regionalReleaseDate || i.releaseDate
+                : i.nextAirDate || i.nextEpisode?.airDate;
+            if (!d) return 9999999999999;
+            const t = new Date(d).getTime();
+            return isNaN(t) ? 9999999999999 : t;
+          };
+          return getDateMs(a) - getDateMs(b);
+        }
         case 'title_asc':
           return a.title.localeCompare(b.title);
         case 'title_desc':
@@ -184,7 +234,7 @@ export default function MyListScreen() {
     });
 
     return result;
-  }, [trackedItems, mediaTypeFilter, selectedStatus, selectedGenre, filterQuery, sortBy]);
+  }, [trackedItems, mediaTypeFilter, selectedStatus, selectedGenre, filterUpcomingOnly, filterQuery, sortBy, selectedTimezone]);
 
   const handleRefresh = async () => {
     if (!apiKey) {
@@ -211,7 +261,7 @@ export default function MyListScreen() {
       const updatedItems: TrackedItem[] = [];
       for (const item of activeTitles) {
         try {
-          const details = await TMDBService.getMediaDetails(item.id, item.mediaType, apiKey);
+          const details = await TMDBService.getMediaDetails(item.id, item.mediaType, apiKey, selectedRegion);
           const updated: TrackedItem = {
             ...item,
             totalEpisodes: details.numberOfEpisodes ?? item.totalEpisodes,
@@ -219,6 +269,11 @@ export default function MyListScreen() {
             totalProgress: item.mediaType === 'tv' && details.numberOfEpisodes ? details.numberOfEpisodes : item.totalProgress,
             seasons: details.seasons && details.seasons.length > 0 ? details.seasons : item.seasons,
             tagline: details.tagline || item.tagline,
+            releaseDate: details.releaseDate || item.releaseDate,
+            regionalReleaseDate: details.regionalReleaseDate || item.regionalReleaseDate,
+            regionalReleaseType: details.regionalReleaseType || item.regionalReleaseType,
+            nextAirDate: details.nextAirDate || item.nextAirDate,
+            nextEpisode: details.nextEpisode || item.nextEpisode,
             lastSyncedAt: new Date().toISOString(),
           };
           updatedItems.push(updated);
@@ -285,75 +340,103 @@ export default function MyListScreen() {
         </Pressable>
       </View>
 
-      {/* Media Type Segmented Pills (All | Movies | TV Shows) */}
+      {/* Media Type & Upcoming Filter Controls */}
       <View style={styles.mediaTypeSection}>
-        <View style={[styles.mediaTypeSegmentContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-          <Pressable
-            style={[
-              styles.mediaTypePill,
-              mediaTypeFilter === 'all' && [styles.mediaTypePillActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
-            ]}
-            onPress={() => {
-              triggerHaptic('selection');
-              setMediaTypeFilter('all');
-            }}>
-            <Ionicons
-              name="layers-outline"
-              size={13}
-              color={mediaTypeFilter === 'all' ? colors.primary : colors.textSecondary}
-            />
-            <Text
+        <View style={styles.mediaTypeRow}>
+          <View style={[styles.mediaTypeSegmentContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Pressable
               style={[
-                styles.mediaTypePillText,
-                { color: mediaTypeFilter === 'all' ? colors.primary : colors.textSecondary },
-              ]}>
-              All ({trackedItems.length})
-            </Text>
-          </Pressable>
+                styles.mediaTypePill,
+                mediaTypeFilter === 'all' && [styles.mediaTypePillActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
+              ]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setMediaTypeFilter('all');
+              }}>
+              <Ionicons
+                name="layers-outline"
+                size={13}
+                color={mediaTypeFilter === 'all' ? colors.primary : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.mediaTypePillText,
+                  { color: mediaTypeFilter === 'all' ? colors.primary : colors.textSecondary },
+                ]}>
+                All ({trackedItems.length})
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.mediaTypePill,
+                mediaTypeFilter === 'movie' && [styles.mediaTypePillActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
+              ]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setMediaTypeFilter('movie');
+              }}>
+              <Ionicons
+                name="film-outline"
+                size={13}
+                color={mediaTypeFilter === 'movie' ? colors.primary : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.mediaTypePillText,
+                  { color: mediaTypeFilter === 'movie' ? colors.primary : colors.textSecondary },
+                ]}>
+                Movies ({movieCount})
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.mediaTypePill,
+                mediaTypeFilter === 'tv' && [styles.mediaTypePillActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
+              ]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setMediaTypeFilter('tv');
+              }}>
+              <Ionicons
+                name="tv-outline"
+                size={13}
+                color={mediaTypeFilter === 'tv' ? colors.primary : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.mediaTypePillText,
+                  { color: mediaTypeFilter === 'tv' ? colors.primary : colors.textSecondary },
+                ]}>
+                TV ({tvCount})
+              </Text>
+            </Pressable>
+          </View>
 
           <Pressable
             style={[
-              styles.mediaTypePill,
-              mediaTypeFilter === 'movie' && [styles.mediaTypePillActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
+              styles.upcomingToggleBtn,
+              {
+                backgroundColor: filterUpcomingOnly ? colors.primaryBg : colors.card,
+                borderColor: filterUpcomingOnly ? colors.primary : colors.cardBorder,
+              },
             ]}
             onPress={() => {
               triggerHaptic('selection');
-              setMediaTypeFilter('movie');
+              setFilterUpcomingOnly((prev) => !prev);
             }}>
             <Ionicons
-              name="film-outline"
+              name="calendar-outline"
               size={13}
-              color={mediaTypeFilter === 'movie' ? colors.primary : colors.textSecondary}
+              color={filterUpcomingOnly ? colors.primary : colors.textSecondary}
             />
             <Text
               style={[
-                styles.mediaTypePillText,
-                { color: mediaTypeFilter === 'movie' ? colors.primary : colors.textSecondary },
+                styles.upcomingToggleText,
+                { color: filterUpcomingOnly ? colors.primary : colors.textSecondary },
               ]}>
-              Movies ({movieCount})
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.mediaTypePill,
-              mediaTypeFilter === 'tv' && [styles.mediaTypePillActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
-            ]}
-            onPress={() => {
-              triggerHaptic('selection');
-              setMediaTypeFilter('tv');
-            }}>
-            <Ionicons
-              name="tv-outline"
-              size={13}
-              color={mediaTypeFilter === 'tv' ? colors.primary : colors.textSecondary}
-            />
-            <Text
-              style={[
-                styles.mediaTypePillText,
-                { color: mediaTypeFilter === 'tv' ? colors.primary : colors.textSecondary },
-              ]}>
-              TV Shows ({tvCount})
+              Upcoming ({upcomingCount})
             </Text>
           </Pressable>
         </View>
@@ -627,12 +710,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
   },
+  mediaTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   mediaTypeSegmentContainer: {
+    flex: 1,
     flexDirection: 'row',
     borderRadius: 10,
     borderWidth: 1,
     padding: 3,
     gap: 4,
+  },
+  upcomingToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  upcomingToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   mediaTypePill: {
     flex: 1,
