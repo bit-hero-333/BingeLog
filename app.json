@@ -2,13 +2,13 @@
   "expo": {
     "name": "BingeLog",
     "slug": "PersonalMediaTracker",
-    "version": "0.14.0",
+    "version": "0.14.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "bingelog",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "supportsTablet": true
     },
     "android": {
       "package": "com.enes.personalmediatracker",
@@ -40,6 +40,13 @@
         "expo-camera",
         {
           "cameraPermission": "Allow BingeLog to use your camera to scan sync QR codes from your other devices."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#3b82f6",
+          "defaultChannel": "releases"
         }
       ]
     ],

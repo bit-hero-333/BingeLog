@@ -1,7 +1,8 @@
-import React from 'react';
-import { Tabs } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MediaProvider, useMedia } from '@/context/MediaContext';
 import { ThemeProvider, useAppTheme } from '@/context/ThemeContext';
@@ -10,6 +11,19 @@ function TabLayoutContent() {
   const { trackedItems } = useMedia();
   const { isDark, colors } = useAppTheme();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(() => {
+      try {
+        router.navigate('/mylist');
+      } catch {
+        // Safe fallback
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   // Dynamic bottom padding so Android gesture bar or hardware navigation never overlaps icons
   const bottomInset = insets.bottom > 0 ? insets.bottom : 8;

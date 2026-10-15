@@ -56,6 +56,19 @@ const ROW_SCALE_LABELS: Record<ElementScale, string> = {
   xlarge: 'Spacious',
 };
 
+const NOTIFICATION_HOUR_OPTIONS = [
+  { hour: 9, label: '09:00 AM', desc: 'Morning' },
+  { hour: 12, label: '12:00 PM', desc: 'Noon' },
+  { hour: 18, label: '06:00 PM', desc: 'Evening' },
+  { hour: 21, label: '09:00 PM', desc: 'Night' },
+];
+
+const NOTIFICATION_DAYS_OPTIONS = [
+  { days: 0, label: 'Release Day' },
+  { days: 1, label: '1 Day Ahead' },
+  { days: 2, label: '2 Days Ahead' },
+];
+
 export default function SettingsScreen() {
   const {
     apiKey,
@@ -89,6 +102,17 @@ export default function SettingsScreen() {
     setSelectedTimezone,
     remindersEnabled,
     setRemindersEnabled,
+    deviceNotificationsEnabled,
+    setDeviceNotificationsEnabled,
+    notificationHour,
+    setNotificationHour,
+    notificationDaysAhead,
+    setNotificationDaysAhead,
+    notificationPermissionStatus,
+    requestNotificationPermission,
+    sendTestNotification,
+    scheduledNotificationsCount,
+    refreshScheduledNotifications,
   } = useMedia();
 
   const {
@@ -109,10 +133,38 @@ export default function SettingsScreen() {
     haptics: false,
     dates: false,
     regional: false,
+    notifications: false,
     api: false,
     storage: false,
     about: false,
   });
+
+  const [isSendingTestNotif, setIsSendingTestNotif] = useState(false);
+
+  const handleSendTestNotification = async () => {
+    triggerHaptic('selection');
+    setIsSendingTestNotif(true);
+    try {
+      const ok = await sendTestNotification();
+      if (ok) {
+        triggerHaptic('success');
+        Alert.alert(
+          'Test Notification Dispatched',
+          'A test reminder will trigger in 3 seconds. Check your notification tray or device lock screen.'
+        );
+      } else {
+        triggerHaptic('warning');
+        Alert.alert(
+          'Permission Needed',
+          'Notification permissions are not enabled. Tap "Grant Permission" below or enable notifications in system settings.'
+        );
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to dispatch test notification.');
+    } finally {
+      setIsSendingTestNotif(false);
+    }
+  };
 
   const toggleSection = (key: string) => {
     triggerHaptic('selection');
@@ -1626,7 +1678,217 @@ export default function SettingsScreen() {
       </View>
 
       {/* ============================================================== */}
-      {/* 6. TMDB API KEY SECTION */}
+      {/* 6. DEVICE NOTIFICATIONS & REMINDERS SECTION */}
+      {/* ============================================================== */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => toggleSection('notifications')}>
+          <View style={styles.accordionLeft}>
+            <Ionicons name="notifications-outline" size={20} color={colors.primary} />
+            <View style={styles.accordionTextGroup}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Device Notifications & Alerts</Text>
+              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+                {deviceNotificationsEnabled
+                  ? `Active • ${scheduledNotificationsCount} ${scheduledNotificationsCount === 1 ? 'alert' : 'alerts'} scheduled`
+                  : 'Disabled'}
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name={expandedSections.notifications ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textSecondary}
+          />
+        </Pressable>
+
+        {expandedSections.notifications && (
+          <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              Receive local device alerts on release days for unreleased movies and broadcast air days for upcoming TV episodes in your watchlist.
+            </Text>
+
+            {/* Master Toggle */}
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleTextContainer}>
+                <Text style={[styles.toggleLabel, { color: colors.text }]}>Device Release Alerts</Text>
+                <Text style={[styles.toggleDescription, { color: colors.textSecondary }]}>
+                  Schedule automatic offline notifications on your device when tracked titles premiere or air.
+                </Text>
+              </View>
+              <Switch
+                value={deviceNotificationsEnabled}
+                onValueChange={(val) => {
+                  triggerHaptic('selection');
+                  void setDeviceNotificationsEnabled(val);
+                }}
+                trackColor={{ false: colors.cardBorder, true: colors.primary }}
+                thumbColor="#ffffff"
+              />
+            </View>
+
+            {deviceNotificationsEnabled && (
+              <>
+                {/* Permission status banner */}
+                {notificationPermissionStatus === 'granted' ? (
+                  <View style={[styles.notifPermBanner, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                    <Ionicons name="checkmark-circle-outline" size={20} color="#22c55e" />
+                    <View style={styles.notifPermTextWrap}>
+                      <Text style={[styles.notifPermTitle, { color: colors.text }]}>
+                        Notification Permissions Active
+                      </Text>
+                      <Text style={[styles.notifPermDesc, { color: colors.textSecondary }]}>
+                        BingeLog is authorized to show release reminders on this device.
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={[styles.notifPermBanner, { backgroundColor: 'rgba(245, 158, 11, 0.1)', borderColor: '#f59e0b' }]}>
+                    <Ionicons name="warning-outline" size={20} color="#f59e0b" />
+                    <View style={styles.notifPermTextWrap}>
+                      <Text style={[styles.notifPermTitle, { color: colors.text }]}>
+                        Notification Permission Needed
+                      </Text>
+                      <Text style={[styles.notifPermDesc, { color: colors.textSecondary }]}>
+                        Your device has not authorized alerts for BingeLog yet.
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={[styles.notifPermBtn, { backgroundColor: colors.primary }]}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        void requestNotificationPermission();
+                      }}>
+                      <Text style={styles.notifPermBtnText}>Authorize</Text>
+                    </Pressable>
+                  </View>
+                )}
+
+                {/* Alert Time of Day */}
+                <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+                  ALERT TIME OF DAY
+                </Text>
+                <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+                  Choose what time you want reminders to fire in your selected timezone.
+                </Text>
+                <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                  {NOTIFICATION_HOUR_OPTIONS.map((opt) => {
+                    const isSelected = notificationHour === opt.hour;
+                    return (
+                      <Pressable
+                        key={opt.hour}
+                        style={[
+                          styles.modeSegmentBtn,
+                          isSelected && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                        ]}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          void setNotificationHour(opt.hour);
+                        }}>
+                        <Text
+                          style={[
+                            styles.modeSegmentText,
+                            { color: isSelected ? '#ffffff' : colors.textSecondary, fontSize: 11 },
+                          ]}>
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {/* Reminder Timing Advance */}
+                <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+                  REMINDER TIMING ADVANCE
+                </Text>
+                <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+                  Deliver alert on the exact day or in advance.
+                </Text>
+                <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                  {NOTIFICATION_DAYS_OPTIONS.map((opt) => {
+                    const isSelected = notificationDaysAhead === opt.days;
+                    return (
+                      <Pressable
+                        key={opt.days}
+                        style={[
+                          styles.modeSegmentBtn,
+                          isSelected && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                        ]}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          void setNotificationDaysAhead(opt.days);
+                        }}>
+                        <Text
+                          style={[
+                            styles.modeSegmentText,
+                            { color: isSelected ? '#ffffff' : colors.textSecondary, fontSize: 11 },
+                          ]}>
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {/* Scheduled Reminders Summary Card */}
+                <View style={[styles.notifSummaryCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                  <View style={styles.notifSummaryHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+                      <Text style={[styles.notifSummaryTitle, { color: colors.text }]}>
+                        {scheduledNotificationsCount} {scheduledNotificationsCount === 1 ? 'Alert' : 'Alerts'} Scheduled
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={[styles.refreshRemindersBtn, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        void refreshScheduledNotifications().then(() => {
+                          triggerHaptic('success');
+                        });
+                      }}>
+                      <Ionicons name="sync-outline" size={13} color={colors.primary} />
+                      <Text style={[styles.refreshRemindersBtnText, { color: colors.primary }]}>Sync</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={[styles.notifSummaryDesc, { color: colors.textSecondary }]}>
+                    Target Time: {NOTIFICATION_HOUR_OPTIONS.find((h) => h.hour === notificationHour)?.label || '09:00 AM'} ({selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone} time). Alerts refresh automatically as watchlist items change.
+                  </Text>
+                </View>
+
+                {/* Test Notification Button */}
+                <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+                  VERIFICATION & TESTING
+                </Text>
+                <Pressable
+                  style={[
+                    styles.testNotifBtn,
+                    { backgroundColor: colors.cardSelected, borderColor: colors.primary },
+                  ]}
+                  onPress={handleSendTestNotification}
+                  disabled={isSendingTestNotif}>
+                  {isSendingTestNotif ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <>
+                      <Ionicons name="paper-plane-outline" size={16} color={colors.primary} />
+                      <Text style={[styles.testNotifBtnText, { color: colors.primary }]}>
+                        Send Test Notification (3s Delay)
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+                <Text style={[styles.cardDescription, { color: colors.textMuted, marginTop: 6 }]}>
+                  Schedules a test alert to trigger 3 seconds from now so you can confirm banner presentation, sound, and notification behavior on your device.
+                </Text>
+              </>
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* ============================================================== */}
+      {/* 7. TMDB API KEY SECTION */}
       {/* ============================================================== */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <Pressable
@@ -2012,7 +2274,7 @@ export default function SettingsScreen() {
       </View>
 
       {/* ============================================================== */}
-      {/* 7. ABOUT & LEGAL ATTRIBUTIONS SECTION */}
+      {/* 8. ABOUT & LEGAL ATTRIBUTIONS SECTION */}
       {/* ============================================================== */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <Pressable
@@ -2023,7 +2285,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.14.0 • TMDB & MAL Attributions
+                Version 0.14.1 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2098,7 +2360,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary }]}>
-              Version 0.14.0 • Build 17 • Expo SDK 57
+              Version 0.14.1 • Build 18 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -3090,5 +3352,82 @@ const styles = StyleSheet.create({
   tzId: {
     fontSize: 11,
     marginTop: 2,
+  },
+  notifPermBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 12,
+    gap: 10,
+  },
+  notifPermTextWrap: {
+    flex: 1,
+  },
+  notifPermTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  notifPermDesc: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  notifPermBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  notifPermBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  notifSummaryCard: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 14,
+    gap: 6,
+  },
+  notifSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  notifSummaryTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  notifSummaryDesc: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  refreshRemindersBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  refreshRemindersBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  testNotifBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  testNotifBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

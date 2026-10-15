@@ -34,6 +34,9 @@ const STORAGE_KEYS = {
   TIMEZONE_MODE: '@pmt_timezone_mode',
   SELECTED_TIMEZONE: '@pmt_selected_timezone',
   REMINDERS_ENABLED: '@pmt_reminders_enabled',
+  DEVICE_NOTIFICATIONS_ENABLED: '@pmt_device_notifications_enabled',
+  NOTIFICATION_HOUR: '@pmt_notification_hour',
+  NOTIFICATION_DAYS_AHEAD: '@pmt_notification_days_ahead',
 };
 
 export const StorageService = {
@@ -459,6 +462,64 @@ export const StorageService = {
   async saveRemindersEnabled(enabled: boolean): Promise<boolean> {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.REMINDERS_ENABLED, String(enabled));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getDeviceNotificationsEnabled(): Promise<boolean> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_NOTIFICATIONS_ENABLED);
+      return val === null ? true : val === 'true';
+    } catch {
+      return true;
+    }
+  },
+
+  async saveDeviceNotificationsEnabled(enabled: boolean): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_NOTIFICATIONS_ENABLED, String(enabled));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getNotificationHour(): Promise<number> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.NOTIFICATION_HOUR);
+      if (val === null) return 9; // Default 9:00 AM
+      const num = parseInt(val, 10);
+      return isNaN(num) ? 9 : num;
+    } catch {
+      return 9;
+    }
+  },
+
+  async saveNotificationHour(hour: number): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATION_HOUR, String(hour));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getNotificationDaysAhead(): Promise<number> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.NOTIFICATION_DAYS_AHEAD);
+      if (val === null) return 0; // Default on release day
+      const num = parseInt(val, 10);
+      return isNaN(num) ? 0 : num;
+    } catch {
+      return 0;
+    }
+  },
+
+  async saveNotificationDaysAhead(days: number): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATION_DAYS_AHEAD, String(days));
       return true;
     } catch {
       return false;
