@@ -127,16 +127,16 @@ export default function SettingsScreen() {
 
   const [isSendingTestNotif, setIsSendingTestNotif] = useState(false);
 
-  const handleSendTestNotification = async () => {
+  const handleSendTestNotification = async (delaySeconds = 10) => {
     triggerHaptic('selection');
     setIsSendingTestNotif(true);
     try {
-      const ok = await sendTestNotification();
+      const ok = await sendTestNotification(delaySeconds);
       if (ok) {
         triggerHaptic('success');
         Alert.alert(
-          'Test Notification Dispatched',
-          'A test reminder will trigger in 3 seconds. Check your notification tray or device lock screen.'
+          'Test Notification Scheduled',
+          `A test reminder will trigger in ${delaySeconds} seconds. Lock your screen or switch out of the app now to test background delivery, lock screen banners, and sound.`
         );
       } else {
         triggerHaptic('warning');
@@ -1861,7 +1861,7 @@ export default function SettingsScreen() {
                     styles.testNotifBtn,
                     { backgroundColor: colors.cardSelected, borderColor: colors.primary },
                   ]}
-                  onPress={handleSendTestNotification}
+                  onPress={() => handleSendTestNotification(10)}
                   disabled={isSendingTestNotif}>
                   {isSendingTestNotif ? (
                     <ActivityIndicator size="small" color={colors.primary} />
@@ -1869,13 +1869,13 @@ export default function SettingsScreen() {
                     <>
                       <Ionicons name="paper-plane-outline" size={16} color={colors.primary} />
                       <Text style={[styles.testNotifBtnText, { color: colors.primary }]}>
-                        Send Test Notification (3s Delay)
+                        Send Test Notification (10s Delay)
                       </Text>
                     </>
                   )}
                 </Pressable>
                 <Text style={[styles.cardDescription, { color: colors.textMuted, marginTop: 6 }]}>
-                  Schedules a test alert to trigger 3 seconds from now so you can confirm banner presentation, sound, and notification behavior on your device.
+                  Schedules a test alert 10 seconds from now. Tap this button and immediately lock your phone or switch to another app to verify background delivery, lock screen banners, and sound while BingeLog is closed.
                 </Text>
               </>
             )}
@@ -2281,7 +2281,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.15.0 • TMDB & MAL Attributions
+                Version 0.15.1 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2356,7 +2356,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary }]}>
-              Version 0.15.0 • Build 21 • Expo SDK 57
+              Version 0.15.1 • Build 22 • Expo SDK 57
             </Text>
           </View>
         )}

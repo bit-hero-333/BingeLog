@@ -2,7 +2,7 @@
   "expo": {
     "name": "BingeLog",
     "slug": "PersonalMediaTracker",
-    "version": "0.15.0",
+    "version": "0.15.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "bingelog",
@@ -12,10 +12,12 @@
     },
     "android": {
       "package": "com.enes.personalmediatracker",
-      "versionCode": 21,
+      "versionCode": 22,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.SCHEDULE_EXACT_ALARM"
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#0d1017",
@@ -50,6 +52,7 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#3b82f6",
           "defaultChannel": "releases"
         }

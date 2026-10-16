@@ -105,16 +105,14 @@ export function getLegacyNotificationIdentifier(mediaType: MediaType, id: number
 
 /**
  * Computes exact Date for target date string in specified timezone.
- * Returns null if the target time is in the past, unless allowCatchupToday is true
- * and the target date is today in that timezone.
+ * Returns null if the target time is in the past.
  */
 export function calculateTriggerDate(
   dateStr?: string | null,
   hour = 9,
   minute = 0,
   daysAhead = 0,
-  timezone?: string,
-  allowCatchupToday = false
+  timezone?: string
 ): Date | null {
   if (!dateStr) return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr.trim());
@@ -156,25 +154,6 @@ export function calculateTriggerDate(
     // If target timestamp is strictly in the future, return it
     if (targetDate.getTime() > Date.now()) {
       return targetDate;
-    }
-
-    // If target date is today in the selected timezone and catchup is enabled, fire prompt alert
-    if (allowCatchupToday && daysAhead === 0) {
-      const nowParts = new Intl.DateTimeFormat('en-US', {
-        timeZone: tz,
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric',
-      }).formatToParts(new Date());
-
-      const nowYear = parseInt(nowParts.find((p) => p.type === 'year')?.value || '0', 10);
-      const nowMonth = parseInt(nowParts.find((p) => p.type === 'month')?.value || '0', 10) - 1;
-      const nowDay = parseInt(nowParts.find((p) => p.type === 'day')?.value || '0', 10);
-
-      if (nowYear === year && nowMonth === month && nowDay === day) {
-        // Trigger 4 seconds in future so the user gets notified today
-        return new Date(Date.now() + 4000);
-      }
     }
 
     return null;
@@ -244,8 +223,7 @@ export async function scheduleReleaseNotification(
       effectiveHour,
       effectiveMinute,
       0,
-      options.timezone,
-      true // allow prompt catch-up if release day is today
+      options.timezone
     );
 
     if (releaseTrigger) {
@@ -269,7 +247,6 @@ export async function scheduleReleaseNotification(
       }
 
       try {
-        const isImmediate = releaseTrigger.getTime() - Date.now() < 10000;
         await Notifications.scheduleNotificationAsync({
           identifier: relId,
           content: {
@@ -282,17 +259,11 @@ export async function scheduleReleaseNotification(
             },
             sound: 'default',
           },
-          trigger: isImmediate
-            ? {
-                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-                seconds: 4,
-                channelId: 'releases',
-              }
-            : {
-                type: Notifications.SchedulableTriggerInputTypes.DATE,
-                date: releaseTrigger,
-                channelId: 'releases',
-              },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: releaseTrigger,
+            channelId: 'releases',
+          },
         });
         scheduledIds.push(relId);
       } catch (err) {
@@ -308,8 +279,7 @@ export async function scheduleReleaseNotification(
       effectiveHour,
       effectiveMinute,
       effectiveDaysAhead,
-      options.timezone,
-      false
+      options.timezone
     );
 
     if (advanceTrigger) {
@@ -444,16 +414,19 @@ export async function syncAllReleaseReminders(
 }
 
 /**
- * Sends a test notification 3 seconds in the future to verify device notifications.
+ * Sends a test notification to verify device notifications.
+ * Defaults to 10 seconds in the future so the user has time to lock their screen or exit the app.
  * Strictly zero emojis.
  */
-export async function sendTestNotification(): Promise<boolean> {
+export async function sendTestNotification(delaySeconds = 10): Promise<boolean> {
   try {
     const perm = await getNotificationPermissions();
     if (perm !== 'granted') {
       const granted = await requestNotificationPermissions();
       if (!granted) return false;
     }
+
+    const safeSeconds = Math.max(1, delaySeconds);
 
     await Notifications.scheduleNotificationAsync({
       identifier: `pmt_test_${Date.now()}`,
@@ -465,7 +438,7 @@ export async function sendTestNotification(): Promise<boolean> {
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: 3,
+        seconds: safeSeconds,
         channelId: 'releases',
       },
     });

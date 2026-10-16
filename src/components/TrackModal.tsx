@@ -763,6 +763,9 @@ function TrackModalFormContent({
       nextAirDate: detailedInfo?.nextAirDate || existingRecord?.nextAirDate,
       nextEpisode: detailedInfo?.nextEpisode || existingRecord?.nextEpisode,
 
+      // Release Alert Configuration
+      reminder: existingRecord?.reminder,
+
       notes: notes.trim(),
     };
     triggerHaptic('success');

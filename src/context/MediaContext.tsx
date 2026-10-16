@@ -94,7 +94,7 @@ interface MediaContextType {
   updateItemReminder: (id: number, mediaType: MediaType, reminder?: ItemReminderConfig) => Promise<void>;
   notificationPermissionStatus: 'granted' | 'denied' | 'undetermined';
   requestNotificationPermission: () => Promise<boolean>;
-  sendTestNotification: () => Promise<boolean>;
+  sendTestNotification: (delaySeconds?: number) => Promise<boolean>;
   scheduledNotificationsCount: number;
   refreshScheduledNotifications: () => Promise<void>;
 
@@ -639,8 +639,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     return granted;
   };
 
-  const sendTestNotification = async (): Promise<boolean> => {
-    const sent = await NotificationService.sendTest();
+  const sendTestNotification = async (delaySeconds = 10): Promise<boolean> => {
+    const sent = await NotificationService.sendTest(delaySeconds);
     if (sent) {
       const perm = await NotificationService.getPermissions();
       setNotificationPermissionStatus(perm);
