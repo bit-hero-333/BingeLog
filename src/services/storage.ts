@@ -39,6 +39,7 @@ const STORAGE_KEYS = {
   REMINDERS_ENABLED: '@pmt_reminders_enabled',
   DEVICE_NOTIFICATIONS_ENABLED: '@pmt_device_notifications_enabled',
   NOTIFICATION_HOUR: '@pmt_notification_hour',
+  NOTIFICATION_MINUTE: '@pmt_notification_minute',
   NOTIFICATION_DAYS_AHEAD: '@pmt_notification_days_ahead',
   TIME_FORMAT: '@pmt_time_format',
   NOTIFICATION_TIMING: '@pmt_notification_timing',
@@ -505,6 +506,27 @@ export const StorageService = {
   async saveNotificationHour(hour: number): Promise<boolean> {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATION_HOUR, String(hour));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getNotificationMinute(): Promise<number> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.NOTIFICATION_MINUTE);
+      if (val === null) return 0;
+      const num = parseInt(val, 10);
+      return isNaN(num) ? 0 : Math.max(0, Math.min(59, num));
+    } catch {
+      return 0;
+    }
+  },
+
+  async saveNotificationMinute(minute: number): Promise<boolean> {
+    try {
+      const clamped = Math.max(0, Math.min(59, Math.floor(minute)));
+      await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATION_MINUTE, String(clamped));
       return true;
     } catch {
       return false;

@@ -7,6 +7,7 @@ import {
   Pressable,
   ScrollView,
   Switch,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -19,7 +20,8 @@ import {
   NOTIFICATION_HOUR_PRESETS,
   NOTIFICATION_DAYS_ADVANCE_OPTIONS,
 } from '@/types/media';
-import { formatDate, formatHour } from '@/utils/date';
+import { formatDate, formatTime } from '@/utils/date';
+import { MaterialTimePickerModal } from '@/components/MaterialTimePickerModal';
 
 interface ReleaseReminderModalProps {
   visible: boolean;
@@ -46,6 +48,7 @@ function ReleaseReminderSheetContent({
   const { colors } = useAppTheme();
   const {
     notificationHour: globalHour,
+    notificationMinute: globalMinute,
     notificationDaysAhead: globalDaysAhead,
     notificationTiming: globalTiming,
     timeFormat,
@@ -71,6 +74,14 @@ function ReleaseReminderSheetContent({
     existingConfig?.daysAhead ?? (globalDaysAhead > 0 ? globalDaysAhead : 1)
   );
   const [hour, setHour] = useState<number>(existingConfig?.hour ?? globalHour);
+  const [minute, setMinute] = useState<number>(existingConfig?.minute ?? globalMinute ?? 0);
+
+  // Time picker modal & custom days modal state
+  const [showTimePicker, setShowTimePicker] = useState<boolean>(false);
+  const [showCustomDaysModal, setShowCustomDaysModal] = useState<boolean>(false);
+  const [customDaysInput, setCustomDaysInput] = useState<string>(String(daysAhead));
+
+  const isPresetDays = NOTIFICATION_DAYS_ADVANCE_OPTIONS.some((o) => o.days === daysAhead);
 
   const handleSave = () => {
     triggerHaptic('success');
@@ -79,6 +90,7 @@ function ReleaseReminderSheetContent({
       timing,
       daysAhead,
       hour,
+      minute,
     });
     onClose();
   };
@@ -87,6 +99,15 @@ function ReleaseReminderSheetContent({
     triggerHaptic('warning');
     onRemoveReminder();
     onClose();
+  };
+
+  const handleApplyCustomDays = () => {
+    const parsed = parseInt(customDaysInput, 10);
+    if (!isNaN(parsed) && parsed > 0 && parsed <= 365) {
+      triggerHaptic('selection');
+      setDaysAhead(parsed);
+      setShowCustomDaysModal(false);
+    }
   };
 
   const tzShort =
@@ -244,6 +265,33 @@ function ReleaseReminderSheetContent({
                         </Pressable>
                       );
                     })}
+
+                    {/* Custom Days Chip */}
+                    <Pressable
+                      style={[
+                        styles.advanceChip,
+                        { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                        !isPresetDays && [styles.advanceChipActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
+                      ]}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        setCustomDaysInput(String(daysAhead));
+                        setShowCustomDaysModal(true);
+                      }}>
+                      <Ionicons
+                        name="create-outline"
+                        size={13}
+                        color={!isPresetDays ? colors.primary : colors.textSecondary}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text
+                        style={[
+                          styles.advanceChipText,
+                          { color: !isPresetDays ? colors.primary : colors.textSecondary },
+                        ]}>
+                        {!isPresetDays ? `${daysAhead} Days` : 'Custom...'}
+                      </Text>
+                    </Pressable>
                   </View>
                 </>
               )}
@@ -254,7 +302,7 @@ function ReleaseReminderSheetContent({
               </Text>
               <View style={styles.hourGrid}>
                 {NOTIFICATION_HOUR_PRESETS.map((preset) => {
-                  const isSelected = hour === preset.hour;
+                  const isSelected = hour === preset.hour && minute === 0;
                   const label = timeFormat === '24h' ? preset.label24 : preset.label12;
                   return (
                     <Pressable
@@ -267,6 +315,7 @@ function ReleaseReminderSheetContent({
                       onPress={() => {
                         triggerHaptic('selection');
                         setHour(preset.hour);
+                        setMinute(0);
                       }}>
                       <Text
                         style={[
@@ -287,33 +336,33 @@ function ReleaseReminderSheetContent({
                 })}
               </View>
 
-              {/* Custom Hour Stepper */}
-              <View style={[styles.customHourRow, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-                <Text style={[styles.customHourLabel, { color: colors.text }]}>Selected Alert Hour</Text>
-                <View style={styles.stepperWrap}>
-                  <Pressable
-                    style={[styles.stepperBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                    onPress={() => {
-                      triggerHaptic('selection');
-                      setHour((h) => (h === 0 ? 23 : h - 1));
-                    }}>
-                    <Ionicons name="remove" size={16} color={colors.text} />
-                  </Pressable>
-                  <View style={styles.stepperDisplay}>
-                    <Text style={[styles.stepperText, { color: colors.primary }]}>
-                      {formatHour(hour, timeFormat)}
+              {/* Google Keep Material Design 3 Clock Picker Launcher */}
+              <Pressable
+                style={[
+                  styles.customTimeRow,
+                  { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                  minute !== 0 && [styles.customTimeRowActive, { borderColor: colors.primary, backgroundColor: colors.primaryBg }],
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setShowTimePicker(true);
+                }}>
+                <View style={styles.customTimeInfo}>
+                  <Ionicons name="time-outline" size={18} color={colors.primary} />
+                  <View>
+                    <Text style={[styles.customTimeLabel, { color: colors.text }]}>Selected Exact Time</Text>
+                    <Text style={[styles.customTimeSub, { color: colors.textSecondary }]}>
+                      Tap to open circular clock picker
                     </Text>
                   </View>
-                  <Pressable
-                    style={[styles.stepperBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                    onPress={() => {
-                      triggerHaptic('selection');
-                      setHour((h) => (h === 23 ? 0 : h + 1));
-                    }}>
-                    <Ionicons name="add" size={16} color={colors.text} />
-                  </Pressable>
                 </View>
-              </View>
+                <View style={[styles.timeBadge, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                  <Text style={[styles.timeBadgeText, { color: colors.primary }]}>
+                    {formatTime(hour, minute, timeFormat)}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                </View>
+              </Pressable>
             </>
           )}
 
@@ -342,6 +391,79 @@ function ReleaseReminderSheetContent({
             <Text style={styles.saveBtnText}>Save Alert</Text>
           </Pressable>
         </View>
+
+        {/* Material Design 3 Time Picker Modal */}
+        <MaterialTimePickerModal
+          visible={showTimePicker}
+          initialHour={hour}
+          initialMinute={minute}
+          timeFormat={timeFormat}
+          onClose={() => setShowTimePicker(false)}
+          onConfirm={(h, m) => {
+            setHour(h);
+            setMinute(m);
+          }}
+        />
+
+        {/* Custom Days Ahead Input Modal */}
+        {showCustomDaysModal && (
+          <Modal
+            visible={showCustomDaysModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowCustomDaysModal(false)}>
+            <View style={styles.dialogOverlay}>
+              <Pressable
+                style={styles.backdrop}
+                onPress={() => setShowCustomDaysModal(false)}
+              />
+              <View
+                style={[
+                  styles.customDaysDialog,
+                  { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                ]}>
+                <Text style={[styles.customDaysTitle, { color: colors.text }]}>
+                  Custom Advance Notice
+                </Text>
+                <Text style={[styles.customDaysDesc, { color: colors.textSecondary }]}>
+                  Enter the number of days prior to premiere or broadcast to receive this reminder:
+                </Text>
+                <TextInput
+                  style={[
+                    styles.customDaysInput,
+                    {
+                      backgroundColor: colors.inputBg,
+                      color: colors.primary,
+                      borderColor: colors.primary,
+                    },
+                  ]}
+                  value={customDaysInput}
+                  onChangeText={setCustomDaysInput}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  autoFocus
+                  selectTextOnFocus
+                />
+                <View style={styles.dialogButtonsRow}>
+                  <Pressable
+                    style={styles.dialogBtn}
+                    onPress={() => setShowCustomDaysModal(false)}>
+                    <Text style={[styles.dialogBtnText, { color: colors.textSecondary }]}>
+                      Cancel
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.dialogBtn, { backgroundColor: colors.primary, borderRadius: 8 }]}
+                    onPress={handleApplyCustomDays}>
+                    <Text style={[styles.dialogBtnText, { color: '#ffffff', fontWeight: '700' }]}>
+                      Set Days
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        )}
       </View>
     </View>
   );
@@ -501,6 +623,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   advanceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 8,
@@ -538,40 +662,43 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     marginTop: 2,
   },
-  customHourRow: {
+  customTimeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     marginTop: 6,
     marginBottom: 14,
   },
-  customHourLabel: {
-    fontSize: 12.5,
-    fontWeight: '600',
+  customTimeRowActive: {
+    borderWidth: 1.5,
   },
-  stepperWrap: {
+  customTimeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  customTimeLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  customTimeSub: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  timeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  stepperBtn: {
-    width: 32,
-    height: 32,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  stepperDisplay: {
-    minWidth: 70,
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  stepperText: {
-    fontSize: 13,
+  timeBadgeText: {
+    fontSize: 14,
     fontWeight: '700',
   },
   untrackedNote: {
@@ -615,5 +742,51 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '700',
+  },
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  customDaysDialog: {
+    width: 300,
+    padding: 20,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  customDaysTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  customDaysDesc: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 14,
+  },
+  customDaysInput: {
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  dialogButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  dialogBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  dialogBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

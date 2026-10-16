@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, Text, StyleSheet, Pressable, View } from 'react-native';
+import { ScrollView, Text, StyleSheet, Pressable, View, ColorValue } from 'react-native';
 import { MediaStatus, STATUS_CONFIG } from '@/types/media';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useMedia } from '@/context/MediaContext';
@@ -20,7 +20,7 @@ export function StatusFilterChips({
   const { colors } = useAppTheme();
   const { triggerHaptic } = useMedia();
 
-  const options: { id: FilterStatus; label: string; color: string }[] = [
+  const options: { id: FilterStatus; label: string; color: ColorValue }[] = [
     { id: 'all', label: 'All', color: colors.primary },
     { id: 'watching', label: 'Watching', color: STATUS_CONFIG.watching.color },
     { id: 'plan_to_watch', label: 'Plan to Watch', color: STATUS_CONFIG.plan_to_watch.color },

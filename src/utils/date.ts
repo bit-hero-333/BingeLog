@@ -289,19 +289,33 @@ export function formatRuntime(minutes?: number | null): string {
 }
 
 /**
+ * Formats hour and minute into the specified time format (24h vs 12h).
+ */
+export function formatTime(
+  hour: number,
+  minute = 0,
+  format: TimeFormatOption = DEFAULT_TIME_FORMAT
+): string {
+  const clampedHour = Math.max(0, Math.min(23, Math.floor(hour)));
+  const clampedMin = Math.max(0, Math.min(59, Math.floor(minute)));
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  if (format === '24h') {
+    return `${pad(clampedHour)}:${pad(clampedMin)}`;
+  }
+  const period = clampedHour >= 12 ? 'PM' : 'AM';
+  const displayHour = clampedHour % 12 === 0 ? 12 : clampedHour % 12;
+  return `${pad(displayHour)}:${pad(clampedMin)} ${period}`;
+}
+
+/**
  * Formats an hour integer (0-23) into the specified time format (24h vs 12h).
  */
 export function formatHour(
   hour: number,
   format: TimeFormatOption = DEFAULT_TIME_FORMAT
 ): string {
-  const clamped = Math.max(0, Math.min(23, Math.floor(hour)));
-  if (format === '24h') {
-    return `${String(clamped).padStart(2, '0')}:00`;
-  }
-  const period = clamped >= 12 ? 'PM' : 'AM';
-  const displayHour = clamped % 12 === 0 ? 12 : clamped % 12;
-  return `${String(displayHour).padStart(2, '0')}:00 ${period}`;
+  return formatTime(hour, 0, format);
 }
 
 /**

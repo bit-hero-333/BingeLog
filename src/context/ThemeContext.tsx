@@ -4,6 +4,7 @@ import {
   ThemePresetId,
   ThemeColors,
   PRESET_THEMES,
+  getDynamicThemeColors,
 } from '@/constants/theme';
 import { StorageService, SavedThemeConfig } from '@/services/storage';
 
@@ -109,8 +110,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const isDark = mode === 'dark';
 
   const colors = useMemo<ThemeColors>(() => {
-    if (preset !== 'custom' && PRESET_THEMES[preset]) {
-      return PRESET_THEMES[preset][mode];
+    if (preset === 'dynamic') {
+      return getDynamicThemeColors(mode);
+    }
+
+    if (preset !== 'custom' && PRESET_THEMES[preset as keyof typeof PRESET_THEMES]) {
+      return PRESET_THEMES[preset as keyof typeof PRESET_THEMES][mode];
     }
 
     // Custom theme: derive base from midnight, customize with user's accent and card colors

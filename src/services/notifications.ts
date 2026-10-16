@@ -10,6 +10,7 @@ import {
 export interface NotificationScheduleOptions {
   enabled?: boolean;
   hour?: number; // 0-23, default 9
+  minute?: number; // 0-59, default 0
   daysAhead?: number; // default 0
   timing?: NotificationTimingOption; // 'release_day' | 'advance' | 'both', default 'both'
   timezone?: string;
@@ -110,6 +111,7 @@ export function getLegacyNotificationIdentifier(mediaType: MediaType, id: number
 export function calculateTriggerDate(
   dateStr?: string | null,
   hour = 9,
+  minute = 0,
   daysAhead = 0,
   timezone?: string,
   allowCatchupToday = false
@@ -130,7 +132,7 @@ export function calculateTriggerDate(
   const pad = (n: number) => String(n).padStart(2, '0');
 
   try {
-    const testDate = new Date(`${year}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:00:00Z`);
+    const testDate = new Date(`${year}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00Z`);
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: tz,
       timeZoneName: 'longOffset',
@@ -148,7 +150,7 @@ export function calculateTriggerDate(
       }
     }
 
-    const utcMillis = Date.UTC(year, month, day, hour, 0, 0) - offsetMinutes * 60 * 1000;
+    const utcMillis = Date.UTC(year, month, day, hour, minute, 0) - offsetMinutes * 60 * 1000;
     const targetDate = new Date(utcMillis);
 
     // If target timestamp is strictly in the future, return it
@@ -170,14 +172,14 @@ export function calculateTriggerDate(
       const nowDay = parseInt(nowParts.find((p) => p.type === 'day')?.value || '0', 10);
 
       if (nowYear === year && nowMonth === month && nowDay === day) {
-        // Trigger 5 seconds in future so the user gets notified today
-        return new Date(Date.now() + 5000);
+        // Trigger 4 seconds in future so the user gets notified today
+        return new Date(Date.now() + 4000);
       }
     }
 
     return null;
   } catch {
-    const fallback = new Date(year, month, day, hour, 0, 0);
+    const fallback = new Date(year, month, day, hour, minute, 0);
     if (fallback.getTime() > Date.now()) {
       return fallback;
     }
@@ -189,7 +191,7 @@ export function calculateTriggerDate(
  * Schedules local device release notifications for a tracked item.
  * Supports:
  * - On release day
- * - In advance (1, 2, 3, 7, 14 days)
+ * - In advance (1, 2, 3, 7, 14 days, or custom)
  * - Both (in advance and on release day)
  * - Per-item custom reminder overrides via item.reminder
  * Strictly zero emojis.
@@ -225,6 +227,7 @@ export async function scheduleReleaseNotification(
 
   // Resolve effective settings: item override takes priority over global settings
   const effectiveHour = item.reminder?.hour ?? options.hour ?? 9;
+  const effectiveMinute = item.reminder?.minute ?? options.minute ?? 0;
   const effectiveTiming: NotificationTimingOption =
     item.reminder?.timing ?? options.timing ?? 'both';
   const effectiveDaysAhead = item.reminder?.daysAhead ?? options.daysAhead ?? 1;
@@ -239,6 +242,7 @@ export async function scheduleReleaseNotification(
     const releaseTrigger = calculateTriggerDate(
       dateStr,
       effectiveHour,
+      effectiveMinute,
       0,
       options.timezone,
       true // allow prompt catch-up if release day is today
@@ -265,6 +269,7 @@ export async function scheduleReleaseNotification(
       }
 
       try {
+        const isImmediate = releaseTrigger.getTime() - Date.now() < 10000;
         await Notifications.scheduleNotificationAsync({
           identifier: relId,
           content: {
@@ -277,11 +282,17 @@ export async function scheduleReleaseNotification(
             },
             sound: 'default',
           },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: releaseTrigger,
-            channelId: 'releases',
-          },
+          trigger: isImmediate
+            ? {
+                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+                seconds: 4,
+                channelId: 'releases',
+              }
+            : {
+                type: Notifications.SchedulableTriggerInputTypes.DATE,
+                date: releaseTrigger,
+                channelId: 'releases',
+              },
         });
         scheduledIds.push(relId);
       } catch (err) {
@@ -295,6 +306,7 @@ export async function scheduleReleaseNotification(
     const advanceTrigger = calculateTriggerDate(
       dateStr,
       effectiveHour,
+      effectiveMinute,
       effectiveDaysAhead,
       options.timezone,
       false

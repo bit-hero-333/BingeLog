@@ -851,6 +851,22 @@ function TrackModalFormContent({
     if (existingRecord) {
       const updated: TrackedItem = {
         ...existingRecord,
+        releaseDate:
+          detailedInfo?.releaseDate ||
+          existingRecord.releaseDate ||
+          effectiveMovieDate,
+        regionalReleaseDate:
+          detailedInfo?.regionalReleaseDate || existingRecord.regionalReleaseDate,
+        regionalReleaseType:
+          detailedInfo?.regionalReleaseType || existingRecord.regionalReleaseType,
+        nextAirDate:
+          detailedInfo?.nextAirDate ||
+          existingRecord.nextAirDate ||
+          effectiveTvNextAirDate,
+        nextEpisode:
+          detailedInfo?.nextEpisode ||
+          existingRecord.nextEpisode ||
+          tvNextEpisode,
         reminder: config,
         updatedAt: new Date().toISOString(),
       };
@@ -886,11 +902,28 @@ function TrackModalFormContent({
     if (existingRecord) {
       const updated: TrackedItem = {
         ...existingRecord,
+        releaseDate:
+          detailedInfo?.releaseDate ||
+          existingRecord.releaseDate ||
+          effectiveMovieDate,
+        regionalReleaseDate:
+          detailedInfo?.regionalReleaseDate || existingRecord.regionalReleaseDate,
+        regionalReleaseType:
+          detailedInfo?.regionalReleaseType || existingRecord.regionalReleaseType,
+        nextAirDate:
+          detailedInfo?.nextAirDate ||
+          existingRecord.nextAirDate ||
+          effectiveTvNextAirDate,
+        nextEpisode:
+          detailedInfo?.nextEpisode ||
+          existingRecord.nextEpisode ||
+          tvNextEpisode,
         reminder: {
           enabled: false,
           timing: 'both',
           daysAhead: 1,
           hour: 9,
+          minute: 0,
         },
         updatedAt: new Date().toISOString(),
       };

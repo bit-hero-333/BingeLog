@@ -2,7 +2,7 @@
   "expo": {
     "name": "BingeLog",
     "slug": "PersonalMediaTracker",
-    "version": "0.14.2",
+    "version": "0.14.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "bingelog",
@@ -12,7 +12,11 @@
     },
     "android": {
       "package": "com.enes.personalmediatracker",
-      "versionCode": 19,
+      "versionCode": 20,
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#0d1017",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

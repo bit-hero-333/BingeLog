@@ -1,28 +1,36 @@
-import { Platform } from 'react-native';
+import { Platform, PlatformColor, ColorValue } from 'react-native';
 
 export type ThemeMode = 'dark' | 'light';
 
-export type ThemePresetId = 'midnight' | 'amoled' | 'emerald' | 'crimson' | 'ochre' | 'tmdb' | 'custom';
+export type ThemePresetId =
+  | 'midnight'
+  | 'dynamic'
+  | 'amoled'
+  | 'emerald'
+  | 'crimson'
+  | 'ochre'
+  | 'tmdb'
+  | 'custom';
 
 export interface ThemeColors {
-  background: string;
-  card: string;
-  cardBorder: string;
-  cardSelected: string;
-  primary: string;
-  primaryBg: string;
-  primaryText: string;
-  text: string;
-  textSecondary: string;
-  textMuted: string;
-  inputBg: string;
-  headerBg: string;
-  tabBg: string;
-  tabBorder: string;
-  divider: string;
-  danger: string;
-  warning: string;
-  success: string;
+  background: ColorValue;
+  card: ColorValue;
+  cardBorder: ColorValue;
+  cardSelected: ColorValue;
+  primary: ColorValue;
+  primaryBg: ColorValue;
+  primaryText: ColorValue;
+  text: ColorValue;
+  textSecondary: ColorValue;
+  textMuted: ColorValue;
+  inputBg: ColorValue;
+  headerBg: ColorValue;
+  tabBg: ColorValue;
+  tabBorder: ColorValue;
+  divider: ColorValue;
+  danger: ColorValue;
+  warning: ColorValue;
+  success: ColorValue;
 }
 
 export interface ThemePresetMeta {
@@ -34,7 +42,23 @@ export interface ThemePresetMeta {
   lightBgPreview: string;
 }
 
+export function isDynamicThemeSupported(): boolean {
+  return (
+    Platform.OS === 'android' &&
+    typeof Platform.Version === 'number' &&
+    Platform.Version >= 31
+  );
+}
+
 export const THEME_PRESET_METAS: ThemePresetMeta[] = [
+  {
+    id: 'dynamic',
+    label: 'Dynamic Material You',
+    description: 'Adapts to your device system wallpaper colors (Android 12+)',
+    accentPreview: '#80b4f8',
+    darkBgPreview: '#131418',
+    lightBgPreview: '#f8f9fc',
+  },
   {
     id: 'midnight',
     label: 'Midnight Slate',
@@ -93,7 +117,57 @@ export const THEME_PRESET_METAS: ThemePresetMeta[] = [
   },
 ];
 
-export const PRESET_THEMES: Record<Exclude<ThemePresetId, 'custom'>, { dark: ThemeColors; light: ThemeColors }> = {
+export function getDynamicThemeColors(mode: ThemeMode): ThemeColors {
+  if (!isDynamicThemeSupported()) {
+    return PRESET_THEMES.midnight[mode];
+  }
+
+  if (mode === 'dark') {
+    return {
+      background: PlatformColor('@android:color/system_neutral1_900'),
+      card: PlatformColor('@android:color/system_neutral1_800'),
+      cardBorder: PlatformColor('@android:color/system_neutral2_700'),
+      cardSelected: PlatformColor('@android:color/system_neutral1_700'),
+      primary: PlatformColor('@android:color/system_accent1_300'),
+      primaryBg: PlatformColor('@android:color/system_accent1_800'),
+      primaryText: PlatformColor('@android:color/system_neutral1_900'),
+      text: PlatformColor('@android:color/system_neutral1_50'),
+      textSecondary: PlatformColor('@android:color/system_neutral2_200'),
+      textMuted: PlatformColor('@android:color/system_neutral2_400'),
+      inputBg: PlatformColor('@android:color/system_neutral1_900'),
+      headerBg: PlatformColor('@android:color/system_neutral1_900'),
+      tabBg: PlatformColor('@android:color/system_neutral1_900'),
+      tabBorder: PlatformColor('@android:color/system_neutral2_800'),
+      divider: PlatformColor('@android:color/system_neutral2_800'),
+      danger: '#ef4444',
+      warning: '#f59e0b',
+      success: '#22c55e',
+    };
+  }
+
+  return {
+    background: PlatformColor('@android:color/system_neutral1_50'),
+    card: PlatformColor('@android:color/system_neutral1_10'),
+    cardBorder: PlatformColor('@android:color/system_neutral2_200'),
+    cardSelected: PlatformColor('@android:color/system_neutral1_100'),
+    primary: PlatformColor('@android:color/system_accent1_600'),
+    primaryBg: PlatformColor('@android:color/system_accent1_100'),
+    primaryText: '#ffffff',
+    text: PlatformColor('@android:color/system_neutral1_900'),
+    textSecondary: PlatformColor('@android:color/system_neutral2_700'),
+    textMuted: PlatformColor('@android:color/system_neutral2_500'),
+    inputBg: PlatformColor('@android:color/system_neutral1_100'),
+    headerBg: PlatformColor('@android:color/system_neutral1_50'),
+    tabBg: PlatformColor('@android:color/system_neutral1_50'),
+    tabBorder: PlatformColor('@android:color/system_neutral2_200'),
+    divider: PlatformColor('@android:color/system_neutral2_200'),
+    danger: '#ef4444',
+    warning: '#f59e0b',
+    success: '#22c55e',
+  };
+}
+
+export const PRESET_THEMES: Record<Exclude<ThemePresetId, 'custom' | 'dynamic'>, { dark: ThemeColors; light: ThemeColors }> = {
   midnight: {
     dark: {
       background: '#0d1017',

@@ -399,8 +399,9 @@ export type NotificationTimingOption = 'release_day' | 'advance' | 'both';
 export interface ItemReminderConfig {
   enabled: boolean;
   timing: NotificationTimingOption;
-  daysAhead: number; // e.g. 0, 1, 2, 3, 7, 14
+  daysAhead: number; // e.g. 0, 1, 2, 3, 7, 14, or custom
   hour: number; // 0-23
+  minute?: number; // 0-59
 }
 
 export interface NotificationHourPreset {
@@ -412,10 +413,8 @@ export interface NotificationHourPreset {
 
 export const NOTIFICATION_HOUR_PRESETS: NotificationHourPreset[] = [
   { hour: 0, label24: '00:00', label12: '12:00 AM', desc: 'Midnight / Release Start' },
-  { hour: 6, label24: '06:00', label12: '06:00 AM', desc: 'Early Morning' },
   { hour: 9, label24: '09:00', label12: '09:00 AM', desc: 'Morning' },
-  { hour: 12, label24: '12:00', label12: '12:00 PM', desc: 'Noon' },
-  { hour: 15, label24: '15:00', label12: '03:00 PM', desc: 'Afternoon' },
+  { hour: 13, label24: '13:00', label12: '01:00 PM', desc: 'Afternoon' },
   { hour: 18, label24: '18:00', label12: '06:00 PM', desc: 'Evening' },
   { hour: 21, label24: '21:00', label12: '09:00 PM', desc: 'Night' },
 ];
