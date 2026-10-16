@@ -1,4 +1,10 @@
-import { DateFormatOption, DEFAULT_DATE_FORMAT, CountdownInfo } from '@/types/media';
+import {
+  DateFormatOption,
+  DEFAULT_DATE_FORMAT,
+  CountdownInfo,
+  TimeFormatOption,
+  DEFAULT_TIME_FORMAT,
+} from '@/types/media';
 
 const SHORT_MONTHS = [
   'Jan',
@@ -280,6 +286,22 @@ export function formatRuntime(minutes?: number | null): string {
   if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
   if (hours > 0) return `${hours}h`;
   return `${mins}m`;
+}
+
+/**
+ * Formats an hour integer (0-23) into the specified time format (24h vs 12h).
+ */
+export function formatHour(
+  hour: number,
+  format: TimeFormatOption = DEFAULT_TIME_FORMAT
+): string {
+  const clamped = Math.max(0, Math.min(23, Math.floor(hour)));
+  if (format === '24h') {
+    return `${String(clamped).padStart(2, '0')}:00`;
+  }
+  const period = clamped >= 12 ? 'PM' : 'AM';
+  const displayHour = clamped % 12 === 0 ? 12 : clamped % 12;
+  return `${String(displayHour).padStart(2, '0')}:00 ${period}`;
 }
 
 /**

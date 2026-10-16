@@ -164,6 +164,9 @@ export interface TrackedItem {
     airDate?: string;
   };
 
+  // Custom per-item notification override (optional)
+  reminder?: ItemReminderConfig;
+
   notes?: string;
 }
 
@@ -386,4 +389,48 @@ export interface CountdownInfo {
   formattedCountdown: string;
   isUpcoming: boolean;
 }
+
+export type TimeFormatOption = '12h' | '24h';
+
+export const DEFAULT_TIME_FORMAT: TimeFormatOption = '24h';
+
+export type NotificationTimingOption = 'release_day' | 'advance' | 'both';
+
+export interface ItemReminderConfig {
+  enabled: boolean;
+  timing: NotificationTimingOption;
+  daysAhead: number; // e.g. 0, 1, 2, 3, 7, 14
+  hour: number; // 0-23
+}
+
+export interface NotificationHourPreset {
+  hour: number;
+  label24: string;
+  label12: string;
+  desc: string;
+}
+
+export const NOTIFICATION_HOUR_PRESETS: NotificationHourPreset[] = [
+  { hour: 0, label24: '00:00', label12: '12:00 AM', desc: 'Midnight / Release Start' },
+  { hour: 6, label24: '06:00', label12: '06:00 AM', desc: 'Early Morning' },
+  { hour: 9, label24: '09:00', label12: '09:00 AM', desc: 'Morning' },
+  { hour: 12, label24: '12:00', label12: '12:00 PM', desc: 'Noon' },
+  { hour: 15, label24: '15:00', label12: '03:00 PM', desc: 'Afternoon' },
+  { hour: 18, label24: '18:00', label12: '06:00 PM', desc: 'Evening' },
+  { hour: 21, label24: '21:00', label12: '09:00 PM', desc: 'Night' },
+];
+
+export interface NotificationDaysAdvanceOption {
+  days: number;
+  label: string;
+  shortLabel: string;
+}
+
+export const NOTIFICATION_DAYS_ADVANCE_OPTIONS: NotificationDaysAdvanceOption[] = [
+  { days: 1, label: '1 Day Ahead', shortLabel: '1 Day' },
+  { days: 2, label: '2 Days Ahead', shortLabel: '2 Days' },
+  { days: 3, label: '3 Days Ahead', shortLabel: '3 Days' },
+  { days: 7, label: '1 Week Ahead', shortLabel: '1 Week' },
+  { days: 14, label: '2 Weeks Ahead', shortLabel: '2 Weeks' },
+];
 

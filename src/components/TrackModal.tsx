@@ -30,6 +30,7 @@ import {
   EpisodeInfo,
   DetailedMediaInfo,
   EntitySelection,
+  ItemReminderConfig,
 } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
@@ -47,6 +48,7 @@ import {
 import { DatePickerModal } from '@/components/DatePickerModal';
 import { EntityModal } from '@/components/EntityModal';
 import { EpisodeDetailModal } from '@/components/EpisodeDetailModal';
+import { ReleaseReminderModal } from '@/components/ReleaseReminderModal';
 
 interface TrackModalProps {
   visible: boolean;
@@ -86,7 +88,10 @@ function TrackModalFormContent({
     selectedRegion,
     selectedTimezone,
     remindersEnabled,
+    deviceNotificationsEnabled,
   } = useMedia();
+
+  const [showReminderModal, setShowReminderModal] = useState(false);
 
   const { width, height: windowHeight } = useWindowDimensions();
   const isTablet = width >= 720;
@@ -838,6 +843,61 @@ function TrackModalFormContent({
     return info.isUpcoming ? info : null;
   }, [effectiveTvNextAirDate, remindersEnabled, mediaType, selectedTimezone]);
 
+  const isReminderActive = existingRecord?.reminder
+    ? existingRecord.reminder.enabled
+    : deviceNotificationsEnabled;
+
+  const handleSaveReminder = (config: ItemReminderConfig) => {
+    if (existingRecord) {
+      const updated: TrackedItem = {
+        ...existingRecord,
+        reminder: config,
+        updatedAt: new Date().toISOString(),
+      };
+      onSave(updated);
+    } else {
+      const record: TrackedItem = {
+        id,
+        mediaType,
+        title,
+        posterPath: posterPath || null,
+        releaseYear: releaseYear || undefined,
+        voteAverage: voteAverage || undefined,
+        overview: ('overview' in item && item.overview) || detailedInfo?.tagline || '',
+        status: 'plan_to_watch',
+        userScore: 0,
+        totalEpisodes: totalEpisodes || undefined,
+        totalSeasons: totalSeasons || undefined,
+        runtimeMinutes: runtimeMinutes || undefined,
+        addedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        releaseDate: effectiveMovieDate,
+        regionalReleaseDate: detailedInfo?.regionalReleaseDate,
+        regionalReleaseType: detailedInfo?.regionalReleaseType,
+        nextAirDate: effectiveTvNextAirDate,
+        nextEpisode: tvNextEpisode,
+        reminder: config,
+      };
+      onSave(record);
+    }
+  };
+
+  const handleRemoveReminder = () => {
+    if (existingRecord) {
+      const updated: TrackedItem = {
+        ...existingRecord,
+        reminder: {
+          enabled: false,
+          timing: 'both',
+          daysAhead: 1,
+          hour: 9,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      onSave(updated);
+    }
+  };
+
   // 1. Media Summary Info
   const renderMediaSummary = () => (
     <>
@@ -918,8 +978,23 @@ function TrackModalFormContent({
               </View>
 
               {movieCountdown && (
-                <View style={[styles.countdownBanner, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
-                  <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.countdownBanner,
+                    { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setShowReminderModal(true);
+                  }}>
+                  <View style={[styles.countdownIconWrap, { backgroundColor: colors.card }]}>
+                    <Ionicons
+                      name={isReminderActive ? 'notifications' : 'notifications-outline'}
+                      size={18}
+                      color={colors.primary}
+                    />
+                  </View>
                   <View style={styles.countdownBannerContent}>
                     <View style={styles.countdownBannerTop}>
                       <Text style={[styles.countdownBannerTitle, { color: colors.text }]} numberOfLines={1}>
@@ -929,16 +1004,42 @@ function TrackModalFormContent({
                         <Text style={styles.countdownPillText}>{movieCountdown.formattedCountdown}</Text>
                       </View>
                     </View>
-                    <Text style={[styles.countdownBannerSub, { color: colors.textSecondary }]}>
-                      Region: {selectedRegion} • Local countdown
-                    </Text>
+                    <View style={styles.countdownBannerSubRow}>
+                      <Text style={[styles.countdownBannerSub, { color: colors.textSecondary }]}>
+                        Tap to manage alert • Region: {selectedRegion}
+                      </Text>
+                      <View
+                        style={[
+                          styles.reminderStatusPill,
+                          { backgroundColor: isReminderActive ? colors.primary : colors.cardBorder },
+                        ]}>
+                        <Text style={styles.reminderStatusPillText}>
+                          {isReminderActive ? 'Alert On' : 'Alert Off'}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
+                </Pressable>
               )}
 
               {tvCountdown && (
-                <View style={[styles.countdownBanner, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
-                  <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.countdownBanner,
+                    { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setShowReminderModal(true);
+                  }}>
+                  <View style={[styles.countdownIconWrap, { backgroundColor: colors.card }]}>
+                    <Ionicons
+                      name={isReminderActive ? 'notifications' : 'notifications-outline'}
+                      size={18}
+                      color={colors.primary}
+                    />
+                  </View>
                   <View style={styles.countdownBannerContent}>
                     <View style={styles.countdownBannerTop}>
                       <Text style={[styles.countdownBannerTitle, { color: colors.text }]} numberOfLines={1}>
@@ -948,17 +1049,22 @@ function TrackModalFormContent({
                         <Text style={styles.countdownPillText}>{tvCountdown.formattedCountdown}</Text>
                       </View>
                     </View>
-                    {tvNextEpisode?.name ? (
+                    <View style={styles.countdownBannerSubRow}>
                       <Text style={[styles.countdownBannerSub, { color: colors.textSecondary }]} numberOfLines={1}>
-                        &ldquo;{tvNextEpisode.name}&rdquo;
+                        Tap to manage alert • {selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone}
                       </Text>
-                    ) : (
-                      <Text style={[styles.countdownBannerSub, { color: colors.textSecondary }]}>
-                        Broadcast countdown • {selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone}
-                      </Text>
-                    )}
+                      <View
+                        style={[
+                          styles.reminderStatusPill,
+                          { backgroundColor: isReminderActive ? colors.primary : colors.cardBorder },
+                        ]}>
+                        <Text style={styles.reminderStatusPillText}>
+                          {isReminderActive ? 'Alert On' : 'Alert Off'}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
+                </Pressable>
               )}
 
               {isLoadingDetails && (
@@ -2180,6 +2286,25 @@ function TrackModalFormContent({
           onClose={() => setSelectedEpisodeForDetail(null)}
         />
       )}
+
+      {/* Release Reminder Configuration Modal */}
+      <ReleaseReminderModal
+        visible={showReminderModal}
+        item={item}
+        existingRecord={existingRecord}
+        targetDate={effectiveMovieDate || effectiveTvNextAirDate}
+        dateLabel={
+          mediaType === 'movie'
+            ? detailedInfo?.regionalReleaseType || 'Release Date'
+            : tvNextEpisode
+            ? `S${tvNextEpisode.seasonNumber} E${tvNextEpisode.episodeNumber}`
+            : 'Next Episode'
+        }
+        countdownText={movieCountdown?.formattedCountdown || tvCountdown?.formattedCountdown}
+        onClose={() => setShowReminderModal(false)}
+        onSaveReminder={handleSaveReminder}
+        onRemoveReminder={handleRemoveReminder}
+      />
     </View>
   );
 }
@@ -3200,4 +3325,29 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
+  countdownIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countdownBannerSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+    gap: 8,
+  },
+  reminderStatusPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  reminderStatusPillText: {
+    color: '#ffffff',
+    fontSize: 9.5,
+    fontWeight: '700',
+  },
 });
+

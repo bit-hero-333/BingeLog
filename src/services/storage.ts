@@ -6,6 +6,9 @@ import {
   DateFormatOption,
   DEFAULT_DATE_FORMAT,
   AutoManualMode,
+  TimeFormatOption,
+  DEFAULT_TIME_FORMAT,
+  NotificationTimingOption,
 } from '@/types/media';
 import { ThemeMode, ThemePresetId } from '@/constants/theme';
 import { HapticIntensity } from '@/services/haptics';
@@ -37,6 +40,8 @@ const STORAGE_KEYS = {
   DEVICE_NOTIFICATIONS_ENABLED: '@pmt_device_notifications_enabled',
   NOTIFICATION_HOUR: '@pmt_notification_hour',
   NOTIFICATION_DAYS_AHEAD: '@pmt_notification_days_ahead',
+  TIME_FORMAT: '@pmt_time_format',
+  NOTIFICATION_TIMING: '@pmt_notification_timing',
 };
 
 export const StorageService = {
@@ -520,6 +525,44 @@ export const StorageService = {
   async saveNotificationDaysAhead(days: number): Promise<boolean> {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATION_DAYS_AHEAD, String(days));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getTimeFormat(): Promise<TimeFormatOption> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.TIME_FORMAT);
+      if (val === '12h' || val === '24h') return val;
+      return DEFAULT_TIME_FORMAT;
+    } catch {
+      return DEFAULT_TIME_FORMAT;
+    }
+  },
+
+  async saveTimeFormat(format: TimeFormatOption): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.TIME_FORMAT, format);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getNotificationTiming(): Promise<NotificationTimingOption> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.NOTIFICATION_TIMING);
+      if (val === 'release_day' || val === 'advance' || val === 'both') return val;
+      return 'both'; // Default: notify both in advance and on release day!
+    } catch {
+      return 'both';
+    }
+  },
+
+  async saveNotificationTiming(timing: NotificationTimingOption): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATION_TIMING, timing);
       return true;
     } catch {
       return false;

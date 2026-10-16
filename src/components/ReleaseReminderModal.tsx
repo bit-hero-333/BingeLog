@@ -1,0 +1,619 @@
+import React, { useState } from 'react';
+import {
+  Modal,
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  Switch,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme } from '@/context/ThemeContext';
+import { useMedia } from '@/context/MediaContext';
+import {
+  TrackedItem,
+  TMDBMediaItem,
+  ItemReminderConfig,
+  NotificationTimingOption,
+  NOTIFICATION_HOUR_PRESETS,
+  NOTIFICATION_DAYS_ADVANCE_OPTIONS,
+} from '@/types/media';
+import { formatDate, formatHour } from '@/utils/date';
+
+interface ReleaseReminderModalProps {
+  visible: boolean;
+  item: TrackedItem | TMDBMediaItem | null;
+  existingRecord?: TrackedItem;
+  targetDate?: string;
+  dateLabel?: string;
+  countdownText?: string;
+  onClose: () => void;
+  onSaveReminder: (config: ItemReminderConfig) => void;
+  onRemoveReminder: () => void;
+}
+
+function ReleaseReminderSheetContent({
+  item,
+  existingRecord,
+  targetDate,
+  dateLabel,
+  countdownText,
+  onClose,
+  onSaveReminder,
+  onRemoveReminder,
+}: Omit<ReleaseReminderModalProps, 'visible'>) {
+  const { colors } = useAppTheme();
+  const {
+    notificationHour: globalHour,
+    notificationDaysAhead: globalDaysAhead,
+    notificationTiming: globalTiming,
+    timeFormat,
+    dateFormat,
+    selectedTimezone,
+    triggerHaptic,
+  } = useMedia();
+
+  const title =
+    item && 'title' in item && item.title
+      ? item.title
+      : item && 'name' in item && item.name
+      ? item.name
+      : 'Title';
+
+  const existingConfig = existingRecord?.reminder;
+
+  const [enabled, setEnabled] = useState<boolean>(existingConfig?.enabled ?? true);
+  const [timing, setTiming] = useState<NotificationTimingOption>(
+    existingConfig?.timing ?? globalTiming
+  );
+  const [daysAhead, setDaysAhead] = useState<number>(
+    existingConfig?.daysAhead ?? (globalDaysAhead > 0 ? globalDaysAhead : 1)
+  );
+  const [hour, setHour] = useState<number>(existingConfig?.hour ?? globalHour);
+
+  const handleSave = () => {
+    triggerHaptic('success');
+    onSaveReminder({
+      enabled,
+      timing,
+      daysAhead,
+      hour,
+    });
+    onClose();
+  };
+
+  const handleDisable = () => {
+    triggerHaptic('warning');
+    onRemoveReminder();
+    onClose();
+  };
+
+  const tzShort =
+    selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone;
+
+  return (
+    <View style={styles.overlay}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <View style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        {/* Header */}
+        <View style={[styles.headerRow, { borderBottomColor: colors.divider }]}>
+          <View style={styles.headerTitleWrap}>
+            <View style={[styles.headerIconWrap, { backgroundColor: colors.primaryBg }]}>
+              <Ionicons name="notifications" size={18} color={colors.primary} />
+            </View>
+            <View>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Release Alert</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                Customize device notifications
+              </Text>
+            </View>
+          </View>
+          <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={8}>
+            <Ionicons name="close" size={20} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+
+        <ScrollView style={styles.bodyScroll} showsVerticalScrollIndicator={false}>
+          {/* Title & Release Info Card */}
+          <View style={[styles.infoCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={1}>
+              {title}
+            </Text>
+            <View style={styles.infoMetaRow}>
+              <Text style={[styles.infoDateText, { color: colors.textSecondary }]}>
+                {dateLabel || 'Release'}: {targetDate ? formatDate(targetDate, dateFormat) : 'Upcoming'}
+              </Text>
+              {countdownText ? (
+                <View style={[styles.countdownBadge, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.countdownBadgeText}>{countdownText}</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          {/* Master Alert Toggle */}
+          <View style={[styles.toggleRow, { borderBottomColor: colors.divider }]}>
+            <View style={styles.toggleTextWrap}>
+              <Text style={[styles.toggleLabel, { color: colors.text }]}>Device Alert Active</Text>
+              <Text style={[styles.toggleDesc, { color: colors.textSecondary }]}>
+                Trigger local offline notifications on this device.
+              </Text>
+            </View>
+            <Switch
+              value={enabled}
+              onValueChange={(val) => {
+                triggerHaptic('selection');
+                setEnabled(val);
+              }}
+              trackColor={{ false: colors.cardBorder, true: colors.primary }}
+              thumbColor="#ffffff"
+            />
+          </View>
+
+          {enabled && (
+            <>
+              {/* Alert Strategy */}
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+                ALERT TIMING STRATEGY
+              </Text>
+              <View style={[styles.strategyContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                <Pressable
+                  style={[
+                    styles.strategyBtn,
+                    timing === 'release_day' && [styles.strategyBtnActive, { backgroundColor: colors.primary }],
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setTiming('release_day');
+                  }}>
+                  <Text
+                    style={[
+                      styles.strategyBtnText,
+                      { color: timing === 'release_day' ? '#ffffff' : colors.textSecondary },
+                    ]}>
+                    On Release Day
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.strategyBtn,
+                    timing === 'advance' && [styles.strategyBtnActive, { backgroundColor: colors.primary }],
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setTiming('advance');
+                  }}>
+                  <Text
+                    style={[
+                      styles.strategyBtnText,
+                      { color: timing === 'advance' ? '#ffffff' : colors.textSecondary },
+                    ]}>
+                    In Advance
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.strategyBtn,
+                    timing === 'both' && [styles.strategyBtnActive, { backgroundColor: colors.primary }],
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setTiming('both');
+                  }}>
+                  <Text
+                    style={[
+                      styles.strategyBtnText,
+                      { color: timing === 'both' ? '#ffffff' : colors.textSecondary },
+                    ]}>
+                    Both
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Advance Days Selection (if 'advance' or 'both') */}
+              {(timing === 'advance' || timing === 'both') && (
+                <>
+                  <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 14 }]}>
+                    ADVANCE NOTICE
+                  </Text>
+                  <View style={styles.advanceChipsRow}>
+                    {NOTIFICATION_DAYS_ADVANCE_OPTIONS.map((opt) => {
+                      const isSelected = daysAhead === opt.days;
+                      return (
+                        <Pressable
+                          key={opt.days}
+                          style={[
+                            styles.advanceChip,
+                            { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                            isSelected && [styles.advanceChipActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
+                          ]}
+                          onPress={() => {
+                            triggerHaptic('selection');
+                            setDaysAhead(opt.days);
+                          }}>
+                          <Text
+                            style={[
+                              styles.advanceChipText,
+                              { color: isSelected ? colors.primary : colors.textSecondary },
+                            ]}>
+                            {opt.shortLabel}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+
+              {/* Alert Time of Day */}
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 14 }]}>
+                ALERT TIME OF DAY ({tzShort})
+              </Text>
+              <View style={styles.hourGrid}>
+                {NOTIFICATION_HOUR_PRESETS.map((preset) => {
+                  const isSelected = hour === preset.hour;
+                  const label = timeFormat === '24h' ? preset.label24 : preset.label12;
+                  return (
+                    <Pressable
+                      key={preset.hour}
+                      style={[
+                        styles.hourChip,
+                        { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                        isSelected && [styles.hourChipActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
+                      ]}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        setHour(preset.hour);
+                      }}>
+                      <Text
+                        style={[
+                          styles.hourChipText,
+                          { color: isSelected ? colors.primary : colors.text },
+                        ]}>
+                        {label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.hourChipSub,
+                          { color: isSelected ? colors.primary : colors.textSecondary },
+                        ]}>
+                        {preset.desc.split('/')[0].trim()}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Custom Hour Stepper */}
+              <View style={[styles.customHourRow, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                <Text style={[styles.customHourLabel, { color: colors.text }]}>Selected Alert Hour</Text>
+                <View style={styles.stepperWrap}>
+                  <Pressable
+                    style={[styles.stepperBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setHour((h) => (h === 0 ? 23 : h - 1));
+                    }}>
+                    <Ionicons name="remove" size={16} color={colors.text} />
+                  </Pressable>
+                  <View style={styles.stepperDisplay}>
+                    <Text style={[styles.stepperText, { color: colors.primary }]}>
+                      {formatHour(hour, timeFormat)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    style={[styles.stepperBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setHour((h) => (h === 23 ? 0 : h + 1));
+                    }}>
+                    <Ionicons name="add" size={16} color={colors.text} />
+                  </Pressable>
+                </View>
+              </View>
+            </>
+          )}
+
+          {!existingRecord && (
+            <Text style={[styles.untrackedNote, { color: colors.textSecondary }]}>
+              Saving an alert for an unreleased title will automatically place it in your Plan to Watch list.
+            </Text>
+          )}
+        </ScrollView>
+
+        {/* Action Buttons */}
+        <View style={[styles.actionsRow, { borderTopColor: colors.divider }]}>
+          {existingConfig ? (
+            <Pressable
+              style={[styles.removeBtn, { borderColor: colors.cardBorder }]}
+              onPress={handleDisable}>
+              <Ionicons name="notifications-off-outline" size={16} color="#ef4444" />
+              <Text style={styles.removeBtnText}>Turn Off</Text>
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+            onPress={handleSave}>
+            <Ionicons name="checkmark" size={16} color="#ffffff" />
+            <Text style={styles.saveBtnText}>Save Alert</Text>
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function ReleaseReminderModal(props: ReleaseReminderModalProps) {
+  if (!props.visible || !props.item) return null;
+  return (
+    <Modal
+      visible={props.visible}
+      transparent
+      animationType="fade"
+      onRequestClose={props.onClose}>
+      <ReleaseReminderSheetContent {...props} />
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    flex: 1,
+  },
+  modalSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    maxHeight: '85%',
+    paddingBottom: 24,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  headerTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  closeBtn: {
+    padding: 6,
+  },
+  bodyScroll: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  infoCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 16,
+  },
+  itemTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  infoMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+  },
+  infoDateText: {
+    fontSize: 12,
+  },
+  countdownBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  countdownBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    marginBottom: 14,
+  },
+  toggleTextWrap: {
+    flex: 1,
+    paddingRight: 16,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  toggleDesc: {
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  strategyContainer: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 3,
+    marginBottom: 8,
+  },
+  strategyBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  strategyBtnActive: {
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 1,
+  },
+  strategyBtnText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  advanceChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  advanceChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  advanceChipActive: {
+    borderWidth: 1.5,
+  },
+  advanceChipText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  hourGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  hourChip: {
+    width: '31%',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  hourChipActive: {
+    borderWidth: 1.5,
+  },
+  hourChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  hourChipSub: {
+    fontSize: 9.5,
+    marginTop: 2,
+  },
+  customHourRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 6,
+    marginBottom: 14,
+  },
+  customHourLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
+  stepperWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stepperBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperDisplay: {
+    minWidth: 70,
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  stepperText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  untrackedNote: {
+    fontSize: 11.5,
+    lineHeight: 16,
+    marginVertical: 10,
+    fontStyle: 'italic',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
+  removeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  removeBtnText: {
+    color: '#ef4444',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  saveBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+});

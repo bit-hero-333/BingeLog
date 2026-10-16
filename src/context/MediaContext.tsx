@@ -11,6 +11,10 @@ import {
   DateFormatOption,
   DEFAULT_DATE_FORMAT,
   AutoManualMode,
+  TimeFormatOption,
+  DEFAULT_TIME_FORMAT,
+  NotificationTimingOption,
+  ItemReminderConfig,
 } from '@/types/media';
 
 interface MediaStats {
@@ -56,9 +60,11 @@ interface MediaContextType {
   setHapticIntensity: (intensity: HapticIntensity) => Promise<boolean>;
   triggerHaptic: (type?: 'selection' | 'impact' | 'success' | 'warning' | 'error') => void;
 
-  // Date format preference
+  // Date & Time format preferences
   dateFormat: DateFormatOption;
   setDateFormat: (format: DateFormatOption) => Promise<boolean>;
+  timeFormat: TimeFormatOption;
+  setTimeFormat: (format: TimeFormatOption) => Promise<boolean>;
 
   // Regional release & timezone preferences
   regionMode: AutoManualMode;
@@ -79,6 +85,9 @@ interface MediaContextType {
   setNotificationHour: (hour: number) => Promise<boolean>;
   notificationDaysAhead: number;
   setNotificationDaysAhead: (days: number) => Promise<boolean>;
+  notificationTiming: NotificationTimingOption;
+  setNotificationTiming: (timing: NotificationTimingOption) => Promise<boolean>;
+  updateItemReminder: (id: number, mediaType: MediaType, reminder?: ItemReminderConfig) => Promise<void>;
   notificationPermissionStatus: 'granted' | 'denied' | 'undetermined';
   requestNotificationPermission: () => Promise<boolean>;
   sendTestNotification: () => Promise<boolean>;
@@ -102,6 +111,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   const [sizingConfig, setSizingConfigState] = useState<SizingConfig>(DEFAULT_SIZING_CONFIG);
   const [hapticIntensity, setHapticIntensityState] = useState<HapticIntensity>('medium');
   const [dateFormat, setDateFormatState] = useState<DateFormatOption>(DEFAULT_DATE_FORMAT);
+  const [timeFormat, setTimeFormatState] = useState<TimeFormatOption>(DEFAULT_TIME_FORMAT);
   const [regionMode, setRegionModeState] = useState<AutoManualMode>('auto');
   const [selectedRegion, setSelectedRegionState] = useState<string>('US');
   const [timezoneMode, setTimezoneModeState] = useState<AutoManualMode>('auto');
@@ -109,7 +119,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   const [remindersEnabled, setRemindersEnabledState] = useState<boolean>(true);
   const [deviceNotificationsEnabled, setDeviceNotificationsEnabledState] = useState<boolean>(true);
   const [notificationHour, setNotificationHourState] = useState<number>(9);
-  const [notificationDaysAhead, setNotificationDaysAheadState] = useState<number>(0);
+  const [notificationDaysAhead, setNotificationDaysAheadState] = useState<number>(1);
+  const [notificationTiming, setNotificationTimingState] = useState<NotificationTimingOption>('both');
   const [notificationPermissionStatus, setNotificationPermissionStatus] = useState<
     'granted' | 'denied' | 'undetermined'
   >('undetermined');
@@ -132,6 +143,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           savedSizing,
           savedHaptic,
           savedDateFormat,
+          savedTimeFormat,
           savedRegionMode,
           savedSelectedRegion,
           savedTzMode,
@@ -140,6 +152,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           savedDeviceNotifs,
           savedNotifHour,
           savedNotifDays,
+          savedNotifTiming,
           currentPerm,
         ] = await Promise.all([
           StorageService.getApiKey(),
@@ -151,6 +164,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           StorageService.getSizingConfig(),
           StorageService.getHapticIntensity(),
           StorageService.getDateFormat(),
+          StorageService.getTimeFormat(),
           StorageService.getRegionMode(),
           StorageService.getSelectedRegion(),
           StorageService.getTimezoneMode(),
@@ -159,6 +173,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           StorageService.getDeviceNotificationsEnabled(),
           StorageService.getNotificationHour(),
           StorageService.getNotificationDaysAhead(),
+          StorageService.getNotificationTiming(),
           NotificationService.getPermissions(),
         ]);
         if (savedKey) setApiKeyState(savedKey);
@@ -170,6 +185,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setSizingConfigState(savedSizing);
         setHapticIntensityState(savedHaptic);
         setDateFormatState(savedDateFormat);
+        setTimeFormatState(savedTimeFormat);
         setRegionModeState(savedRegionMode);
         setSelectedRegionState(savedSelectedRegion);
         setTimezoneModeState(savedTzMode);
@@ -178,6 +194,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setDeviceNotificationsEnabledState(savedDeviceNotifs);
         setNotificationHourState(savedNotifHour);
         setNotificationDaysAheadState(savedNotifDays);
+        setNotificationTimingState(savedNotifTiming);
         setNotificationPermissionStatus(currentPerm);
         HapticsService.setIntensity(savedHaptic);
 
@@ -186,7 +203,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           enabled: savedDeviceNotifs,
           hour: savedNotifHour,
           daysAhead: savedNotifDays,
+          timing: savedNotifTiming,
           timezone: savedSelectedTz,
+          timeFormat: savedTimeFormat,
         });
         setScheduledNotificationsCount(count);
       } catch (e) {
@@ -222,7 +241,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         enabled: true,
         hour: notificationHour,
         daysAhead: notificationDaysAhead,
+        timing: notificationTiming,
         timezone: selectedTimezone,
+        timeFormat,
       });
       const count = await NotificationService.getScheduledCount();
       setScheduledNotificationsCount(count);
@@ -237,7 +258,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         enabled: true,
         hour: notificationHour,
         daysAhead: notificationDaysAhead,
+        timing: notificationTiming,
         timezone: selectedTimezone,
+        timeFormat,
       });
       setScheduledNotificationsCount(count);
     }
@@ -270,7 +293,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         enabled: true,
         hour: notificationHour,
         daysAhead: notificationDaysAhead,
+        timing: notificationTiming,
         timezone: selectedTimezone,
+        timeFormat,
       });
       setScheduledNotificationsCount(count);
     }
@@ -335,6 +360,14 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     return success;
   };
 
+  const setTimeFormat = async (format: TimeFormatOption): Promise<boolean> => {
+    const success = await StorageService.saveTimeFormat(format);
+    if (success) {
+      setTimeFormatState(format);
+    }
+    return success;
+  };
+
   const setRegionMode = async (mode: AutoManualMode): Promise<boolean> => {
     const success = await StorageService.saveRegionMode(mode);
     if (success) {
@@ -376,7 +409,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           enabled: true,
           hour: notificationHour,
           daysAhead: notificationDaysAhead,
+          timing: notificationTiming,
           timezone: tz,
+          timeFormat,
         });
         setScheduledNotificationsCount(count);
       }
@@ -407,7 +442,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         enabled,
         hour: notificationHour,
         daysAhead: notificationDaysAhead,
+        timing: notificationTiming,
         timezone: selectedTimezone,
+        timeFormat,
       });
       setScheduledNotificationsCount(count);
     }
@@ -423,7 +460,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           enabled: true,
           hour,
           daysAhead: notificationDaysAhead,
+          timing: notificationTiming,
           timezone: selectedTimezone,
+          timeFormat,
         });
         setScheduledNotificationsCount(count);
       }
@@ -440,12 +479,49 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           enabled: true,
           hour: notificationHour,
           daysAhead: days,
+          timing: notificationTiming,
           timezone: selectedTimezone,
+          timeFormat,
         });
         setScheduledNotificationsCount(count);
       }
     }
     return success;
+  };
+
+  const setNotificationTiming = async (timing: NotificationTimingOption): Promise<boolean> => {
+    const success = await StorageService.saveNotificationTiming(timing);
+    if (success) {
+      setNotificationTimingState(timing);
+      if (deviceNotificationsEnabled) {
+        const count = await NotificationService.syncAll(trackedItems, {
+          enabled: true,
+          hour: notificationHour,
+          daysAhead: notificationDaysAhead,
+          timing,
+          timezone: selectedTimezone,
+          timeFormat,
+        });
+        setScheduledNotificationsCount(count);
+      }
+    }
+    return success;
+  };
+
+  const updateItemReminder = async (
+    id: number,
+    mediaType: MediaType,
+    reminder?: ItemReminderConfig
+  ): Promise<void> => {
+    const existing = trackedItems.find((i) => i.id === id && i.mediaType === mediaType);
+    if (existing) {
+      const updated: TrackedItem = {
+        ...existing,
+        reminder,
+        updatedAt: new Date().toISOString(),
+      };
+      await saveItem(updated);
+    }
   };
 
   const requestNotificationPermission = async (): Promise<boolean> => {
@@ -456,7 +532,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         enabled: true,
         hour: notificationHour,
         daysAhead: notificationDaysAhead,
+        timing: notificationTiming,
         timezone: selectedTimezone,
+        timeFormat,
       });
       setScheduledNotificationsCount(count);
     }
@@ -477,7 +555,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
       enabled: deviceNotificationsEnabled,
       hour: notificationHour,
       daysAhead: notificationDaysAhead,
+      timing: notificationTiming,
       timezone: selectedTimezone,
+      timeFormat,
     });
     setScheduledNotificationsCount(count);
   };
@@ -563,6 +643,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         triggerHaptic,
         dateFormat,
         setDateFormat,
+        timeFormat,
+        setTimeFormat,
         regionMode,
         setRegionMode,
         selectedRegion,
@@ -579,6 +661,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setNotificationHour,
         notificationDaysAhead,
         setNotificationDaysAhead,
+        notificationTiming,
+        setNotificationTiming,
+        updateItemReminder,
         notificationPermissionStatus,
         requestNotificationPermission,
         sendTestNotification,

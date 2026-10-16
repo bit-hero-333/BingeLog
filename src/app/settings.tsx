@@ -35,8 +35,10 @@ import {
   DATE_FORMAT_OPTIONS,
   POPULAR_REGIONS,
   POPULAR_TIMEZONES,
+  NOTIFICATION_HOUR_PRESETS,
+  NOTIFICATION_DAYS_ADVANCE_OPTIONS,
 } from '@/types/media';
-import { getTodayFormatted } from '@/utils/date';
+import { getTodayFormatted, formatHour } from '@/utils/date';
 import { SyncModal } from '@/components/SyncModal';
 
 
@@ -55,19 +57,6 @@ const ROW_SCALE_LABELS: Record<ElementScale, string> = {
   large: 'Roomy',
   xlarge: 'Spacious',
 };
-
-const NOTIFICATION_HOUR_OPTIONS = [
-  { hour: 9, label: '09:00 AM', desc: 'Morning' },
-  { hour: 12, label: '12:00 PM', desc: 'Noon' },
-  { hour: 18, label: '06:00 PM', desc: 'Evening' },
-  { hour: 21, label: '09:00 PM', desc: 'Night' },
-];
-
-const NOTIFICATION_DAYS_OPTIONS = [
-  { days: 0, label: 'Release Day' },
-  { days: 1, label: '1 Day Ahead' },
-  { days: 2, label: '2 Days Ahead' },
-];
 
 export default function SettingsScreen() {
   const {
@@ -92,6 +81,8 @@ export default function SettingsScreen() {
     triggerHaptic,
     dateFormat,
     setDateFormat,
+    timeFormat,
+    setTimeFormat,
     regionMode,
     setRegionMode,
     selectedRegion,
@@ -108,6 +99,8 @@ export default function SettingsScreen() {
     setNotificationHour,
     notificationDaysAhead,
     setNotificationDaysAhead,
+    notificationTiming,
+    setNotificationTiming,
     notificationPermissionStatus,
     requestNotificationPermission,
     sendTestNotification,
@@ -1347,7 +1340,7 @@ export default function SettingsScreen() {
       </View>
 
       {/* ============================================================== */}
-      {/* 4. DATE DISPLAY FORMAT & REGIONAL PREFERENCES */}
+      {/* 4. DATE & TIME DISPLAY FORMAT PREFERENCES */}
       {/* ============================================================== */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <Pressable
@@ -1356,9 +1349,9 @@ export default function SettingsScreen() {
           <View style={styles.accordionLeft}>
             <Ionicons name="calendar-outline" size={20} color={colors.primary} />
             <View style={styles.accordionTextGroup}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Date Display Format</Text>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Date & Time Format</Text>
               <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
-                Format: {dateFormat} (e.g. {getTodayFormatted(dateFormat)})
+                {dateFormat} • {timeFormat === '24h' ? '24-Hour (21:00)' : '12-Hour (09:00 PM)'}
               </Text>
             </View>
           </View>
@@ -1420,6 +1413,51 @@ export default function SettingsScreen() {
                   </Pressable>
                 );
               })}
+            </View>
+
+            {/* Time / Clock Display Format Selector */}
+            <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 18 }]}>
+              TIME DISPLAY FORMAT
+            </Text>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+              Select 24-hour clock (e.g. 21:00) or 12-hour AM/PM format (e.g. 09:00 PM) for notification schedules and release countdowns.
+            </Text>
+            <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+              <Pressable
+                style={[
+                  styles.modeSegmentBtn,
+                  timeFormat === '24h' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  void setTimeFormat('24h');
+                }}>
+                <Text
+                  style={[
+                    styles.modeSegmentText,
+                    { color: timeFormat === '24h' ? '#ffffff' : colors.textSecondary },
+                  ]}>
+                  24-Hour (21:00)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.modeSegmentBtn,
+                  timeFormat === '12h' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  void setTimeFormat('12h');
+                }}>
+                <Text
+                  style={[
+                    styles.modeSegmentText,
+                    { color: timeFormat === '12h' ? '#ffffff' : colors.textSecondary },
+                  ]}>
+                  12-Hour (09:00 PM)
+                </Text>
+              </Pressable>
             </View>
           </View>
         )}
@@ -1764,22 +1802,125 @@ export default function SettingsScreen() {
                   </View>
                 )}
 
-                {/* Alert Time of Day */}
+                {/* Alert Timing Strategy */}
                 <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
-                  ALERT TIME OF DAY
+                  ALERT TIMING STRATEGY
                 </Text>
                 <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
-                  Choose what time you want reminders to fire in your selected timezone.
+                  Choose whether to receive alerts on the release day, in advance, or both.
                 </Text>
                 <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-                  {NOTIFICATION_HOUR_OPTIONS.map((opt) => {
+                  <Pressable
+                    style={[
+                      styles.modeSegmentBtn,
+                      notificationTiming === 'release_day' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      void setNotificationTiming('release_day');
+                    }}>
+                    <Text
+                      style={[
+                        styles.modeSegmentText,
+                        { color: notificationTiming === 'release_day' ? '#ffffff' : colors.textSecondary, fontSize: 11 },
+                      ]}>
+                      On Release Day
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.modeSegmentBtn,
+                      notificationTiming === 'advance' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      void setNotificationTiming('advance');
+                    }}>
+                    <Text
+                      style={[
+                        styles.modeSegmentText,
+                        { color: notificationTiming === 'advance' ? '#ffffff' : colors.textSecondary, fontSize: 11 },
+                      ]}>
+                      In Advance
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.modeSegmentBtn,
+                      notificationTiming === 'both' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      void setNotificationTiming('both');
+                    }}>
+                    <Text
+                      style={[
+                        styles.modeSegmentText,
+                        { color: notificationTiming === 'both' ? '#ffffff' : colors.textSecondary, fontSize: 11 },
+                      ]}>
+                      Both
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {/* Reminder Timing Advance (if advance or both) */}
+                {(notificationTiming === 'advance' || notificationTiming === 'both') && (
+                  <>
+                    <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+                      REMINDER TIMING ADVANCE
+                    </Text>
+                    <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+                      Choose how many days prior to release or broadcast to trigger the advance reminder.
+                    </Text>
+                    <View style={styles.notifAdvanceRow}>
+                      {NOTIFICATION_DAYS_ADVANCE_OPTIONS.map((opt) => {
+                        const isSelected = notificationDaysAhead === opt.days;
+                        return (
+                          <Pressable
+                            key={opt.days}
+                            style={[
+                              styles.notifAdvanceChip,
+                              { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                              isSelected && [styles.notifAdvanceChipActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
+                            ]}
+                            onPress={() => {
+                              triggerHaptic('selection');
+                              void setNotificationDaysAhead(opt.days);
+                            }}>
+                            <Text
+                              style={[
+                                styles.notifAdvanceChipText,
+                                { color: isSelected ? colors.primary : colors.textSecondary },
+                              ]}>
+                              {opt.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+
+                {/* Alert Time of Day */}
+                <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+                  ALERT TIME OF DAY ({selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone})
+                </Text>
+                <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+                  Select when notifications should fire on your device. Midnight (00:00) alerts fire the moment release day starts.
+                </Text>
+                <View style={styles.notifGrid}>
+                  {NOTIFICATION_HOUR_PRESETS.map((opt) => {
                     const isSelected = notificationHour === opt.hour;
+                    const label = timeFormat === '24h' ? opt.label24 : opt.label12;
                     return (
                       <Pressable
                         key={opt.hour}
                         style={[
-                          styles.modeSegmentBtn,
-                          isSelected && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                          styles.notifHourChip,
+                          { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                          isSelected && [styles.notifHourChipActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
                         ]}
                         onPress={() => {
                           triggerHaptic('selection');
@@ -1787,47 +1928,49 @@ export default function SettingsScreen() {
                         }}>
                         <Text
                           style={[
-                            styles.modeSegmentText,
-                            { color: isSelected ? '#ffffff' : colors.textSecondary, fontSize: 11 },
+                            styles.notifHourChipText,
+                            { color: isSelected ? colors.primary : colors.text },
                           ]}>
-                          {opt.label}
+                          {label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.notifHourChipSub,
+                            { color: isSelected ? colors.primary : colors.textSecondary },
+                          ]}>
+                          {opt.desc.split('/')[0].trim()}
                         </Text>
                       </Pressable>
                     );
                   })}
                 </View>
 
-                {/* Reminder Timing Advance */}
-                <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
-                  REMINDER TIMING ADVANCE
-                </Text>
-                <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
-                  Deliver alert on the exact day or in advance.
-                </Text>
-                <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-                  {NOTIFICATION_DAYS_OPTIONS.map((opt) => {
-                    const isSelected = notificationDaysAhead === opt.days;
-                    return (
-                      <Pressable
-                        key={opt.days}
-                        style={[
-                          styles.modeSegmentBtn,
-                          isSelected && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
-                        ]}
-                        onPress={() => {
-                          triggerHaptic('selection');
-                          void setNotificationDaysAhead(opt.days);
-                        }}>
-                        <Text
-                          style={[
-                            styles.modeSegmentText,
-                            { color: isSelected ? '#ffffff' : colors.textSecondary, fontSize: 11 },
-                          ]}>
-                          {opt.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+                {/* Custom Hour Stepper */}
+                <View style={[styles.notifStepperRow, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                  <Text style={[styles.notifStepperLabel, { color: colors.text }]}>Exact Alert Hour</Text>
+                  <View style={styles.notifStepperWrap}>
+                    <Pressable
+                      style={[styles.notifStepperBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        void setNotificationHour(notificationHour === 0 ? 23 : notificationHour - 1);
+                      }}>
+                      <Ionicons name="remove" size={16} color={colors.text} />
+                    </Pressable>
+                    <View style={styles.notifStepperDisplay}>
+                      <Text style={[styles.notifStepperText, { color: colors.primary }]}>
+                        {formatHour(notificationHour, timeFormat)}
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={[styles.notifStepperBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        void setNotificationHour(notificationHour === 23 ? 0 : notificationHour + 1);
+                      }}>
+                      <Ionicons name="add" size={16} color={colors.text} />
+                    </Pressable>
+                  </View>
                 </View>
 
                 {/* Scheduled Reminders Summary Card */}
@@ -1852,7 +1995,7 @@ export default function SettingsScreen() {
                     </Pressable>
                   </View>
                   <Text style={[styles.notifSummaryDesc, { color: colors.textSecondary }]}>
-                    Target Time: {NOTIFICATION_HOUR_OPTIONS.find((h) => h.hour === notificationHour)?.label || '09:00 AM'} ({selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone} time). Alerts refresh automatically as watchlist items change.
+                    Time: {formatHour(notificationHour, timeFormat)} ({selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone}) • Strategy: {notificationTiming === 'both' ? `Both release day & ${notificationDaysAhead === 1 ? '1 day' : notificationDaysAhead === 7 ? '1 week' : `${notificationDaysAhead} days`} ahead` : notificationTiming === 'advance' ? `${notificationDaysAhead === 1 ? '1 day' : notificationDaysAhead === 7 ? '1 week' : `${notificationDaysAhead} days`} ahead` : 'On release day'}. Tapping any upcoming title in details lets you set custom alerts for that specific title.
                   </Text>
                 </View>
 
@@ -2285,7 +2428,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.14.1 • TMDB & MAL Attributions
+                Version 0.14.2 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2360,7 +2503,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary }]}>
-              Version 0.14.1 • Build 18 • Expo SDK 57
+              Version 0.14.2 • Build 19 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -3430,4 +3573,86 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+  notifAdvanceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  notifAdvanceChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  notifAdvanceChipActive: {
+    borderWidth: 1.5,
+  },
+  notifAdvanceChipText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  notifGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  notifHourChip: {
+    width: '31%',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  notifHourChipActive: {
+    borderWidth: 1.5,
+  },
+  notifHourChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  notifHourChipSub: {
+    fontSize: 9.5,
+    marginTop: 2,
+  },
+  notifStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 6,
+  },
+  notifStepperLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
+  notifStepperWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  notifStepperBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifStepperDisplay: {
+    minWidth: 70,
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notifStepperText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });
+
