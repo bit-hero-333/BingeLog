@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   Switch,
   Linking,
-  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -37,12 +36,9 @@ import {
   DATE_FORMAT_OPTIONS,
   POPULAR_REGIONS,
   POPULAR_TIMEZONES,
-  NOTIFICATION_HOUR_PRESETS,
-  NOTIFICATION_DAYS_ADVANCE_OPTIONS,
 } from '@/types/media';
-import { getTodayFormatted, formatTime } from '@/utils/date';
+import { getTodayFormatted } from '@/utils/date';
 import { SyncModal } from '@/components/SyncModal';
-import { MaterialTimePickerModal } from '@/components/MaterialTimePickerModal';
 
 
 const SCALES: ElementScale[] = ['small', 'medium', 'large', 'xlarge'];
@@ -98,13 +94,6 @@ export default function SettingsScreen() {
     setRemindersEnabled,
     deviceNotificationsEnabled,
     setDeviceNotificationsEnabled,
-    notificationHour,
-    notificationMinute,
-    setNotificationTime,
-    notificationDaysAhead,
-    setNotificationDaysAhead,
-    notificationTiming,
-    setNotificationTiming,
     notificationPermissionStatus,
     requestNotificationPermission,
     sendTestNotification,
@@ -122,11 +111,6 @@ export default function SettingsScreen() {
     setPreset,
     setCustomAccent,
   } = useAppTheme();
-
-  // Time picker modal & custom advance days state
-  const [showTimePicker, setShowTimePicker] = useState<boolean>(false);
-  const [showCustomDaysModal, setShowCustomDaysModal] = useState<boolean>(false);
-  const [customDaysInput, setCustomDaysInput] = useState<string>(String(notificationDaysAhead));
 
   // Collapsible Accordion Sections State
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -685,9 +669,7 @@ export default function SettingsScreen() {
                       </View>
                     )}
                   </View>
-                  <Text
-                    style={[styles.presetChipDesc, { color: colors.textMuted }]}
-                    numberOfLines={1}>
+                  <Text style={[styles.presetChipDesc, { color: colors.textMuted }]}>
                     {p.description}
                   </Text>
                 </View>
@@ -1844,219 +1826,8 @@ export default function SettingsScreen() {
                   </View>
                 )}
 
-                {/* Alert Timing Strategy */}
-                <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
-                  ALERT TIMING STRATEGY
-                </Text>
-                <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
-                  Choose whether to receive alerts on the release day, in advance, or both.
-                </Text>
-                <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-                  <Pressable
-                    style={[
-                      styles.modeSegmentBtn,
-                      notificationTiming === 'release_day' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
-                    ]}
-                    onPress={() => {
-                      triggerHaptic('selection');
-                      void setNotificationTiming('release_day');
-                    }}>
-                    <Text
-                      style={[
-                        styles.modeSegmentText,
-                        { color: notificationTiming === 'release_day' ? '#ffffff' : colors.textSecondary, fontSize: 11 },
-                      ]}>
-                      On Release Day
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.modeSegmentBtn,
-                      notificationTiming === 'advance' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
-                    ]}
-                    onPress={() => {
-                      triggerHaptic('selection');
-                      void setNotificationTiming('advance');
-                    }}>
-                    <Text
-                      style={[
-                        styles.modeSegmentText,
-                        { color: notificationTiming === 'advance' ? '#ffffff' : colors.textSecondary, fontSize: 11 },
-                      ]}>
-                      In Advance
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.modeSegmentBtn,
-                      notificationTiming === 'both' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
-                    ]}
-                    onPress={() => {
-                      triggerHaptic('selection');
-                      void setNotificationTiming('both');
-                    }}>
-                    <Text
-                      style={[
-                        styles.modeSegmentText,
-                        { color: notificationTiming === 'both' ? '#ffffff' : colors.textSecondary, fontSize: 11 },
-                      ]}>
-                      Both
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {/* Reminder Timing Advance (if advance or both) */}
-                {(notificationTiming === 'advance' || notificationTiming === 'both') && (
-                  <>
-                    <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
-                      REMINDER TIMING ADVANCE
-                    </Text>
-                    <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
-                      Choose how many days prior to release or broadcast to trigger the advance reminder.
-                    </Text>
-                    <View style={styles.notifAdvanceRow}>
-                      {NOTIFICATION_DAYS_ADVANCE_OPTIONS.map((opt) => {
-                        const isSelected = notificationDaysAhead === opt.days;
-                        return (
-                          <Pressable
-                            key={opt.days}
-                            style={[
-                              styles.notifAdvanceChip,
-                              { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-                              isSelected && [styles.notifAdvanceChipActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
-                            ]}
-                            onPress={() => {
-                              triggerHaptic('selection');
-                              void setNotificationDaysAhead(opt.days);
-                            }}>
-                            <Text
-                              style={[
-                                styles.notifAdvanceChipText,
-                                { color: isSelected ? colors.primary : colors.textSecondary },
-                              ]}>
-                              {opt.label}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-
-                      {/* Custom Days Chip */}
-                      <Pressable
-                        style={[
-                          styles.notifAdvanceChip,
-                          { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-                          !NOTIFICATION_DAYS_ADVANCE_OPTIONS.some((o) => o.days === notificationDaysAhead) && [
-                            styles.notifAdvanceChipActive,
-                            { backgroundColor: colors.primaryBg, borderColor: colors.primary },
-                          ],
-                        ]}
-                        onPress={() => {
-                          triggerHaptic('selection');
-                          setCustomDaysInput(String(notificationDaysAhead));
-                          setShowCustomDaysModal(true);
-                        }}>
-                        <Ionicons
-                          name="create-outline"
-                          size={13}
-                          color={
-                            !NOTIFICATION_DAYS_ADVANCE_OPTIONS.some((o) => o.days === notificationDaysAhead)
-                              ? colors.primary
-                              : colors.textSecondary
-                          }
-                          style={{ marginRight: 4 }}
-                        />
-                        <Text
-                          style={[
-                            styles.notifAdvanceChipText,
-                            {
-                              color: !NOTIFICATION_DAYS_ADVANCE_OPTIONS.some((o) => o.days === notificationDaysAhead)
-                                ? colors.primary
-                                : colors.textSecondary,
-                            },
-                          ]}>
-                          {!NOTIFICATION_DAYS_ADVANCE_OPTIONS.some((o) => o.days === notificationDaysAhead)
-                            ? `${notificationDaysAhead} Days`
-                            : 'Custom...'}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  </>
-                )}
-
-                {/* Alert Time of Day */}
-                <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
-                  ALERT TIME OF DAY ({selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone})
-                </Text>
-                <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
-                  Select when notifications should fire on your device. Choose a quick preset or tap the exact time card to open the circular clock picker.
-                </Text>
-                <View style={styles.notifGrid}>
-                  {NOTIFICATION_HOUR_PRESETS.map((opt) => {
-                    const isSelected = notificationHour === opt.hour && notificationMinute === 0;
-                    const label = timeFormat === '24h' ? opt.label24 : opt.label12;
-                    return (
-                      <Pressable
-                        key={opt.hour}
-                        style={[
-                          styles.notifHourChip,
-                          { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-                          isSelected && [styles.notifHourChipActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
-                        ]}
-                        onPress={() => {
-                          triggerHaptic('selection');
-                          void setNotificationTime(opt.hour, 0);
-                        }}>
-                        <Text
-                          style={[
-                            styles.notifHourChipText,
-                            { color: isSelected ? colors.primary : colors.text },
-                          ]}>
-                          {label}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.notifHourChipSub,
-                            { color: isSelected ? colors.primary : colors.textSecondary },
-                          ]}>
-                          {opt.desc.split('/')[0].trim()}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                {/* Google Keep Material Design 3 Clock Picker Card */}
-                <Pressable
-                  style={[
-                    styles.settingsCustomTimeCard,
-                    { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-                    notificationMinute !== 0 && [styles.settingsCustomTimeCardActive, { borderColor: colors.primary, backgroundColor: colors.primaryBg }],
-                  ]}
-                  onPress={() => {
-                    triggerHaptic('selection');
-                    setShowTimePicker(true);
-                  }}>
-                  <View style={styles.settingsCustomTimeInfo}>
-                    <Ionicons name="time-outline" size={18} color={colors.primary} />
-                    <View>
-                      <Text style={[styles.settingsCustomTimeLabel, { color: colors.text }]}>Selected Exact Time</Text>
-                      <Text style={[styles.settingsCustomTimeSub, { color: colors.textSecondary }]}>
-                        Tap to open circular analog clock picker
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={[styles.settingsTimeBadge, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                    <Text style={[styles.settingsTimeBadgeText, { color: colors.primary }]}>
-                      {formatTime(notificationHour, notificationMinute, timeFormat)}
-                    </Text>
-                    <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
-                  </View>
-                </Pressable>
-
                 {/* Scheduled Reminders Summary Card */}
-                <View style={[styles.notifSummaryCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                <View style={[styles.notifSummaryCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, marginTop: 12 }]}>
                   <View style={styles.notifSummaryHeader}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Ionicons name="calendar-outline" size={16} color={colors.primary} />
@@ -2077,7 +1848,7 @@ export default function SettingsScreen() {
                     </Pressable>
                   </View>
                   <Text style={[styles.notifSummaryDesc, { color: colors.textSecondary }]}>
-                    Time: {formatTime(notificationHour, notificationMinute, timeFormat)} ({selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone}) • Strategy: {notificationTiming === 'both' ? `Both release day & ${notificationDaysAhead === 1 ? '1 day' : notificationDaysAhead === 7 ? '1 week' : `${notificationDaysAhead} days`} ahead` : notificationTiming === 'advance' ? `${notificationDaysAhead === 1 ? '1 day' : notificationDaysAhead === 7 ? '1 week' : `${notificationDaysAhead} days`} ahead` : 'On release day'}. Tapping any upcoming title in details lets you set custom alerts for that specific title.
+                    Alerts are configured individually per title or episode. Tap any upcoming media in details or an unreleased episode in its detail modal to set or manage its alert timing.
                   </Text>
                 </View>
 
@@ -2510,7 +2281,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.14.3 • TMDB & MAL Attributions
+                Version 0.15.0 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2585,7 +2356,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary }]}>
-              Version 0.14.3 • Build 20 • Expo SDK 57
+              Version 0.15.0 • Build 21 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -2599,85 +2370,6 @@ export default function SettingsScreen() {
           void getStorageMetrics(trackedItems.length).then((metrics) => setStorageMetrics(metrics));
         }}
       />
-
-      {/* Google Keep Material Design 3 Time Picker Modal */}
-      <MaterialTimePickerModal
-        visible={showTimePicker}
-        initialHour={notificationHour}
-        initialMinute={notificationMinute}
-        timeFormat={timeFormat}
-        onClose={() => setShowTimePicker(false)}
-        onConfirm={(h, m) => {
-          void setNotificationTime(h, m);
-        }}
-      />
-
-      {/* Custom Advance Days Modal */}
-      {showCustomDaysModal && (
-        <Modal
-          visible={showCustomDaysModal}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowCustomDaysModal(false)}>
-          <View style={styles.dialogOverlay}>
-            <Pressable
-              style={styles.backdrop}
-              onPress={() => setShowCustomDaysModal(false)}
-            />
-            <View
-              style={[
-                styles.customDaysDialog,
-                { backgroundColor: colors.card, borderColor: colors.cardBorder },
-              ]}>
-              <Text style={[styles.customDaysTitle, { color: colors.text }]}>
-                Custom Advance Notice
-              </Text>
-              <Text style={[styles.customDaysDesc, { color: colors.textSecondary }]}>
-                Enter the number of days prior to premiere or broadcast to receive notifications:
-              </Text>
-              <TextInput
-                style={[
-                  styles.customDaysInput,
-                  {
-                    backgroundColor: colors.inputBg,
-                    color: colors.primary,
-                    borderColor: colors.primary,
-                  },
-                ]}
-                value={customDaysInput}
-                onChangeText={setCustomDaysInput}
-                keyboardType="number-pad"
-                maxLength={3}
-                autoFocus
-                selectTextOnFocus
-              />
-              <View style={styles.dialogButtonsRow}>
-                <Pressable
-                  style={styles.dialogBtn}
-                  onPress={() => setShowCustomDaysModal(false)}>
-                  <Text style={[styles.dialogBtnText, { color: colors.textSecondary }]}>
-                    Cancel
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.dialogBtn, { backgroundColor: colors.primary, borderRadius: 8 }]}
-                  onPress={() => {
-                    const parsed = parseInt(customDaysInput, 10);
-                    if (!isNaN(parsed) && parsed > 0 && parsed <= 365) {
-                      triggerHaptic('selection');
-                      void setNotificationDaysAhead(parsed);
-                      setShowCustomDaysModal(false);
-                    }
-                  }}>
-                  <Text style={[styles.dialogBtnText, { color: '#ffffff', fontWeight: '700' }]}>
-                    Set Days
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
     </ScrollView>
   );
 }

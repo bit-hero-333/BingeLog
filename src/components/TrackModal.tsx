@@ -1039,7 +1039,7 @@ function TrackModalFormContent({
                     </View>
                     <View style={styles.countdownBannerSubRow}>
                       <Text style={[styles.countdownBannerSub, { color: colors.textSecondary }]}>
-                        Tap to manage alert • Region: {selectedRegion}
+                        Tap to manage alert
                       </Text>
                       <View
                         style={[
@@ -1084,7 +1084,7 @@ function TrackModalFormContent({
                     </View>
                     <View style={styles.countdownBannerSubRow}>
                       <Text style={[styles.countdownBannerSub, { color: colors.textSecondary }]} numberOfLines={1}>
-                        Tap to manage alert • {selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone}
+                        Tap to manage alert
                       </Text>
                       <View
                         style={[
@@ -1763,10 +1763,13 @@ function TrackModalFormContent({
                                       <Text
                                         style={[
                                           styles.episodeTitleText,
-                                          { fontSize: episodeTitleFontSize, color: colors.text },
+                                          {
+                                            fontSize: episodeTitleFontSize,
+                                            lineHeight: Math.round(episodeTitleFontSize * 1.35),
+                                            color: colors.text,
+                                          },
                                           isWatched && styles.episodeTitleTextWatched,
                                         ]}
-                                        numberOfLines={1}
                                         selectable={true}>
                                         {epNum}. {detail?.name || `Episode ${epNum}`}
                                       </Text>
@@ -2317,6 +2320,10 @@ function TrackModalFormContent({
             setSelectedEntity(entity);
           }}
           onClose={() => setSelectedEpisodeForDetail(null)}
+          item={item}
+          existingRecord={existingRecord}
+          onSaveReminder={handleSaveReminder}
+          onRemoveReminder={handleRemoveReminder}
         />
       )}
 

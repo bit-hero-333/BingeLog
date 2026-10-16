@@ -8,8 +8,6 @@ import {
   TextInput,
   PanResponder,
   GestureResponderEvent,
-  PanResponderGestureState,
-  LayoutChangeEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -93,19 +91,20 @@ export function MaterialTimePickerModal({
     }
   };
 
-  // Dial layout position tracking for touch coordinates
-  const dialLayoutRef = useRef<{ x: number; y: number; width: number; height: number }>({
-    x: 0,
-    y: 0,
-    width: DIAL_SIZE,
-    height: DIAL_SIZE,
+  // Dial layout position tracking for touch coordinates using window measurement
+  const dialRef = useRef<View | null>(null);
+  const [dialScreenCoords, setDialScreenCoords] = useState<{ pageX: number; pageY: number }>({
+    pageX: 0,
+    pageY: 0,
   });
 
-  const onDialLayout = (e: LayoutChangeEvent) => {
-    e.target.measure((_x, _y, width, height, pageX, pageY) => {
-      dialLayoutRef.current = { x: pageX, y: pageY, width, height };
+  const onDialLayout = useCallback(() => {
+    dialRef.current?.measureInWindow((x, y) => {
+      if (typeof x === 'number' && typeof y === 'number') {
+        setDialScreenCoords({ pageX: x, pageY: y });
+      }
     });
-  };
+  }, []);
 
   // Dial touch calculation
   const handleDialTouch = useCallback(
@@ -147,7 +146,7 @@ export function MaterialTimePickerModal({
           setActiveUnit('minute');
         }
       } else {
-        // Minute mode: 0-59
+        // Minute mode: 0-59 (full 1-minute precision across all 360 degrees)
         const nextMinute = Math.round(deg / 6) % 60;
         if (nextMinute !== selectedMinute) {
           setSelectedMinute(nextMinute);
@@ -165,19 +164,22 @@ export function MaterialTimePickerModal({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: (evt: GestureResponderEvent) => {
-          const { locationX, locationY } = evt.nativeEvent;
-          handleDialTouch(locationX, locationY, false);
+          const touchX = evt.nativeEvent.pageX - dialScreenCoords.pageX;
+          const touchY = evt.nativeEvent.pageY - dialScreenCoords.pageY;
+          handleDialTouch(touchX, touchY, false);
         },
-        onPanResponderMove: (evt: GestureResponderEvent, _gesture: PanResponderGestureState) => {
-          const { locationX, locationY } = evt.nativeEvent;
-          handleDialTouch(locationX, locationY, false);
+        onPanResponderMove: (evt: GestureResponderEvent) => {
+          const touchX = evt.nativeEvent.pageX - dialScreenCoords.pageX;
+          const touchY = evt.nativeEvent.pageY - dialScreenCoords.pageY;
+          handleDialTouch(touchX, touchY, false);
         },
         onPanResponderRelease: (evt: GestureResponderEvent) => {
-          const { locationX, locationY } = evt.nativeEvent;
-          handleDialTouch(locationX, locationY, true);
+          const touchX = evt.nativeEvent.pageX - dialScreenCoords.pageX;
+          const touchY = evt.nativeEvent.pageY - dialScreenCoords.pageY;
+          handleDialTouch(touchX, touchY, true);
         },
       }),
-    [handleDialTouch]
+    [handleDialTouch, dialScreenCoords]
   );
 
   // Compute pointer needle rotation angle and length
@@ -307,54 +309,106 @@ export function MaterialTimePickerModal({
 
           {/* Time Display Header Box */}
           <View style={styles.timeDisplayRow}>
-            {/* Hour Card */}
-            <Pressable
-              style={[
-                styles.timeBox,
-                { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-                activeUnit === 'hour' && [
-                  styles.timeBoxActive,
-                  { backgroundColor: colors.primaryBg, borderColor: colors.primary },
-                ],
-              ]}
-              onPress={() => {
-                triggerHaptic('selection');
-                setActiveUnit('hour');
-              }}>
-              <Text
-                style={[
-                  styles.timeBoxText,
-                  { color: activeUnit === 'hour' ? colors.primary : colors.text },
-                ]}>
-                {String(is24h ? selectedHour : hour12Display).padStart(2, '0')}
-              </Text>
-            </Pressable>
+            {/* Hour Box */}
+            <View style={styles.timeBoxColumn}>
+              {displayMode === 'dial' ? (
+                <Pressable
+                  style={[
+                    styles.timeBox,
+                    { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                    activeUnit === 'hour' && [
+                      styles.timeBoxActive,
+                      { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                    ],
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setActiveUnit('hour');
+                  }}>
+                  <Text
+                    style={[
+                      styles.timeBoxText,
+                      { color: activeUnit === 'hour' ? colors.primary : colors.text },
+                    ]}>
+                    {String(is24h ? selectedHour : hour12Display).padStart(2, '0')}
+                  </Text>
+                </Pressable>
+              ) : (
+                <TextInput
+                  style={[
+                    styles.timeBox,
+                    styles.timeInputBox,
+                    {
+                      backgroundColor: activeUnit === 'hour' ? colors.primaryBg : colors.inputBg,
+                      borderColor: activeUnit === 'hour' ? colors.primary : colors.cardBorder,
+                      color: activeUnit === 'hour' ? colors.primary : colors.text,
+                    },
+                  ]}
+                  value={hourInput}
+                  onChangeText={handleHourTextChange}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  selectTextOnFocus
+                  autoFocus
+                  onFocus={() => setActiveUnit('hour')}
+                />
+              )}
+              {displayMode === 'keypad' && (
+                <Text style={[styles.timeBoxSubLabel, { color: colors.textSecondary }]}>Hour</Text>
+              )}
+            </View>
 
             {/* Colon Separator */}
             <Text style={[styles.colonText, { color: colors.text }]}>:</Text>
 
-            {/* Minute Card */}
-            <Pressable
-              style={[
-                styles.timeBox,
-                { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-                activeUnit === 'minute' && [
-                  styles.timeBoxActive,
-                  { backgroundColor: colors.primaryBg, borderColor: colors.primary },
-                ],
-              ]}
-              onPress={() => {
-                triggerHaptic('selection');
-                setActiveUnit('minute');
-              }}>
-              <Text
-                style={[
-                  styles.timeBoxText,
-                  { color: activeUnit === 'minute' ? colors.primary : colors.text },
-                ]}>
-                {String(selectedMinute).padStart(2, '0')}
-              </Text>
-            </Pressable>
+            {/* Minute Box */}
+            <View style={styles.timeBoxColumn}>
+              {displayMode === 'dial' ? (
+                <Pressable
+                  style={[
+                    styles.timeBox,
+                    { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                    activeUnit === 'minute' && [
+                      styles.timeBoxActive,
+                      { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                    ],
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setActiveUnit('minute');
+                  }}>
+                  <Text
+                    style={[
+                      styles.timeBoxText,
+                      { color: activeUnit === 'minute' ? colors.primary : colors.text },
+                    ]}>
+                    {String(selectedMinute).padStart(2, '0')}
+                  </Text>
+                </Pressable>
+              ) : (
+                <TextInput
+                  ref={minuteInputRef}
+                  style={[
+                    styles.timeBox,
+                    styles.timeInputBox,
+                    {
+                      backgroundColor: activeUnit === 'minute' ? colors.primaryBg : colors.inputBg,
+                      borderColor: activeUnit === 'minute' ? colors.primary : colors.cardBorder,
+                      color: activeUnit === 'minute' ? colors.primary : colors.text,
+                    },
+                  ]}
+                  value={minuteInput}
+                  onChangeText={handleMinuteTextChange}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  selectTextOnFocus
+                  onFocus={() => setActiveUnit('minute')}
+                />
+              )}
+              {displayMode === 'keypad' && (
+                <Text style={[styles.timeBoxSubLabel, { color: colors.textSecondary }]}>Minute</Text>
+              )}
+            </View>
 
             {/* 12-Hour AM/PM Toggle */}
             {!is24h && (
@@ -392,13 +446,15 @@ export function MaterialTimePickerModal({
           </View>
 
           {/* Mode 1: Dial Face */}
-          {displayMode === 'dial' ? (
+          {displayMode === 'dial' && (
             <View
+              ref={dialRef}
               style={[styles.dialContainer, { backgroundColor: colors.inputBg }]}
               onLayout={onDialLayout}
               {...panResponder.panHandlers}>
               {/* Pointer Needle & Selector Thumb */}
               <View
+                pointerEvents="none"
                 style={[
                   styles.needlePivot,
                   {
@@ -406,6 +462,7 @@ export function MaterialTimePickerModal({
                   },
                 ]}>
                 <View
+                  pointerEvents="none"
                   style={[
                     styles.needleArm,
                     {
@@ -415,6 +472,7 @@ export function MaterialTimePickerModal({
                   ]}
                 />
                 <View
+                  pointerEvents="none"
                   style={[
                     styles.needleThumb,
                     {
@@ -426,7 +484,7 @@ export function MaterialTimePickerModal({
               </View>
 
               {/* Center Dot */}
-              <View style={[styles.centerPivotDot, { backgroundColor: colors.primary }]} />
+              <View pointerEvents="none" style={[styles.centerPivotDot, { backgroundColor: colors.primary }]} />
 
               {/* Numbers */}
               {activeUnit === 'hour'
@@ -478,54 +536,6 @@ export function MaterialTimePickerModal({
                       </Text>
                     </View>
                   ))}
-            </View>
-          ) : (
-            /* Mode 2: Digital Keypad Input */
-            <View style={styles.keypadContainer}>
-              <View style={styles.keypadInputsRow}>
-                <View style={styles.keypadInputGroup}>
-                  <TextInput
-                    style={[
-                      styles.keypadTextInput,
-                      {
-                        backgroundColor: colors.inputBg,
-                        color: colors.primary,
-                        borderColor: activeUnit === 'hour' ? colors.primary : colors.cardBorder,
-                      },
-                    ]}
-                    value={hourInput}
-                    onChangeText={handleHourTextChange}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    selectTextOnFocus
-                    onFocus={() => setActiveUnit('hour')}
-                  />
-                  <Text style={[styles.keypadSubLabel, { color: colors.textSecondary }]}>Hour</Text>
-                </View>
-
-                <Text style={[styles.keypadColon, { color: colors.text }]}>:</Text>
-
-                <View style={styles.keypadInputGroup}>
-                  <TextInput
-                    ref={minuteInputRef}
-                    style={[
-                      styles.keypadTextInput,
-                      {
-                        backgroundColor: colors.inputBg,
-                        color: colors.primary,
-                        borderColor: activeUnit === 'minute' ? colors.primary : colors.cardBorder,
-                      },
-                    ]}
-                    value={minuteInput}
-                    onChangeText={handleMinuteTextChange}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    selectTextOnFocus
-                    onFocus={() => setActiveUnit('minute')}
-                  />
-                  <Text style={[styles.keypadSubLabel, { color: colors.textSecondary }]}>Minute</Text>
-                </View>
-              </View>
             </View>
           )}
 
@@ -620,6 +630,21 @@ const styles = StyleSheet.create({
   timeBoxText: {
     fontSize: 38,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  timeBoxColumn: {
+    alignItems: 'center',
+  },
+  timeBoxSubLabel: {
+    fontSize: 11,
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  timeInputBox: {
+    fontSize: 38,
+    fontWeight: '700',
+    textAlign: 'center',
+    padding: 0,
     fontVariant: ['tabular-nums'],
   },
   colonText: {

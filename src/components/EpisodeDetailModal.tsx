@@ -14,11 +14,15 @@ import {
   EpisodeInfo,
   EpisodeDetailedInfo,
   EntitySelection,
+  TrackedItem,
+  TMDBMediaItem,
+  ItemReminderConfig,
 } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { formatDateDisplay } from '@/utils/date';
+import { formatDateDisplay, getTodayFormatted } from '@/utils/date';
+import { ReleaseReminderModal } from '@/components/ReleaseReminderModal';
 
 interface EpisodeDetailModalProps {
   visible: boolean;
@@ -30,6 +34,10 @@ interface EpisodeDetailModalProps {
   isWatched: boolean;
   onToggleWatched: () => void;
   onSelectEntity: (entity: EntitySelection) => void;
+  item?: TrackedItem | TMDBMediaItem | null;
+  existingRecord?: TrackedItem;
+  onSaveReminder?: (config: ItemReminderConfig) => void;
+  onRemoveReminder?: () => void;
 }
 
 interface EpisodeDetailContentProps {
@@ -41,6 +49,10 @@ interface EpisodeDetailContentProps {
   onClose: () => void;
   onToggleWatched: () => void;
   onSelectEntity: (entity: EntitySelection) => void;
+  item?: TrackedItem | TMDBMediaItem | null;
+  existingRecord?: TrackedItem;
+  onSaveReminder?: (config: ItemReminderConfig) => void;
+  onRemoveReminder?: () => void;
 }
 
 function EpisodeDetailContent({
@@ -52,12 +64,25 @@ function EpisodeDetailContent({
   onClose,
   onToggleWatched,
   onSelectEntity,
+  item,
+  existingRecord,
+  onSaveReminder,
+  onRemoveReminder,
 }: EpisodeDetailContentProps) {
-  const { apiKey, showSeasonEpisodeImages, showActorImages, sizingConfig, dateFormat } = useMedia();
+  const {
+    apiKey,
+    showSeasonEpisodeImages,
+    showActorImages,
+    sizingConfig,
+    dateFormat,
+    triggerHaptic,
+    deviceNotificationsEnabled,
+  } = useMedia();
   const { colors } = useAppTheme();
 
   const [isLoading, setIsLoading] = useState(Boolean(apiKey));
   const [details, setDetails] = useState<EpisodeDetailedInfo | null>(null);
+  const [showReminderModal, setShowReminderModal] = useState<boolean>(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -84,6 +109,11 @@ function EpisodeDetailContent({
   const runtime = details?.runtime || baseEpisodeInfo?.runtime;
   const stillPath = details?.stillPath || baseEpisodeInfo?.stillPath;
   const voteAverage = details?.voteAverage || baseEpisodeInfo?.voteAverage;
+
+  const isUnreleased = Boolean(airDate && airDate >= getTodayFormatted('YYYY-MM-DD'));
+  const isReminderActive = existingRecord?.reminder?.enabled !== undefined
+    ? existingRecord.reminder.enabled
+    : Boolean(existingRecord && deviceNotificationsEnabled);
 
   const stillUrl = TMDBService.getImageUrl(stillPath, 'w500');
 
@@ -178,6 +208,57 @@ function EpisodeDetailContent({
             ) : null}
           </View>
         </View>
+
+        {/* Release Alert Configuration for Unreleased Episodes */}
+        {isUnreleased && (
+          <Pressable
+            style={({ pressed }) => [
+              styles.releaseAlertCard,
+              {
+                backgroundColor: isReminderActive ? colors.primaryBg : colors.card,
+                borderColor: isReminderActive ? colors.primary : colors.cardBorder,
+              },
+              pressed && { opacity: 0.8 },
+            ]}
+            onPress={() => {
+              triggerHaptic('selection');
+              setShowReminderModal(true);
+            }}>
+            <View
+              style={[
+                styles.releaseAlertIconWrap,
+                { backgroundColor: isReminderActive ? colors.primary : colors.cardSelected },
+              ]}>
+              <Ionicons
+                name={isReminderActive ? 'notifications' : 'notifications-outline'}
+                size={18}
+                color={isReminderActive ? '#ffffff' : colors.primary}
+              />
+            </View>
+            <View style={styles.releaseAlertContent}>
+              <View style={styles.releaseAlertTopRow}>
+                <Text style={[styles.releaseAlertTitle, { color: colors.text }]}>
+                  {isReminderActive ? 'Release Alert Configured' : 'Plan Episode Alert'}
+                </Text>
+                <View
+                  style={[
+                    styles.releaseAlertBadge,
+                    { backgroundColor: isReminderActive ? colors.primary : colors.cardBorder },
+                  ]}>
+                  <Text style={styles.releaseAlertBadgeText}>
+                    {isReminderActive ? 'Active' : 'Not Set'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.releaseAlertSub, { color: colors.textSecondary }]}>
+                {isReminderActive
+                  ? 'Tap to customize alert timing or disable'
+                  : 'Tap to configure notification ahead of broadcast'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+          </Pressable>
+        )}
 
         {/* Synopsis */}
         <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -298,6 +379,23 @@ function EpisodeDetailContent({
           </View>
         ) : null}
       </ScrollView>
+
+      <ReleaseReminderModal
+        visible={showReminderModal}
+        item={item || existingRecord || null}
+        existingRecord={existingRecord}
+        targetDate={airDate || undefined}
+        dateLabel={`S${seasonNumber} E${episodeNumber}`}
+        onClose={() => setShowReminderModal(false)}
+        onSaveReminder={(config) => {
+          onSaveReminder?.(config);
+          setShowReminderModal(false);
+        }}
+        onRemoveReminder={() => {
+          onRemoveReminder?.();
+          setShowReminderModal(false);
+        }}
+      />
     </View>
   );
 }
@@ -385,6 +483,48 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     flexWrap: 'wrap',
     gap: 10,
+  },
+  releaseAlertCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    gap: 12,
+  },
+  releaseAlertIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  releaseAlertContent: {
+    flex: 1,
+  },
+  releaseAlertTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  releaseAlertTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  releaseAlertBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  releaseAlertBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  releaseAlertSub: {
+    fontSize: 11,
+    marginTop: 2,
   },
   watchButton: {
     flexDirection: 'row',
