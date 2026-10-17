@@ -107,13 +107,13 @@ function InsightQuickConfigModalContent({
   ];
 
   return (
-    <Pressable style={styles.backdrop} onPress={onClose}>
-      <Pressable
+    <View style={styles.backdrop}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      <View
         style={[
           styles.container,
           { backgroundColor: colors.background, borderColor: colors.cardBorder },
-        ]}
-        onPress={(e) => e.stopPropagation()}>
+        ]}>
         {/* Header */}
         <View style={styles.header}>
           <View style={[styles.iconBadge, { backgroundColor: colors.primaryBg }]}>
@@ -210,7 +210,11 @@ function InsightQuickConfigModalContent({
             style={[styles.hideBtn, { borderColor: '#ef4444' }]}
             onPress={handleHide}>
             <Ionicons name="eye-off-outline" size={15 * textScale} color="#ef4444" />
-            <Text style={[styles.hideBtnText, { fontSize: 12.5 * textScale }]}>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              style={[styles.hideBtnText, { fontSize: Math.min(12 * textScale, 13) }]}>
               Hide from Insights
             </Text>
           </Pressable>
@@ -223,13 +227,17 @@ function InsightQuickConfigModalContent({
               onOpenFullCustomizer();
             }}>
             <Ionicons name="options-outline" size={15 * textScale} color="#ffffff" />
-            <Text style={[styles.fullCustomizerBtnText, { fontSize: 12.5 * textScale }]}>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              style={[styles.fullCustomizerBtnText, { fontSize: Math.min(12 * textScale, 13) }]}>
               All Widgets...
             </Text>
           </Pressable>
         </View>
-      </Pressable>
-    </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -317,35 +325,39 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
     paddingTop: 12,
     borderTopWidth: 1,
   },
   hideBtn: {
-    flex: 1,
+    flex: 1.15,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 5,
     paddingVertical: 11,
+    paddingHorizontal: 8,
     borderRadius: 10,
     borderWidth: 1,
   },
   hideBtnText: {
     color: '#ef4444',
     fontWeight: '700',
+    flexShrink: 1,
   },
   fullCustomizerBtn: {
-    flex: 1.2,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 5,
     paddingVertical: 11,
+    paddingHorizontal: 8,
     borderRadius: 10,
   },
   fullCustomizerBtnText: {
     color: '#ffffff',
     fontWeight: '700',
+    flexShrink: 1,
   },
 });

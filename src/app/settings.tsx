@@ -2517,14 +2517,18 @@ export default function SettingsScreen() {
                 style={[
                   styles.backupBtn,
                   dynTypography.presetBtn,
-                  { flex: 1, backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                  { flex: 1, backgroundColor: colors.primaryBg, borderColor: colors.primary, paddingHorizontal: 10 },
                 ]}
                 onPress={() => {
                   triggerHaptic('selection');
                   setShowInsightsCustomizer(true);
                 }}>
                 <Ionicons name="options-outline" size={Math.round(16 * buttonScale)} color={colors.primary} />
-                <Text style={[styles.backupBtnText, dynTypography.presetBtnText, { color: colors.primary }]}>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                  style={[styles.backupBtnText, dynTypography.presetBtnText, { color: colors.primary, flexShrink: 1 }]}>
                   Customize Insights
                 </Text>
               </Pressable>
@@ -2533,7 +2537,7 @@ export default function SettingsScreen() {
                 style={[
                   styles.backupBtn,
                   dynTypography.presetBtn,
-                  { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, paddingHorizontal: 14 },
+                  { flex: 0, minWidth: 90, backgroundColor: colors.inputBg, borderColor: colors.cardBorder, paddingHorizontal: 16 },
                 ]}
                 onPress={() => {
                   triggerHaptic('selection');
@@ -2808,7 +2812,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.18.0 • TMDB & MAL Attributions
+                Version 0.18.1 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2908,7 +2912,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.18.0 • Build 29 • Expo SDK 57
+              Version 0.18.1 • Build 30 • Expo SDK 57
             </Text>
           </View>
         )}

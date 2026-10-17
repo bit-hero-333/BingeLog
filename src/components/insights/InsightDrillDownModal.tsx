@@ -74,8 +74,9 @@ function InsightDrillDownModalContent({
   };
 
   return (
-    <Pressable style={styles.backdrop} onPress={onClose}>
-      <Pressable
+    <View style={styles.backdrop}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      <View
         style={[
           styles.container,
           {
@@ -83,8 +84,7 @@ function InsightDrillDownModalContent({
             height: sheetHeight,
             borderColor: colors.cardBorder,
           },
-        ]}
-        onPress={(e) => e.stopPropagation()}>
+        ]}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
           <View style={styles.headerLeft}>
@@ -109,7 +109,8 @@ function InsightDrillDownModalContent({
         <ScrollView
           style={styles.body}
           contentContainerStyle={styles.bodyContent}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={true}>
           {/* Summary Highlights */}
           {payload.summaryHighlights.length > 0 && (
             <View style={styles.highlightsRow}>
@@ -209,8 +210,8 @@ function InsightDrillDownModalContent({
             </View>
           )}
         </ScrollView>
-      </Pressable>
-    </Pressable>
+      </View>
+    </View>
   );
 }
 

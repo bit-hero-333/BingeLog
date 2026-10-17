@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   InsightCategory,
   InsightWidgetConfig,
   InsightWidgetSize,
+  InsightWidgetDefinition,
   INSIGHT_CATEGORIES,
   INSIGHT_WIDGET_DEFINITIONS,
   DEFAULT_INSIGHTS_LAYOUT,
@@ -40,6 +41,141 @@ export function CustomizeInsightsModal({ visible, onClose }: CustomizeInsightsMo
     </Modal>
   );
 }
+
+interface WidgetRowItemProps {
+  item: InsightWidgetConfig;
+  def?: InsightWidgetDefinition;
+  colors: any;
+  headerScale: number;
+  textScale: number;
+  canUp: boolean;
+  canDown: boolean;
+  onToggle: (id: string, enabled: boolean) => void;
+  onSetSize: (id: string, size: InsightWidgetSize) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+}
+
+const WidgetRowItem = React.memo(function WidgetRowItem({
+  item,
+  def,
+  colors,
+  headerScale,
+  textScale,
+  canUp,
+  canDown,
+  onToggle,
+  onSetSize,
+  onMoveUp,
+  onMoveDown,
+}: WidgetRowItemProps) {
+  return (
+    <View
+      style={[
+        styles.widgetRow,
+        { backgroundColor: colors.card, borderColor: colors.cardBorder },
+        !item.enabled && { opacity: 0.6 },
+      ]}>
+      <View style={styles.widgetRowTop}>
+        <View style={styles.widgetInfoLeft}>
+          <View
+            style={[
+              styles.widgetIconBadge,
+              { backgroundColor: item.enabled ? colors.primaryBg : colors.inputBg },
+            ]}>
+            <Ionicons
+              name={def?.icon || 'analytics'}
+              size={18 * headerScale}
+              color={item.enabled ? colors.primary : colors.textMuted}
+            />
+          </View>
+          <View style={styles.widgetTextCol}>
+            <Text
+              style={[styles.widgetTitle, { color: colors.text, fontSize: 13.5 * textScale }]}
+              numberOfLines={1}>
+              {def?.title || item.id}
+            </Text>
+            <Text
+              style={[
+                styles.widgetSubtitle,
+                { color: colors.textSecondary, fontSize: 11.5 * textScale },
+              ]}
+              numberOfLines={1}>
+              {def?.subtitle || ''}
+            </Text>
+          </View>
+        </View>
+
+        <Switch
+          value={item.enabled}
+          onValueChange={(val) => onToggle(item.id, val)}
+          thumbColor="#ffffff"
+          trackColor={{ false: colors.cardBorder, true: colors.primary }}
+        />
+      </View>
+
+      {item.enabled && (
+        <View style={[styles.widgetControlsRow, { borderTopColor: colors.cardBorder }]}>
+          {/* Size Selector */}
+          <View style={styles.sizePillsGroup}>
+            {(['auto', 'full', 'half', 'compact'] as InsightWidgetSize[]).map((s) => {
+              const isSizeSelected = item.size === s;
+              return (
+                <Pressable
+                  key={s}
+                  style={[
+                    styles.sizePill,
+                    { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                    isSizeSelected && {
+                      backgroundColor: colors.primaryBg,
+                      borderColor: colors.primary,
+                    },
+                  ]}
+                  onPress={() => onSetSize(item.id, s)}>
+                  <Text
+                    style={[
+                      styles.sizePillText,
+                      {
+                        color: isSizeSelected ? colors.primary : colors.textSecondary,
+                        fontSize: 10.5 * textScale,
+                      },
+                      isSizeSelected && { fontWeight: '700' },
+                    ]}>
+                    {s.toUpperCase()}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Reorder Buttons */}
+          <View style={styles.reorderButtons}>
+            <Pressable
+              style={[
+                styles.reorderBtn,
+                { borderColor: colors.cardBorder },
+                !canUp && { opacity: 0.3 },
+              ]}
+              disabled={!canUp}
+              onPress={onMoveUp}>
+              <Ionicons name="chevron-up" size={16} color={colors.text} />
+            </Pressable>
+            <Pressable
+              style={[
+                styles.reorderBtn,
+                { borderColor: colors.cardBorder },
+                !canDown && { opacity: 0.3 },
+              ]}
+              disabled={!canDown}
+              onPress={onMoveDown}>
+              <Ionicons name="chevron-down" size={16} color={colors.text} />
+            </Pressable>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+});
 
 function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
   const { colors } = useAppTheme();
@@ -73,37 +209,52 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
     return draftLayout.filter((w) => w.enabled).length;
   }, [draftLayout]);
 
-  const handleToggle = (id: string, enabled: boolean) => {
-    triggerHaptic('selection');
-    setDraftLayout((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, enabled } : w))
-    );
-  };
+  const handleToggle = useCallback(
+    (id: string, enabled: boolean) => {
+      triggerHaptic('selection');
+      setDraftLayout((prev) =>
+        prev.map((w) => (w.id === id ? { ...w, enabled } : w))
+      );
+    },
+    [triggerHaptic]
+  );
 
-  const handleSetSize = (id: string, size: InsightWidgetSize) => {
-    triggerHaptic('selection');
-    setDraftLayout((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, size } : w))
-    );
-  };
+  const handleSetSize = useCallback(
+    (id: string, size: InsightWidgetSize) => {
+      triggerHaptic('selection');
+      setDraftLayout((prev) =>
+        prev.map((w) => (w.id === id ? { ...w, size } : w))
+      );
+    },
+    [triggerHaptic]
+  );
 
-  const handleMove = (indexInFiltered: number, direction: 'up' | 'down') => {
-    triggerHaptic('selection');
-    const targetItem = filteredWidgets[indexInFiltered];
-    if (!targetItem) return;
+  const handleMove = useCallback(
+    (indexInFiltered: number, direction: 'up' | 'down') => {
+      triggerHaptic('selection');
+      setDraftLayout((prev) => {
+        const filtered = prev.filter((w) => {
+          if (selectedCategory === 'all') return true;
+          const def = INSIGHT_WIDGET_DEFINITIONS[w.id];
+          return def && def.category === selectedCategory;
+        });
+        const targetItem = filtered[indexInFiltered];
+        if (!targetItem) return prev;
 
-    const fullIndex = draftLayout.findIndex((w) => w.id === targetItem.id);
-    if (fullIndex < 0) return;
+        const fullIndex = prev.findIndex((w) => w.id === targetItem.id);
+        if (fullIndex < 0) return prev;
 
-    const targetSwapIndex = direction === 'up' ? fullIndex - 1 : fullIndex + 1;
-    if (targetSwapIndex < 0 || targetSwapIndex >= draftLayout.length) return;
+        const targetSwapIndex = direction === 'up' ? fullIndex - 1 : fullIndex + 1;
+        if (targetSwapIndex < 0 || targetSwapIndex >= prev.length) return prev;
 
-    const copy = [...draftLayout];
-    const [moved] = copy.splice(fullIndex, 1);
-    copy.splice(targetSwapIndex, 0, moved);
-    const updated = copy.map((item, idx) => ({ ...item, order: idx }));
-    setDraftLayout(updated);
-  };
+        const copy = [...prev];
+        const [moved] = copy.splice(fullIndex, 1);
+        copy.splice(targetSwapIndex, 0, moved);
+        return copy.map((item, idx) => ({ ...item, order: idx }));
+      });
+    },
+    [selectedCategory, triggerHaptic]
+  );
 
   const handleSave = async () => {
     triggerHaptic('success');
@@ -118,8 +269,9 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Pressable style={styles.backdrop} onPress={onClose}>
-      <Pressable
+    <View style={styles.backdrop}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      <View
         style={[
           styles.container,
           {
@@ -127,8 +279,7 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
             height: sheetHeight,
             borderColor: colors.cardBorder,
           },
-        ]}
-        onPress={(e) => e.stopPropagation()}>
+        ]}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
           <View style={styles.headerLeft}>
@@ -149,54 +300,20 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
           </Pressable>
         </View>
 
-        {/* Live Preview Mini Map */}
-        <View style={[styles.previewSection, { borderBottomColor: colors.cardBorder, backgroundColor: colors.card }]}>
-          <View style={styles.previewTitleRow}>
-            <Text style={[styles.previewTitle, { color: colors.textSecondary, fontSize: 11 * headerScale }]}>
-              LIVE DASHBOARD PREVIEW
-            </Text>
-            <Text style={[styles.previewSub, { color: colors.textMuted, fontSize: 10 * textScale }]}>
-              Hold card in Insights tab to resize
-            </Text>
-          </View>
+        {/* Categories Bar */}
+        <View style={styles.categoriesBar}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.previewScroll}>
-            {draftLayout
-              .filter((w) => w.enabled)
-              .map((w) => {
-                const def = INSIGHT_WIDGET_DEFINITIONS[w.id];
-                const isHalf = w.size === 'half';
-                return (
-                  <View
-                    key={w.id}
-                    style={[
-                      styles.previewItem,
-                      {
-                        backgroundColor: colors.background,
-                        borderColor: colors.cardBorder,
-                        width: isHalf ? 80 : 120,
-                      },
-                    ]}>
-                    <Ionicons name={def?.icon || 'analytics'} size={14} color={colors.primary} />
-                    <Text style={[styles.previewItemText, { color: colors.text, fontSize: 10 }]} numberOfLines={1}>
-                      {def?.title || w.id}
-                    </Text>
-                  </View>
-                );
-              })}
-          </ScrollView>
-        </View>
-
-        {/* Categories Bar */}
-        <View style={styles.categoriesBar}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesScroll}>
+            contentContainerStyle={styles.categoriesScroll}>
             <Pressable
               style={[
                 styles.categoryChip,
                 { backgroundColor: colors.card, borderColor: colors.cardBorder },
-                selectedCategory === 'all' && { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                selectedCategory === 'all' && {
+                  backgroundColor: colors.primaryBg,
+                  borderColor: colors.primary,
+                },
               ]}
               onPress={() => {
                 triggerHaptic('selection');
@@ -205,7 +322,10 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
               <Text
                 style={[
                   styles.categoryChipText,
-                  { color: selectedCategory === 'all' ? colors.primary : colors.text, fontSize: 11.5 * textScale },
+                  {
+                    color: selectedCategory === 'all' ? colors.primary : colors.text,
+                    fontSize: 11.5 * textScale,
+                  },
                   selectedCategory === 'all' && { fontWeight: '700' },
                 ]}>
                 All ({draftLayout.length})
@@ -213,7 +333,9 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
             </Pressable>
 
             {INSIGHT_CATEGORIES.map((cat) => {
-              const count = draftLayout.filter((w) => INSIGHT_WIDGET_DEFINITIONS[w.id]?.category === cat.id).length;
+              const count = draftLayout.filter(
+                (w) => INSIGHT_WIDGET_DEFINITIONS[w.id]?.category === cat.id
+              ).length;
               const isSelected = selectedCategory === cat.id;
               return (
                 <Pressable
@@ -221,7 +343,10 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
                   style={[
                     styles.categoryChip,
                     { backgroundColor: colors.card, borderColor: colors.cardBorder },
-                    isSelected && { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                    isSelected && {
+                      backgroundColor: colors.primaryBg,
+                      borderColor: colors.primary,
+                    },
                   ]}
                   onPress={() => {
                     triggerHaptic('selection');
@@ -235,7 +360,10 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
                   <Text
                     style={[
                       styles.categoryChipText,
-                      { color: isSelected ? colors.primary : colors.text, fontSize: 11.5 * textScale },
+                      {
+                        color: isSelected ? colors.primary : colors.text,
+                        fontSize: 11.5 * textScale,
+                      },
                       isSelected && { fontWeight: '700' },
                     ]}>
                     {cat.label} ({count})
@@ -250,7 +378,9 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
         <ScrollView
           style={styles.body}
           contentContainerStyle={styles.bodyContent}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={true}
+          keyboardShouldPersistTaps="handled">
           {filteredWidgets.map((item, index) => {
             const def = INSIGHT_WIDGET_DEFINITIONS[item.id];
             const fullIndex = draftLayout.findIndex((w) => w.id === item.id);
@@ -258,94 +388,20 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
             const canDown = fullIndex >= 0 && fullIndex < draftLayout.length - 1;
 
             return (
-              <View
+              <WidgetRowItem
                 key={item.id}
-                style={[
-                  styles.widgetRow,
-                  { backgroundColor: colors.card, borderColor: colors.cardBorder },
-                  !item.enabled && { opacity: 0.6 },
-                ]}>
-                <View style={styles.widgetRowTop}>
-                  <View style={styles.widgetInfoLeft}>
-                    <View style={[styles.widgetIconBadge, { backgroundColor: item.enabled ? colors.primaryBg : colors.inputBg }]}>
-                      <Ionicons
-                        name={def?.icon || 'analytics'}
-                        size={18 * headerScale}
-                        color={item.enabled ? colors.primary : colors.textMuted}
-                      />
-                    </View>
-                    <View style={styles.widgetTextCol}>
-                      <Text style={[styles.widgetTitle, { color: colors.text, fontSize: 13.5 * textScale }]} numberOfLines={1}>
-                        {def?.title || item.id}
-                      </Text>
-                      <Text style={[styles.widgetSubtitle, { color: colors.textSecondary, fontSize: 11.5 * textScale }]} numberOfLines={1}>
-                        {def?.subtitle || ''}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Switch
-                    value={item.enabled}
-                    onValueChange={(val) => handleToggle(item.id, val)}
-                    thumbColor="#ffffff"
-                    trackColor={{ false: colors.cardBorder, true: colors.primary }}
-                  />
-                </View>
-
-                {item.enabled && (
-                  <View style={[styles.widgetControlsRow, { borderTopColor: colors.cardBorder }]}>
-                    {/* Size Selector */}
-                    <View style={styles.sizePillsGroup}>
-                      {(['auto', 'full', 'half', 'compact'] as InsightWidgetSize[]).map((s) => {
-                        const isSizeSelected = item.size === s;
-                        return (
-                          <Pressable
-                            key={s}
-                            style={[
-                              styles.sizePill,
-                              { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-                              isSizeSelected && { backgroundColor: colors.primaryBg, borderColor: colors.primary },
-                            ]}
-                            onPress={() => handleSetSize(item.id, s)}>
-                            <Text
-                              style={[
-                                styles.sizePillText,
-                                { color: isSizeSelected ? colors.primary : colors.textSecondary, fontSize: 10.5 * textScale },
-                                isSizeSelected && { fontWeight: '700' },
-                              ]}>
-                              {s.toUpperCase()}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-
-                    {/* Reorder Buttons */}
-                    <View style={styles.reorderButtons}>
-                      <Pressable
-                        style={[
-                          styles.reorderBtn,
-                          { borderColor: colors.cardBorder },
-                          !canUp && { opacity: 0.3 },
-                        ]}
-                        disabled={!canUp}
-                        onPress={() => handleMove(index, 'up')}>
-                        <Ionicons name="chevron-up" size={16} color={colors.text} />
-                      </Pressable>
-                      <Pressable
-                        style={[
-                          styles.reorderBtn,
-                          { borderColor: colors.cardBorder },
-                          !canDown && { opacity: 0.3 },
-                        ]}
-                        disabled={!canDown}
-                        onPress={() => handleMove(index, 'down')}>
-                        <Ionicons name="chevron-down" size={16} color={colors.text} />
-                      </Pressable>
-                    </View>
-                  </View>
-                )}
-              </View>
+                item={item}
+                def={def}
+                colors={colors}
+                headerScale={headerScale}
+                textScale={textScale}
+                canUp={canUp}
+                canDown={canDown}
+                onToggle={handleToggle}
+                onSetSize={handleSetSize}
+                onMoveUp={() => handleMove(index, 'up')}
+                onMoveDown={() => handleMove(index, 'down')}
+              />
             );
           })}
         </ScrollView>
@@ -353,16 +409,26 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
         {/* Footer */}
         <View style={[styles.footer, { borderTopColor: colors.cardBorder }]}>
           <Pressable
-            style={[styles.resetBtn, { borderColor: colors.cardBorder, minHeight: Math.round(44 * buttonScale) }]}
+            style={[
+              styles.resetBtn,
+              { borderColor: colors.cardBorder, minHeight: Math.round(44 * buttonScale) },
+            ]}
             onPress={handleReset}>
             <Ionicons name="refresh-outline" size={16 * textScale} color={colors.textSecondary} />
-            <Text style={[styles.resetBtnText, { color: colors.textSecondary, fontSize: 13 * textScale }]}>
+            <Text
+              style={[
+                styles.resetBtnText,
+                { color: colors.textSecondary, fontSize: 13 * textScale },
+              ]}>
               Reset
             </Text>
           </Pressable>
 
           <Pressable
-            style={[styles.saveBtn, { backgroundColor: colors.primary, minHeight: Math.round(44 * buttonScale) }]}
+            style={[
+              styles.saveBtn,
+              { backgroundColor: colors.primary, minHeight: Math.round(44 * buttonScale) },
+            ]}
             onPress={handleSave}>
             <Ionicons name="checkmark" size={18 * textScale} color="#ffffff" />
             <Text style={[styles.saveBtnText, { fontSize: 13.5 * textScale }]}>
@@ -370,8 +436,8 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
             </Text>
           </Pressable>
         </View>
-      </Pressable>
-    </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -417,41 +483,6 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     padding: 6,
-  },
-  previewSection: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-    gap: 8,
-  },
-  previewTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  previewTitle: {
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  previewSub: {
-    fontWeight: '500',
-  },
-  previewScroll: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  previewItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  previewItemText: {
-    fontWeight: '600',
-    flex: 1,
   },
   categoriesBar: {
     paddingVertical: 8,
@@ -523,10 +554,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 8,
     borderTopWidth: 1,
+    gap: 8,
   },
   sizePillsGroup: {
     flexDirection: 'row',
-    gap: 4,
+    gap: 5,
+    flex: 1,
   },
   sizePill: {
     paddingHorizontal: 7,
@@ -539,7 +572,7 @@ const styles = StyleSheet.create({
   },
   reorderButtons: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 4,
   },
   reorderBtn: {
     width: 28,
@@ -551,26 +584,24 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    padding: 14,
     borderTopWidth: 1,
+    gap: 10,
   },
   resetBtn: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
+    paddingHorizontal: 16,
     borderRadius: 10,
     borderWidth: 1,
   },
   resetBtnText: {
-    fontWeight: '700',
+    fontWeight: '600',
   },
   saveBtn: {
-    flex: 2,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

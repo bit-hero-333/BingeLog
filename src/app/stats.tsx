@@ -125,11 +125,16 @@ export default function StatsScreen() {
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       {/* Top Header */}
       <View style={[styles.headerBar, { borderBottomColor: colors.cardBorder }]}>
-        <View>
-          <Text style={[styles.screenTitle, { color: colors.text, fontSize: 24 * headerScale }]}>
+        <View style={styles.headerTitleCol}>
+          <Text
+            numberOfLines={1}
+            style={[styles.screenTitle, { color: colors.text, fontSize: 24 * headerScale }]}>
             Media Insights
           </Text>
-          <Text style={[styles.screenSubtitle, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+          <Text
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={[styles.screenSubtitle, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
             {activeCount} active modules • Tap for insights, hold to customize
           </Text>
         </View>
@@ -273,10 +278,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 14,
     borderBottomWidth: 1,
+  },
+  headerTitleCol: {
+    flex: 1,
+    marginRight: 12,
   },
   screenTitle: {
     fontWeight: '800',
@@ -293,6 +302,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   scroll: {
     flex: 1,
