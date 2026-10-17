@@ -22,6 +22,7 @@ import { StatsHeader } from '@/components/StatsHeader';
 import { StatusFilterChips, FilterStatus } from '@/components/StatusFilterChips';
 import { TrackModal } from '@/components/TrackModal';
 import { getCountdownInfo } from '@/utils/date';
+import { getTextScale, getHeaderScale, getButtonScale } from '@/utils/sizing';
 
 type MediaTypeFilter = 'all' | 'movie' | 'tv';
 
@@ -70,8 +71,13 @@ export default function MyListScreen() {
     triggerHaptic,
     selectedRegion,
     selectedTimezone,
+    sizingConfig,
   } = useMedia();
   const { colors } = useAppTheme();
+
+  const textScale = getTextScale(sizingConfig?.textSize);
+  const headerScale = getHeaderScale(sizingConfig?.headerSize);
+  const buttonScale = getButtonScale(sizingConfig?.buttonSize);
 
   const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaTypeFilter>('all');
   const [mediaTypeModalVisible, setMediaTypeModalVisible] = useState(false);
@@ -314,10 +320,10 @@ export default function MyListScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Subheader / Search & Sort bar */}
       <View style={[styles.topControlSection, { backgroundColor: colors.background }]}>
-        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-          <Ionicons name="search" size={16} color={colors.textSecondary} />
+        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.cardBorder, minHeight: Math.max(36, Math.round(38 * buttonScale)) }]}>
+          <Ionicons name="search" size={Math.round(16 * textScale)} color={colors.textSecondary} />
           <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
+            style={[styles.searchInput, { color: colors.text, fontSize: Math.round(13 * textScale) }]}
             placeholder="Filter your list..."
             placeholderTextColor={colors.textMuted}
             value={filterQuery}
@@ -325,19 +331,19 @@ export default function MyListScreen() {
           />
           {filterQuery.length > 0 && (
             <Pressable onPress={() => setFilterQuery('')} style={styles.clearBtn}>
-              <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+              <Ionicons name="close-circle" size={Math.round(16 * textScale)} color={colors.textSecondary} />
             </Pressable>
           )}
         </View>
 
         <Pressable
-          style={[styles.sortButton, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+          style={[styles.sortButton, { backgroundColor: colors.card, borderColor: colors.cardBorder, minHeight: Math.max(36, Math.round(38 * buttonScale)) }]}
           onPress={() => {
             triggerHaptic('selection');
             setSortModalVisible(true);
           }}>
-          <Ionicons name="swap-vertical" size={14} color={colors.primary} />
-          <Text style={[styles.sortButtonText, { color: colors.primary }]}>{activeSortLabel}</Text>
+          <Ionicons name="swap-vertical" size={Math.round(14 * textScale)} color={colors.primary} />
+          <Text style={[styles.sortButtonText, { color: colors.primary, fontSize: Math.round(12 * textScale) }]}>{activeSortLabel}</Text>
         </Pressable>
       </View>
 
@@ -347,7 +353,7 @@ export default function MyListScreen() {
           <Pressable
             style={[
               styles.mediaTypeDropdownBtn,
-              { backgroundColor: colors.card, borderColor: colors.cardBorder },
+              { backgroundColor: colors.card, borderColor: colors.cardBorder, minHeight: Math.max(36, Math.round(38 * buttonScale)) },
               mediaTypeFilter !== 'all' && { borderColor: colors.primary, backgroundColor: colors.primaryBg },
             ]}
             onPress={() => {
@@ -362,13 +368,13 @@ export default function MyListScreen() {
                   ? 'tv-outline'
                   : 'layers-outline'
               }
-              size={14}
+              size={Math.round(14 * textScale)}
               color={mediaTypeFilter !== 'all' ? colors.primary : colors.textSecondary}
             />
             <Text
               style={[
                 styles.mediaTypeDropdownText,
-                { color: mediaTypeFilter !== 'all' ? colors.primary : colors.text },
+                { color: mediaTypeFilter !== 'all' ? colors.primary : colors.text, fontSize: Math.round(12.5 * textScale) },
               ]}
               numberOfLines={1}>
               {mediaTypeFilter === 'movie'
@@ -379,7 +385,7 @@ export default function MyListScreen() {
             </Text>
             <Ionicons
               name="chevron-down"
-              size={13}
+              size={Math.round(13 * textScale)}
               color={mediaTypeFilter !== 'all' ? colors.primary : colors.textSecondary}
             />
           </Pressable>
@@ -390,6 +396,7 @@ export default function MyListScreen() {
               {
                 backgroundColor: filterUpcomingOnly ? colors.primaryBg : colors.card,
                 borderColor: filterUpcomingOnly ? colors.primary : colors.cardBorder,
+                minHeight: Math.max(36, Math.round(38 * buttonScale)),
               },
             ]}
             onPress={() => {
@@ -398,13 +405,13 @@ export default function MyListScreen() {
             }}>
             <Ionicons
               name="calendar-outline"
-              size={13}
+              size={Math.round(13 * textScale)}
               color={filterUpcomingOnly ? colors.primary : colors.textSecondary}
             />
             <Text
               style={[
                 styles.upcomingToggleText,
-                { color: filterUpcomingOnly ? colors.primary : colors.textSecondary },
+                { color: filterUpcomingOnly ? colors.primary : colors.textSecondary, fontSize: Math.round(12 * textScale) },
               ]}>
               Upcoming ({upcomingCount})
             </Text>
@@ -445,7 +452,7 @@ export default function MyListScreen() {
               <Text
                 style={[
                   styles.genreChipText,
-                  { color: selectedGenre === null ? colors.primary : colors.textSecondary, fontWeight: selectedGenre === null ? '700' : '500' },
+                  { color: selectedGenre === null ? colors.primary : colors.textSecondary, fontWeight: selectedGenre === null ? '700' : '500', fontSize: Math.round(12 * textScale) },
                 ]}>
                 All Genres
               </Text>
@@ -470,7 +477,7 @@ export default function MyListScreen() {
                   <Text
                     style={[
                       styles.genreChipText,
-                      { color: isSelected ? colors.primary : colors.textSecondary, fontWeight: isSelected ? '700' : '500' },
+                      { color: isSelected ? colors.primary : colors.textSecondary, fontWeight: isSelected ? '700' : '500', fontSize: Math.round(12 * textScale) },
                     ]}>
                     {name} ({count})
                   </Text>
@@ -524,12 +531,12 @@ export default function MyListScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="bookmark-outline" size={52} color={colors.textMuted} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]} selectable={true}>
+            <Text style={[styles.emptyTitle, { color: colors.text, fontSize: Math.round(17 * headerScale) }]} selectable={true}>
               {trackedItems.length === 0
                 ? 'Your list is empty'
                 : 'No matching titles found'}
             </Text>
-            <Text style={[styles.emptySub, { color: colors.textSecondary }]} selectable={true}>
+            <Text style={[styles.emptySub, { color: colors.textSecondary, fontSize: Math.round(13 * textScale) }]} selectable={true}>
               {trackedItems.length === 0
                 ? 'Explore trending movies & TV shows and add them to your tracker.'
                 : 'Try changing your filters, genre selection, or search keyword.'}
@@ -537,10 +544,10 @@ export default function MyListScreen() {
 
             {trackedItems.length === 0 && (
               <Pressable
-                style={[styles.discoverBtn, { backgroundColor: colors.primary }]}
+                style={[styles.discoverBtn, { backgroundColor: colors.primary, minHeight: Math.max(38, Math.round(40 * buttonScale)) }]}
                 onPress={() => router.push('/')}>
-                <Ionicons name="compass-outline" size={16} color="#ffffff" />
-                <Text style={styles.discoverBtnText}>Explore Titles</Text>
+                <Ionicons name="compass-outline" size={Math.round(16 * textScale)} color="#ffffff" />
+                <Text style={[styles.discoverBtnText, { fontSize: Math.round(14 * textScale) }]}>Explore Titles</Text>
               </Pressable>
             )}
           </View>
@@ -559,8 +566,8 @@ export default function MyListScreen() {
             onPress={(e) => e.stopPropagation()}>
             <View style={[styles.sortModalHeader, { borderBottomColor: colors.divider }]}>
               <View style={styles.sortModalHeaderTitleRow}>
-                <Ionicons name="swap-vertical" size={18} color={colors.primary} />
-                <Text style={[styles.sortModalTitle, { color: colors.text }]} selectable={true}>Sort Watchlist</Text>
+                <Ionicons name="swap-vertical" size={Math.round(18 * headerScale)} color={colors.primary} />
+                <Text style={[styles.sortModalTitle, { color: colors.text, fontSize: Math.round(16 * headerScale) }]} selectable={true}>Sort Watchlist</Text>
               </View>
               <Pressable
                 onPress={() => setSortModalVisible(false)}
@@ -589,13 +596,13 @@ export default function MyListScreen() {
                     <View style={styles.sortOptionLeft}>
                       <Ionicons
                         name={opt.icon}
-                        size={17}
+                        size={Math.round(17 * textScale)}
                         color={isSelected ? colors.primary : colors.textSecondary}
                       />
                       <Text
                         style={[
                           styles.sortOptionLabel,
-                          { color: isSelected ? colors.primary : colors.text },
+                          { color: isSelected ? colors.primary : colors.text, fontSize: Math.round(13.5 * textScale) },
                           isSelected && { fontWeight: '700' },
                         ]}>
                         {opt.label}
@@ -625,8 +632,8 @@ export default function MyListScreen() {
             onPress={(e) => e.stopPropagation()}>
             <View style={[styles.sortModalHeader, { borderBottomColor: colors.divider }]}>
               <View style={styles.sortModalHeaderTitleRow}>
-                <Ionicons name="filter-outline" size={18} color={colors.primary} />
-                <Text style={[styles.sortModalTitle, { color: colors.text }]} selectable={true}>
+                <Ionicons name="filter-outline" size={Math.round(18 * headerScale)} color={colors.primary} />
+                <Text style={[styles.sortModalTitle, { color: colors.text, fontSize: Math.round(16 * headerScale) }]} selectable={true}>
                   Filter by Media Type
                 </Text>
               </View>
@@ -678,13 +685,13 @@ export default function MyListScreen() {
                     <View style={styles.sortOptionLeft}>
                       <Ionicons
                         name={opt.icon}
-                        size={17}
+                        size={Math.round(17 * textScale)}
                         color={isSelected ? colors.primary : colors.textSecondary}
                       />
                       <Text
                         style={[
                           styles.sortOptionLabel,
-                          { color: isSelected ? colors.primary : colors.text },
+                          { color: isSelected ? colors.primary : colors.text, fontSize: Math.round(13.5 * textScale) },
                           isSelected && { fontWeight: '700' },
                         ]}>
                         {opt.label} ({opt.count})

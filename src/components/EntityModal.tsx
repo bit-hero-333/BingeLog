@@ -24,6 +24,12 @@ import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { formatDateDisplay } from '@/utils/date';
+import {
+  getTextScale,
+  getHeaderScale,
+  getButtonScale,
+  getPosterScale,
+} from '@/utils/sizing';
 
 interface EntityModalProps {
   visible: boolean;
@@ -46,8 +52,13 @@ function EntityModalContent({
   onSelectMedia,
   onFilterInDiscover,
 }: EntityModalContentProps) {
-  const { apiKey, showActorImages, sizingConfig, dateFormat, triggerHaptic } = useMedia();
+  const { apiKey, showActorImages, sizingConfig, dateFormat, triggerHaptic, selectedRegion } = useMedia();
   const { colors } = useAppTheme();
+
+  const textScale = getTextScale(sizingConfig.textSize);
+  const headerScale = getHeaderScale(sizingConfig.headerSize);
+  const buttonScale = getButtonScale(sizingConfig.buttonSize);
+  const posterScale = getPosterScale(sizingConfig.posterSize);
 
   const [translateY] = useState(() => new Animated.Value(0));
 
@@ -88,6 +99,7 @@ function EntityModalContent({
   const [personData, setPersonData] = useState<PersonFullDetails | null>(null);
   const [companyData, setCompanyData] = useState<CompanyFullDetails | null>(null);
   const [genreData, setGenreData] = useState<GenreFullDetails | null>(null);
+  const [providerWorks, setProviderWorks] = useState<TMDBMediaItem[]>([]);
   const [bioExpanded, setBioExpanded] = useState(false);
 
   useEffect(() => {
@@ -117,22 +129,23 @@ function EntityModalContent({
           .finally(() => {
             if (isMounted) setIsLoading(false);
           });
+      } else if (entity.type === 'provider') {
+        TMDBService.discoverByEntity('provider', entity.id, apiKey, 1, selectedRegion)
+          .then((data) => {
+            if (isMounted) setProviderWorks(data || []);
+          })
+          .finally(() => {
+            if (isMounted) setIsLoading(false);
+          });
       }
     }
     return () => {
       isMounted = false;
     };
-  }, [entity, apiKey]);
+  }, [entity, apiKey, selectedRegion]);
 
   // Sizing styles derived from sizingConfig
-  const bioFontSize =
-    sizingConfig.textSize === 'small'
-      ? 11
-      : sizingConfig.textSize === 'large'
-      ? 14
-      : sizingConfig.textSize === 'xlarge'
-      ? 15
-      : 12.5;
+  const bioFontSize = 12.5 * textScale;
 
   const handleApplyFilter = () => {
     if (onFilterInDiscover) {
@@ -146,7 +159,7 @@ function EntityModalContent({
   };
 
   const knownWorks =
-    personData?.knownWorks || companyData?.knownWorks || genreData?.knownWorks || [];
+    personData?.knownWorks || companyData?.knownWorks || genreData?.knownWorks || providerWorks || [];
 
   return (
     <View style={styles.overlay}>
@@ -178,29 +191,33 @@ function EntityModalContent({
                     ? 'person'
                     : entity.type === 'genre'
                     ? 'pricetag'
+                    : entity.type === 'provider'
+                    ? 'tv'
                     : 'business'
                 }
-                size={12}
+                size={12 * textScale}
                 color={colors.primary}
               />
-              <Text style={[styles.entityTypeBadgeText, { color: colors.primary }]}>
+              <Text style={[styles.entityTypeBadgeText, { color: colors.primary, fontSize: 10 * textScale }]}>
                 {entity.type === 'person'
                   ? 'PEOPLE / CAST'
                   : entity.type === 'genre'
                   ? 'GENRE'
+                  : entity.type === 'provider'
+                  ? 'STREAMING SERVICE'
                   : 'PRODUCTION / STUDIO'}
               </Text>
             </View>
 
             <Pressable onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={20} color={colors.textSecondary} />
+              <Ionicons name="close" size={20 * textScale} color={colors.textSecondary} />
             </Pressable>
           </View>
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Fetching details from TMDB...</Text>
+              <Text style={[styles.loadingText, { color: colors.textSecondary, fontSize: 13 * textScale }]}>Fetching details from TMDB...</Text>
             </View>
           ) : (
             <>
@@ -226,17 +243,17 @@ function EntityModalContent({
                   )}
 
                   <View style={styles.profileDetails}>
-                    <Text style={[styles.entityName, { color: colors.text }]} selectable={true}>
+                    <Text style={[styles.entityName, { color: colors.text, fontSize: 18 * headerScale }]} selectable={true}>
                       {personData?.name || entity.name}
                     </Text>
                     {entity.role ? (
-                      <Text style={[styles.roleSub, { color: colors.textSecondary }]} selectable={true}>{entity.role}</Text>
+                      <Text style={[styles.roleSub, { color: colors.textSecondary, fontSize: 12 * textScale }]} selectable={true}>{entity.role}</Text>
                     ) : personData?.knownForDepartment ? (
-                      <Text style={[styles.roleSub, { color: colors.textSecondary }]} selectable={true}>Known for: {personData.knownForDepartment}</Text>
+                      <Text style={[styles.roleSub, { color: colors.textSecondary, fontSize: 12 * textScale }]} selectable={true}>Known for: {personData.knownForDepartment}</Text>
                     ) : null}
 
                     {personData?.birthday ? (
-                      <Text style={[styles.metaInfoText, { color: colors.textMuted }]} selectable={true}>
+                      <Text style={[styles.metaInfoText, { color: colors.textMuted, fontSize: 11 * textScale }]} selectable={true}>
                         Born: {formatDateDisplay(personData.birthday, dateFormat)}
                         {personData.placeOfBirth ? ` in ${personData.placeOfBirth}` : ''}
                       </Text>
@@ -265,19 +282,52 @@ function EntityModalContent({
                   )}
 
                   <View style={styles.profileDetails}>
-                    <Text style={[styles.entityName, { color: colors.text }]} selectable={true}>
+                    <Text style={[styles.entityName, { color: colors.text, fontSize: 18 * headerScale }]} selectable={true}>
                       {companyData?.name || entity.name}
                     </Text>
                     {companyData?.headquarters ? (
-                      <Text style={[styles.metaInfoText, { color: colors.textMuted }]} selectable={true}>
+                      <Text style={[styles.metaInfoText, { color: colors.textMuted, fontSize: 11 * textScale }]} selectable={true}>
                         Headquarters: {companyData.headquarters}
                       </Text>
                     ) : null}
                     {companyData?.originCountry ? (
-                      <Text style={[styles.metaInfoText, { color: colors.textMuted }]} selectable={true}>
+                      <Text style={[styles.metaInfoText, { color: colors.textMuted, fontSize: 11 * textScale }]} selectable={true}>
                         Country: {companyData.originCountry}
                       </Text>
                     ) : null}
+                  </View>
+                </View>
+              )}
+
+              {/* Provider Banner */}
+              {entity.type === 'provider' && (
+                <View style={styles.profileBanner}>
+                  {entity.profilePath ? (
+                    <View style={[styles.providerLogoWrapper, { backgroundColor: colors.inputBg }]}>
+                      <Image
+                        source={{
+                          uri: TMDBService.getImageUrl(entity.profilePath, 'w185') || '',
+                        }}
+                        style={styles.providerLogo}
+                        contentFit="contain"
+                      />
+                    </View>
+                  ) : (
+                    <View style={[styles.personPortrait, styles.portraitFallback, { backgroundColor: colors.cardBorder }]}>
+                      <Ionicons name="tv-outline" size={32} color={colors.textSecondary} />
+                    </View>
+                  )}
+
+                  <View style={styles.profileDetails}>
+                    <Text style={[styles.entityName, { color: colors.text, fontSize: 18 * headerScale }]} selectable={true}>
+                      {entity.name}
+                    </Text>
+                    <Text style={[styles.roleSub, { color: colors.primary, fontSize: 12 * textScale }]} selectable={true}>
+                      Streaming Service
+                    </Text>
+                    <Text style={[styles.metaInfoText, { color: colors.textMuted, fontSize: 11 * textScale }]} selectable={true}>
+                      Catalog available in {selectedRegion || 'Worldwide'}
+                    </Text>
                   </View>
                 </View>
               )}
@@ -289,8 +339,8 @@ function EntityModalContent({
                     <Ionicons name="film" size={24} color={colors.primary} />
                   </View>
                   <View>
-                    <Text style={[styles.entityName, { color: colors.text }]} selectable={true}>{entity.name}</Text>
-                    <Text style={[styles.roleSub, { color: colors.textSecondary }]}>Browse popular movies & TV shows</Text>
+                    <Text style={[styles.entityName, { color: colors.text, fontSize: 18 * headerScale }]} selectable={true}>{entity.name}</Text>
+                    <Text style={[styles.roleSub, { color: colors.textSecondary, fontSize: 12 * textScale }]}>Browse popular movies & TV shows</Text>
                   </View>
                 </View>
               )}
@@ -298,7 +348,7 @@ function EntityModalContent({
               {/* Biography / Description */}
               {(personData?.biography || companyData?.description) ? (
                 <View style={[styles.bioCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-                  <Text style={[styles.bioTitle, { color: colors.textSecondary }]}>
+                  <Text style={[styles.bioTitle, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
                     {entity.type === 'person' ? 'Biography' : 'About'}
                   </Text>
                   <Text
@@ -310,7 +360,7 @@ function EntityModalContent({
                   <Pressable
                     style={styles.expandBioBtn}
                     onPress={() => setBioExpanded(!bioExpanded)}>
-                    <Text style={[styles.expandBioText, { color: colors.primary }]}>
+                    <Text style={[styles.expandBioText, { color: colors.primary, fontSize: 11 * textScale }]}>
                       {bioExpanded ? 'Show less' : 'Read full biography...'}
                     </Text>
                   </Pressable>
@@ -321,12 +371,16 @@ function EntityModalContent({
               <Pressable
                 style={({ pressed }) => [
                   styles.filterActionBtn,
-                  { backgroundColor: colors.primary },
+                  {
+                    backgroundColor: colors.primary,
+                    paddingVertical: 12 * buttonScale,
+                    paddingHorizontal: 16 * buttonScale,
+                  },
                   pressed && styles.btnPressed,
                 ]}
                 onPress={handleApplyFilter}>
-                <Ionicons name="search" size={16} color="#ffffff" />
-                <Text style={styles.filterActionBtnText}>
+                <Ionicons name="search" size={16 * textScale} color="#ffffff" />
+                <Text style={[styles.filterActionBtnText, { fontSize: 13 * textScale }]}>
                   Search & Filter in Discover ({entity.name})
                 </Text>
               </Pressable>
@@ -335,14 +389,16 @@ function EntityModalContent({
               {knownWorks.length > 0 && (
                 <View style={styles.knownWorksSection}>
                   <View style={styles.sectionHeaderRow}>
-                    <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 13 * headerScale }]}>
                       {entity.type === 'person'
                         ? 'Known Works / Filmography'
                         : entity.type === 'genre'
                         ? `Top ${entity.name} Titles`
+                        : entity.type === 'provider'
+                        ? `Popular on ${entity.name}`
                         : 'Top Productions'}
                     </Text>
-                    <Text style={[styles.countText, { color: colors.textSecondary }]}>{knownWorks.length} titles</Text>
+                    <Text style={[styles.countText, { color: colors.textSecondary, fontSize: 11 * textScale }]}>{knownWorks.length} titles</Text>
                   </View>
 
                   <ScrollView
@@ -353,18 +409,29 @@ function EntityModalContent({
                       const posterUrl = TMDBService.getImageUrl(work.poster_path, 'w185');
                       const workTitle = work.title || work.name || 'Untitled';
                       const workYear = (work.release_date || work.first_air_date || '').substring(0, 4);
+                      const cardW = 90 * posterScale;
+                      const cardH = 130 * posterScale;
 
                       return (
                         <Pressable
                           key={`entity-work-${work.id}-${work.media_type || 'm'}`}
-                          style={[styles.workCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+                          style={[styles.workCard, { width: cardW }]}
                           onPress={() => {
                             if (onSelectMedia) {
                               onSelectMedia(work);
                               onClose();
                             }
                           }}>
-                          <View style={styles.workPosterWrapper}>
+                          <View
+                            style={[
+                              styles.workPosterWrapper,
+                              {
+                                width: cardW,
+                                height: cardH,
+                                backgroundColor: colors.inputBg,
+                                borderColor: colors.cardBorder,
+                              },
+                            ]}>
                             {posterUrl ? (
                               <Image
                                 source={{ uri: posterUrl }}
@@ -373,25 +440,32 @@ function EntityModalContent({
                               />
                             ) : (
                               <View style={[styles.workPoster, styles.posterFallback]}>
-                                <Ionicons name="film-outline" size={20} color={colors.textSecondary} />
+                                <Ionicons name="film-outline" size={20 * textScale} color={colors.textSecondary} />
                               </View>
                             )}
                             {work.vote_average ? (
                               <View style={styles.ratingBadge}>
-                                <Ionicons name="star" size={9} color="#f59e0b" />
-                                <Text style={styles.ratingBadgeText} selectable={true}>
+                                <Ionicons name="star" size={9 * textScale} color="#f59e0b" />
+                                <Text style={[styles.ratingBadgeText, { fontSize: 9 * textScale }]} selectable={true}>
                                   {work.vote_average.toFixed(1)}
                                 </Text>
                               </View>
                             ) : null}
                           </View>
 
-                          <Text style={[styles.workTitle, { color: colors.text }]} numberOfLines={2} selectable={true}>
+                          <Text
+                            style={[styles.workTitle, { color: colors.text, fontSize: 11 * textScale }]}
+                            numberOfLines={2}
+                            selectable={true}>
                             {workTitle}
                           </Text>
-                          <Text style={[styles.workYear, { color: colors.textSecondary }]} selectable={true}>
-                            {workYear ? workYear : (work.media_type || '').toUpperCase()}
-                          </Text>
+                          {workYear ? (
+                            <Text
+                              style={[styles.workYear, { color: colors.textSecondary, fontSize: 10 * textScale }]}
+                              selectable={true}>
+                              {workYear ? workYear : (work.media_type || '').toUpperCase()}
+                            </Text>
+                          ) : null}
                         </Pressable>
                       );
                     })}
@@ -535,6 +609,21 @@ const styles = StyleSheet.create({
   companyLogo: {
     width: '100%',
     height: '100%',
+  },
+  providerLogoWrapper: {
+    width: 72,
+    height: 72,
+    borderRadius: 14,
+    backgroundColor: '#1e2433',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 6,
+    overflow: 'hidden',
+  },
+  providerLogo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
   },
   portraitFallback: {
     justifyContent: 'center',

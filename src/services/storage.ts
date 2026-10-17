@@ -9,6 +9,8 @@ import {
   TimeFormatOption,
   DEFAULT_TIME_FORMAT,
   NotificationTimingOption,
+  ProviderDisplayStrategy,
+  StreamingRegionStrategy,
 } from '@/types/media';
 import { ThemeMode, ThemePresetId } from '@/constants/theme';
 import { HapticIntensity } from '@/services/haptics';
@@ -43,6 +45,10 @@ const STORAGE_KEYS = {
   NOTIFICATION_DAYS_AHEAD: '@pmt_notification_days_ahead',
   TIME_FORMAT: '@pmt_time_format',
   NOTIFICATION_TIMING: '@pmt_notification_timing',
+  STREAMING_DISPLAY_STRATEGY: '@pmt_streaming_display_strategy',
+  MY_SUBSCRIBED_PROVIDERS: '@pmt_my_subscribed_providers',
+  STREAMING_REGION_STRATEGY: '@pmt_streaming_region_strategy',
+  CUSTOM_STREAMING_REGION: '@pmt_custom_streaming_region',
 };
 
 export const StorageService = {
@@ -585,6 +591,81 @@ export const StorageService = {
   async saveNotificationTiming(timing: NotificationTimingOption): Promise<boolean> {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATION_TIMING, timing);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getStreamingDisplayStrategy(): Promise<ProviderDisplayStrategy> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.STREAMING_DISPLAY_STRATEGY);
+      if (val === 'all' || val === 'subscribed' || val === 'none') return val;
+      return 'all';
+    } catch {
+      return 'all';
+    }
+  },
+
+  async saveStreamingDisplayStrategy(strategy: ProviderDisplayStrategy): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.STREAMING_DISPLAY_STRATEGY, strategy);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getMySubscribedProviders(): Promise<number[]> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.MY_SUBSCRIBED_PROVIDERS);
+      if (!val) return [8, 9, 337, 350, 1899, 283]; // Default popular streaming services
+      return JSON.parse(val) as number[];
+    } catch {
+      return [8, 9, 337, 350, 1899, 283];
+    }
+  },
+
+  async saveMySubscribedProviders(providers: number[]): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.MY_SUBSCRIBED_PROVIDERS, JSON.stringify(providers));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getStreamingRegionStrategy(): Promise<StreamingRegionStrategy> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.STREAMING_REGION_STRATEGY);
+      if (val === 'match_region' || val === 'custom' || val === 'worldwide') return val;
+      return 'match_region';
+    } catch {
+      return 'match_region';
+    }
+  },
+
+  async saveStreamingRegionStrategy(strategy: StreamingRegionStrategy): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.STREAMING_REGION_STRATEGY, strategy);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getCustomStreamingRegion(): Promise<string> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_STREAMING_REGION);
+      return val || 'US';
+    } catch {
+      return 'US';
+    }
+  },
+
+  async saveCustomStreamingRegion(region: string): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_STREAMING_REGION, region);
       return true;
     } catch {
       return false;

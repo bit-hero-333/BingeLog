@@ -36,10 +36,16 @@ import {
   DATE_FORMAT_OPTIONS,
   POPULAR_REGIONS,
   POPULAR_TIMEZONES,
+  POPULAR_STREAMING_PROVIDERS,
+  ProviderDisplayStrategy,
+  StreamingRegionStrategy,
 } from '@/types/media';
+import {
+  getTextScale,
+  getHeaderScale,
+} from '@/utils/sizing';
 import { getTodayFormatted } from '@/utils/date';
 import { SyncModal } from '@/components/SyncModal';
-
 
 const SCALES: ElementScale[] = ['small', 'medium', 'large', 'xlarge'];
 
@@ -99,7 +105,19 @@ export default function SettingsScreen() {
     sendTestNotification,
     scheduledNotificationsCount,
     refreshScheduledNotifications,
+    streamingDisplayStrategy,
+    setStreamingDisplayStrategy,
+    mySubscribedProviders,
+    toggleSubscribedProvider,
+    setMySubscribedProviders,
+    streamingRegionStrategy,
+    setStreamingRegionStrategy,
+    customStreamingRegion,
+    setCustomStreamingRegion,
   } = useMedia();
+
+  const textScale = getTextScale(sizingConfig?.textSize);
+  const headerScale = getHeaderScale(sizingConfig?.headerSize);
 
   const {
     mode,
@@ -116,6 +134,7 @@ export default function SettingsScreen() {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     appearance: false,
     sizing: false,
+    streaming: false,
     haptics: false,
     dates: false,
     regional: false,
@@ -167,9 +186,11 @@ export default function SettingsScreen() {
     setExpandedSections({
       appearance: next,
       sizing: next,
+      streaming: next,
       haptics: next,
       dates: next,
       regional: next,
+      notifications: next,
       api: next,
       storage: next,
       about: next,
@@ -388,7 +409,16 @@ export default function SettingsScreen() {
   };
 
   const handleStepSizing = (
-    key: 'textSize' | 'castSize' | 'tagSize' | 'rowDensity' | 'seasonEpisodeSize',
+    key:
+      | 'textSize'
+      | 'castSize'
+      | 'tagSize'
+      | 'rowDensity'
+      | 'seasonEpisodeSize'
+      | 'posterSize'
+      | 'buttonSize'
+      | 'providerSize'
+      | 'headerSize',
     delta: number
   ) => {
     const currentVal = sizingConfig[key] || 'medium';
@@ -1088,6 +1118,186 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Slider 6: Poster & Artwork Scale */}
+        <View style={styles.sliderControlRow}>
+          <View style={styles.sliderInfo}>
+            <Text style={[styles.sliderTitle, { color: colors.text }]}>Poster & Artwork Scale</Text>
+            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
+              {SCALE_LABELS[sizingConfig.posterSize || 'medium']}
+            </Text>
+          </View>
+          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                (sizingConfig.posterSize || 'medium') === 'small' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('posterSize', -1)}
+              disabled={(sizingConfig.posterSize || 'medium') === 'small'}>
+              <Ionicons name="remove" size={16} color={colors.text} />
+            </Pressable>
+            <View style={styles.stepLevelPipContainer}>
+              {SCALES.map((scale, i) => (
+                <View
+                  key={scale}
+                  style={[
+                    styles.stepPip,
+                    { backgroundColor: colors.cardBorder },
+                    SCALES.indexOf(sizingConfig.posterSize || 'medium') >= i && [
+                      styles.stepPipActive,
+                      { backgroundColor: colors.primary },
+                    ],
+                  ]}
+                />
+              ))}
+            </View>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                (sizingConfig.posterSize || 'medium') === 'xlarge' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('posterSize', 1)}
+              disabled={(sizingConfig.posterSize || 'medium') === 'xlarge'}>
+              <Ionicons name="add" size={16} color={colors.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Slider 7: Buttons & Touch Targets */}
+        <View style={styles.sliderControlRow}>
+          <View style={styles.sliderInfo}>
+            <Text style={[styles.sliderTitle, { color: colors.text }]}>Buttons & Touch Targets</Text>
+            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
+              {SCALE_LABELS[sizingConfig.buttonSize || 'medium']}
+            </Text>
+          </View>
+          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                (sizingConfig.buttonSize || 'medium') === 'small' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('buttonSize', -1)}
+              disabled={(sizingConfig.buttonSize || 'medium') === 'small'}>
+              <Ionicons name="remove" size={16} color={colors.text} />
+            </Pressable>
+            <View style={styles.stepLevelPipContainer}>
+              {SCALES.map((scale, i) => (
+                <View
+                  key={scale}
+                  style={[
+                    styles.stepPip,
+                    { backgroundColor: colors.cardBorder },
+                    SCALES.indexOf(sizingConfig.buttonSize || 'medium') >= i && [
+                      styles.stepPipActive,
+                      { backgroundColor: colors.primary },
+                    ],
+                  ]}
+                />
+              ))}
+            </View>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                (sizingConfig.buttonSize || 'medium') === 'xlarge' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('buttonSize', 1)}
+              disabled={(sizingConfig.buttonSize || 'medium') === 'xlarge'}>
+              <Ionicons name="add" size={16} color={colors.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Slider 8: Streaming Provider Chips */}
+        <View style={styles.sliderControlRow}>
+          <View style={styles.sliderInfo}>
+            <Text style={[styles.sliderTitle, { color: colors.text }]}>Watch Provider Chips</Text>
+            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
+              {SCALE_LABELS[sizingConfig.providerSize || 'medium']}
+            </Text>
+          </View>
+          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                (sizingConfig.providerSize || 'medium') === 'small' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('providerSize', -1)}
+              disabled={(sizingConfig.providerSize || 'medium') === 'small'}>
+              <Ionicons name="remove" size={16} color={colors.text} />
+            </Pressable>
+            <View style={styles.stepLevelPipContainer}>
+              {SCALES.map((scale, i) => (
+                <View
+                  key={scale}
+                  style={[
+                    styles.stepPip,
+                    { backgroundColor: colors.cardBorder },
+                    SCALES.indexOf(sizingConfig.providerSize || 'medium') >= i && [
+                      styles.stepPipActive,
+                      { backgroundColor: colors.primary },
+                    ],
+                  ]}
+                />
+              ))}
+            </View>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                (sizingConfig.providerSize || 'medium') === 'xlarge' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('providerSize', 1)}
+              disabled={(sizingConfig.providerSize || 'medium') === 'xlarge'}>
+              <Ionicons name="add" size={16} color={colors.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Slider 9: Headers & Section Titles */}
+        <View style={styles.sliderControlRow}>
+          <View style={styles.sliderInfo}>
+            <Text style={[styles.sliderTitle, { color: colors.text }]}>Headers & Section Titles</Text>
+            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
+              {SCALE_LABELS[sizingConfig.headerSize || 'medium']}
+            </Text>
+          </View>
+          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                (sizingConfig.headerSize || 'medium') === 'small' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('headerSize', -1)}
+              disabled={(sizingConfig.headerSize || 'medium') === 'small'}>
+              <Ionicons name="remove" size={16} color={colors.text} />
+            </Pressable>
+            <View style={styles.stepLevelPipContainer}>
+              {SCALES.map((scale, i) => (
+                <View
+                  key={scale}
+                  style={[
+                    styles.stepPip,
+                    { backgroundColor: colors.cardBorder },
+                    SCALES.indexOf(sizingConfig.headerSize || 'medium') >= i && [
+                      styles.stepPipActive,
+                      { backgroundColor: colors.primary },
+                    ],
+                  ]}
+                />
+              ))}
+            </View>
+            <Pressable
+              style={[
+                styles.stepBtn,
+                (sizingConfig.headerSize || 'medium') === 'xlarge' && styles.stepBtnDisabled,
+              ]}
+              onPress={() => handleStepSizing('headerSize', 1)}
+              disabled={(sizingConfig.headerSize || 'medium') === 'xlarge'}>
+              <Ionicons name="add" size={16} color={colors.text} />
+            </Pressable>
+          </View>
+        </View>
+
         {/* Live Interactive Sizing Preview Box */}
         <View style={[styles.previewBox, { backgroundColor: colors.cardSelected, borderColor: colors.cardBorder }]}>
           <Text style={[styles.previewBoxTitle, { color: colors.primary }]}>SIZING LIVE PREVIEW</Text>
@@ -1262,6 +1472,257 @@ export default function SettingsScreen() {
             thumbColor="#ffffff"
           />
         </View>
+          </View>
+        )}
+      </View>
+
+      {/* ============================================================== */}
+      {/* STREAMING & WATCH PROVIDERS */}
+      {/* ============================================================== */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => toggleSection('streaming')}>
+          <View style={styles.accordionLeft}>
+            <Ionicons name="tv-outline" size={20} color={colors.primary} />
+            <View style={styles.accordionTextGroup}>
+              <Text style={[styles.cardTitle, { color: colors.text, fontSize: 15 * headerScale }]}>
+                Streaming & Watch Providers
+              </Text>
+              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                {streamingDisplayStrategy === 'all'
+                  ? 'All Providers'
+                  : streamingDisplayStrategy === 'subscribed'
+                  ? 'Subscribed Only'
+                  : 'Hidden'}{' '}
+                • {mySubscribedProviders.length} Subscribed
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name={expandedSections.streaming ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textSecondary}
+          />
+        </Pressable>
+
+        {expandedSections.streaming && (
+          <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary, fontSize: 12.5 * textScale }]}>
+              Configure streaming provider visibility and select the services you subscribe to. These are used to highlight availability and incorporate streaming logos onto release alert cards.
+            </Text>
+
+            {/* Strategy 1: Display Mode */}
+            <Text style={[styles.subControlLabel, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
+              STREAMING AVAILABILITY DISPLAY
+            </Text>
+            <View style={styles.providerStrategyRow}>
+              {(
+                [
+                  { id: 'all', label: 'All Providers', desc: 'Show all, highlight subscribed' },
+                  { id: 'subscribed', label: 'Subscribed Only', desc: 'Only show your services' },
+                  { id: 'none', label: 'Hidden', desc: 'Hide availability cards' },
+                ] as { id: ProviderDisplayStrategy; label: string; desc: string }[]
+              ).map((opt) => {
+                const isSelected = streamingDisplayStrategy === opt.id;
+                return (
+                  <Pressable
+                    key={opt.id}
+                    style={[
+                      styles.strategyBtn,
+                      { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                      isSelected && { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      void setStreamingDisplayStrategy(opt.id);
+                    }}>
+                    <View style={styles.strategyRadioRow}>
+                      <View
+                        style={[
+                          styles.radioCircle,
+                          { borderColor: colors.cardBorder },
+                          isSelected && { borderColor: colors.primary },
+                        ]}>
+                        {isSelected && <View style={[styles.radioDot, { backgroundColor: colors.primary }]} />}
+                      </View>
+                      <Text
+                        style={[
+                          styles.strategyBtnTitle,
+                          { color: isSelected ? colors.primary : colors.text, fontSize: 13 * textScale },
+                        ]}>
+                        {opt.label}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.strategyBtnDesc,
+                        { color: colors.textSecondary, fontSize: 11 * textScale },
+                      ]}>
+                      {opt.desc}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder }]} />
+
+            {/* Strategy 2: Streaming Region Preference */}
+            <Text style={[styles.subControlLabel, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
+              STREAMING REGION STRATEGY
+            </Text>
+            <View style={styles.streamingRegionOptionsRow}>
+              {(
+                [
+                  { id: 'match_region', label: 'Follow App Region', desc: `Use ${selectedRegion}` },
+                  { id: 'custom', label: 'Custom Region', desc: customStreamingRegion || 'US' },
+                  { id: 'worldwide', label: 'Worldwide Overview', desc: 'All countries by default' },
+                ] as { id: StreamingRegionStrategy; label: string; desc: string }[]
+              ).map((opt) => {
+                const isSelected = streamingRegionStrategy === opt.id;
+                return (
+                  <Pressable
+                    key={opt.id}
+                    style={[
+                      styles.regionStrategyPill,
+                      { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                      isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      void setStreamingRegionStrategy(opt.id);
+                    }}>
+                    <Text
+                      style={[
+                        styles.regionStrategyPillText,
+                        { color: isSelected ? '#ffffff' : colors.textSecondary, fontSize: 11 * textScale },
+                      ]}>
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {streamingRegionStrategy === 'custom' && (
+              <View style={styles.customRegionContainer}>
+                <Text style={[styles.customRegionLabel, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
+                  SELECT CUSTOM STREAMING REGION:
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.regionPillsScroll}>
+                  {POPULAR_REGIONS.map((r) => {
+                    const isSelected = (customStreamingRegion || 'US').toUpperCase() === r.code;
+                    return (
+                      <Pressable
+                        key={r.code}
+                        style={[
+                          styles.regionChip,
+                          { backgroundColor: isSelected ? colors.primaryBg : colors.inputBg, borderColor: isSelected ? colors.primary : colors.cardBorder },
+                        ]}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          void setCustomStreamingRegion(r.code);
+                        }}>
+                        <Text style={[styles.regionChipCode, { color: isSelected ? colors.primary : colors.text, fontSize: 12 * textScale }]}>
+                          {r.code}
+                        </Text>
+                        <Text style={[styles.regionChipName, { color: colors.textSecondary, fontSize: 10 * textScale }]}>
+                          {r.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+
+            <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder }]} />
+
+            {/* Subscriptions Grid */}
+            <View style={styles.subSectionHeaderRow}>
+              <View>
+                <Text style={[styles.subControlLabel, { color: colors.textSecondary, fontSize: 11 * textScale, marginBottom: 2 }]}>
+                  MY SUBSCRIBED SERVICES ({mySubscribedProviders.length})
+                </Text>
+                <Text style={[styles.subControlSubtext, { color: colors.textMuted, fontSize: 11 * textScale }]}>
+                  Tap to toggle services you currently have.
+                </Text>
+              </View>
+              <View style={styles.quickSelectActions}>
+                <Pressable
+                  style={[styles.smallActionBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    const allIds = POPULAR_STREAMING_PROVIDERS.map((p) => p.id);
+                    void setMySubscribedProviders(allIds);
+                  }}>
+                  <Text style={[styles.smallActionBtnText, { color: colors.primary, fontSize: 10 * textScale }]}>All</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.smallActionBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    void setMySubscribedProviders([]);
+                  }}>
+                  <Text style={[styles.smallActionBtnText, { color: colors.textSecondary, fontSize: 10 * textScale }]}>None</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.providersGrid}>
+              {POPULAR_STREAMING_PROVIDERS.map((prov) => {
+                const isSubscribed = mySubscribedProviders.includes(prov.id);
+                const logoUrl = TMDBService.getImageUrl(prov.logoPath, 'w92');
+
+                return (
+                  <Pressable
+                    key={`my-prov-${prov.id}`}
+                    style={[
+                      styles.providerSelectCard,
+                      {
+                        backgroundColor: isSubscribed ? colors.primaryBg : colors.inputBg,
+                        borderColor: isSubscribed ? colors.primary : colors.cardBorder,
+                      },
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      void toggleSubscribedProvider(prov.id);
+                    }}>
+                    <View style={styles.providerCardHeader}>
+                      {logoUrl ? (
+                        <Image source={{ uri: logoUrl }} style={styles.providerGridLogo} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.providerGridLogo, { backgroundColor: colors.cardBorder, alignItems: 'center', justifyContent: 'center' }]}>
+                          <Ionicons name="tv-outline" size={16} color={colors.textSecondary} />
+                        </View>
+                      )}
+                      <View
+                        style={[
+                          styles.providerCheckbox,
+                          {
+                            backgroundColor: isSubscribed ? colors.primary : 'transparent',
+                            borderColor: isSubscribed ? colors.primary : colors.cardBorder,
+                          },
+                        ]}>
+                        {isSubscribed && <Ionicons name="checkmark" size={11} color="#ffffff" />}
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        styles.providerGridName,
+                        {
+                          color: isSubscribed ? colors.primary : colors.text,
+                          fontSize: 11 * textScale,
+                        },
+                      ]}
+                      numberOfLines={1}>
+                      {prov.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         )}
       </View>
@@ -2281,7 +2742,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.15.1.1 • TMDB & MAL Attributions
+                Version 0.16.0 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2380,8 +2841,17 @@ export default function SettingsScreen() {
               </Text>. All trademarks, logos, and copyrights belong to their respective owners.
             </Text>
 
+            <Pressable
+              style={styles.githubLinkRow}
+              onPress={() => void Linking.openURL('https://github.com/bit-hero-333/BingeLog')}>
+              <Ionicons name="logo-github" size={16} color={colors.primary} />
+              <Text style={[styles.githubLinkText, { color: colors.primary }]}>
+                GitHub Repository: bit-hero-333/BingeLog
+              </Text>
+            </Pressable>
+
             <Text selectable style={[styles.infoVersion, { color: colors.primary }]}>
-              Version 0.15.1.1 • Build 23 • Expo SDK 57
+              Version 0.16.0 • Build 24 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -3659,5 +4129,134 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  providerStrategyRow: {
+    gap: 8,
+    marginBottom: 8,
+  },
+  strategyBtn: {
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 4,
+  },
+  strategyRadioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  radioDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+  },
+  strategyBtnTitle: {
+    fontWeight: '700',
+  },
+  strategyBtnDesc: {
+    paddingLeft: 26,
+  },
+  streamingRegionOptionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  regionStrategyPill: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  regionStrategyPillText: {
+    fontWeight: '700',
+  },
+  customRegionContainer: {
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  customRegionLabel: {
+    fontWeight: '700',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  regionPillsScroll: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingBottom: 4,
+  },
+  subSectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  subControlSubtext: {
+    marginTop: 2,
+  },
+  quickSelectActions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  smallActionBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  smallActionBtnText: {
+    fontWeight: '700',
+  },
+  providersGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  providerSelectCard: {
+    width: '31%',
+    flexGrow: 1,
+    padding: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: 6,
+  },
+  providerCardHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  providerGridLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+  },
+  providerCheckbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  providerGridName: {
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  githubLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 6,
+  },
+  githubLinkText: {
+    fontSize: 12,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
 });
+
 

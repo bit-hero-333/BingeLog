@@ -16,6 +16,8 @@ import {
   DEFAULT_TIME_FORMAT,
   NotificationTimingOption,
   ItemReminderConfig,
+  ProviderDisplayStrategy,
+  StreamingRegionStrategy,
 } from '@/types/media';
 
 interface MediaStats {
@@ -98,6 +100,17 @@ interface MediaContextType {
   scheduledNotificationsCount: number;
   refreshScheduledNotifications: () => Promise<void>;
 
+  // Streaming & Watch Providers
+  streamingDisplayStrategy: ProviderDisplayStrategy;
+  setStreamingDisplayStrategy: (strategy: ProviderDisplayStrategy) => Promise<boolean>;
+  mySubscribedProviders: number[];
+  setMySubscribedProviders: (providers: number[]) => Promise<boolean>;
+  toggleSubscribedProvider: (providerId: number) => Promise<boolean>;
+  streamingRegionStrategy: StreamingRegionStrategy;
+  setStreamingRegionStrategy: (strategy: StreamingRegionStrategy) => Promise<boolean>;
+  customStreamingRegion: string;
+  setCustomStreamingRegion: (region: string) => Promise<boolean>;
+
   // Active Discover filter
   activeDiscoverFilter: DiscoverFilter | null;
   setActiveDiscoverFilter: (filter: DiscoverFilter | null) => void;
@@ -131,6 +144,10 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   >('undetermined');
   const [scheduledNotificationsCount, setScheduledNotificationsCount] = useState<number>(0);
   const [activeDiscoverFilter, setActiveDiscoverFilter] = useState<DiscoverFilter | null>(null);
+  const [streamingDisplayStrategy, setStreamingDisplayStrategyState] = useState<ProviderDisplayStrategy>('all');
+  const [mySubscribedProviders, setMySubscribedProvidersState] = useState<number[]>([]);
+  const [streamingRegionStrategy, setStreamingRegionStrategyState] = useState<StreamingRegionStrategy>('match_region');
+  const [customStreamingRegion, setCustomStreamingRegionState] = useState<string>('US');
   const [isLoadingStorage, setIsLoadingStorage] = useState(true);
 
   useEffect(() => {
@@ -160,6 +177,10 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           savedNotifDays,
           savedNotifTiming,
           currentPerm,
+          savedStreamingDisplay,
+          savedSubscribedProviders,
+          savedStreamingRegionStrategy,
+          savedCustomStreamingRegion,
         ] = await Promise.all([
           StorageService.getApiKey(),
           StorageService.getTrackedItems(),
@@ -182,6 +203,10 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           StorageService.getNotificationDaysAhead(),
           StorageService.getNotificationTiming(),
           NotificationService.getPermissions(),
+          StorageService.getStreamingDisplayStrategy(),
+          StorageService.getMySubscribedProviders(),
+          StorageService.getStreamingRegionStrategy(),
+          StorageService.getCustomStreamingRegion(),
         ]);
         if (savedKey) setApiKeyState(savedKey);
         setShowSeasonEpisodeImagesState(savedSeasonEpImages);
@@ -203,6 +228,10 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setNotificationDaysAheadState(savedNotifDays);
         setNotificationTimingState(savedNotifTiming);
         setNotificationPermissionStatus(currentPerm);
+        setStreamingDisplayStrategyState(savedStreamingDisplay);
+        setMySubscribedProvidersState(savedSubscribedProviders);
+        setStreamingRegionStrategyState(savedStreamingRegionStrategy);
+        setCustomStreamingRegionState(savedCustomStreamingRegion);
         HapticsService.setIntensity(savedHaptic);
 
         // Auto-refresh missing next air dates for active watchlist TV shows
@@ -661,6 +690,45 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     setScheduledNotificationsCount(count);
   };
 
+  const setStreamingDisplayStrategy = async (strategy: ProviderDisplayStrategy): Promise<boolean> => {
+    const success = await StorageService.saveStreamingDisplayStrategy(strategy);
+    if (success) {
+      setStreamingDisplayStrategyState(strategy);
+    }
+    return success;
+  };
+
+  const setMySubscribedProviders = async (providers: number[]): Promise<boolean> => {
+    const success = await StorageService.saveMySubscribedProviders(providers);
+    if (success) {
+      setMySubscribedProvidersState(providers);
+    }
+    return success;
+  };
+
+  const toggleSubscribedProvider = async (providerId: number): Promise<boolean> => {
+    const next = mySubscribedProviders.includes(providerId)
+      ? mySubscribedProviders.filter((id) => id !== providerId)
+      : [...mySubscribedProviders, providerId];
+    return setMySubscribedProviders(next);
+  };
+
+  const setStreamingRegionStrategy = async (strategy: StreamingRegionStrategy): Promise<boolean> => {
+    const success = await StorageService.saveStreamingRegionStrategy(strategy);
+    if (success) {
+      setStreamingRegionStrategyState(strategy);
+    }
+    return success;
+  };
+
+  const setCustomStreamingRegion = async (region: string): Promise<boolean> => {
+    const success = await StorageService.saveCustomStreamingRegion(region);
+    if (success) {
+      setCustomStreamingRegionState(region.toUpperCase());
+    }
+    return success;
+  };
+
   const triggerHaptic = (type: 'selection' | 'impact' | 'success' | 'warning' | 'error' = 'impact') => {
     HapticsService.trigger(type);
   };
@@ -773,6 +841,15 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         refreshScheduledNotifications,
         activeDiscoverFilter,
         setActiveDiscoverFilter,
+        streamingDisplayStrategy,
+        setStreamingDisplayStrategy,
+        mySubscribedProviders,
+        setMySubscribedProviders,
+        toggleSubscribedProvider,
+        streamingRegionStrategy,
+        setStreamingRegionStrategy,
+        customStreamingRegion,
+        setCustomStreamingRegion,
       }}>
       {children}
     </MediaContext.Provider>

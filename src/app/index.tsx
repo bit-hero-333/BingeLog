@@ -19,6 +19,7 @@ import { TMDBService } from '@/services/tmdb';
 import { TMDBMediaItem, TrackedItem, MediaType } from '@/types/media';
 import { MediaCard } from '@/components/MediaCard';
 import { TrackModal } from '@/components/TrackModal';
+import { getTextScale, getHeaderScale } from '@/utils/sizing';
 
 type MediaFilter = 'all' | 'movie' | 'tv';
 
@@ -37,7 +38,12 @@ export default function DiscoverScreen() {
     activeDiscoverFilter,
     setActiveDiscoverFilter,
     triggerHaptic,
+    sizingConfig,
+    selectedRegion,
   } = useMedia();
+
+  const textScale = getTextScale(sizingConfig?.textSize);
+  const headerScale = getHeaderScale(sizingConfig?.headerSize);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<MediaFilter>('all');
@@ -58,7 +64,9 @@ export default function DiscoverScreen() {
       const results = await TMDBService.discoverByEntity(
         activeDiscoverFilter.type,
         activeDiscoverFilter.id,
-        apiKey
+        apiKey,
+        1,
+        selectedRegion
       );
       setItems(results);
     } catch (e: unknown) {
@@ -68,7 +76,7 @@ export default function DiscoverScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [apiKey, activeDiscoverFilter]);
+  }, [apiKey, activeDiscoverFilter, selectedRegion]);
 
   const fetchDefaultMedia = useCallback(async () => {
     if (!apiKey) return;
@@ -265,16 +273,20 @@ export default function DiscoverScreen() {
                     ? 'person'
                     : activeDiscoverFilter.type === 'genre'
                     ? 'pricetag'
+                    : activeDiscoverFilter.type === 'provider'
+                    ? 'tv'
                     : 'business'
                 }
-                size={13}
+                size={13 * textScale}
                 color="#38bdf8"
               />
-              <Text style={styles.activeFilterText}>
+              <Text style={[styles.activeFilterText, { fontSize: 12 * textScale }]}>
                 {activeDiscoverFilter.type === 'person'
                   ? 'Person:'
                   : activeDiscoverFilter.type === 'genre'
                   ? 'Genre:'
+                  : activeDiscoverFilter.type === 'provider'
+                  ? 'Streaming on:'
                   : 'Studio:'}{' '}
                 <Text style={styles.activeFilterName}>{activeDiscoverFilter.name}</Text>
               </Text>
@@ -359,12 +371,12 @@ export default function DiscoverScreen() {
           ListHeaderComponent={
             apiKey && items.length > 0 ? (
               <View style={styles.listHeader}>
-                <Text style={styles.listHeaderTitle}>
+                <Text style={[styles.listHeaderTitle, { fontSize: 13 * headerScale }]}>
                   {activeDiscoverFilter
                     ? `Filtered by ${activeDiscoverFilter.name} (${items.length})`
                     : searchQuery.trim()
                     ? `Results for "${searchQuery}" (${items.length})`
-                    : '🔥 Trending Today'}
+                    : 'Trending Today'}
                 </Text>
               </View>
             ) : null

@@ -90,7 +90,48 @@ export interface DetailedMediaInfo {
     airDate?: string;
   };
   status?: string;
+  watchProviders?: AllWatchProviders;
 }
+
+export interface WatchProvider {
+  id: number;
+  name: string;
+  logoPath: string | null;
+  displayPriority?: number;
+}
+
+export interface RegionalWatchProviders {
+  link?: string;
+  flatrate?: WatchProvider[];
+  free?: WatchProvider[];
+  ads?: WatchProvider[];
+  rent?: WatchProvider[];
+  buy?: WatchProvider[];
+}
+
+export type AllWatchProviders = Record<string, RegionalWatchProviders>;
+
+export type ProviderDisplayStrategy = 'all' | 'subscribed' | 'none';
+export type StreamingRegionStrategy = 'match_region' | 'custom' | 'worldwide';
+
+export interface PopularProviderOption {
+  id: number;
+  name: string;
+  logoPath: string;
+}
+
+export const POPULAR_STREAMING_PROVIDERS: PopularProviderOption[] = [
+  { id: 8, name: 'Netflix', logoPath: '/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg' },
+  { id: 9, name: 'Amazon Prime Video', logoPath: '/mHQtdMjh36Z8rL5Z1v6dD8XlQzJ.jpg' },
+  { id: 337, name: 'Disney Plus', logoPath: '/7rwgEs15tFwyR9NPQ5vpzxTj19Q.jpg' },
+  { id: 350, name: 'Apple TV Plus', logoPath: '/6uhKBfmt2FsMYVsR1Z5qOGi8M3v.jpg' },
+  { id: 1899, name: 'Max', logoPath: '/fksCUZ9QDWZMUwL2LgfhAwVoDX0.jpg' },
+  { id: 283, name: 'Crunchyroll', logoPath: '/8z7rC8uIDaTM91X0ZfkRf04ydFx.jpg' },
+  { id: 531, name: 'Paramount Plus', logoPath: '/xbhHLa3ktAVTkPipbpIlGHizVnH.jpg' },
+  { id: 386, name: 'Peacock', logoPath: '/8VCV78GOGBubAezvo2gImCG9vg3.jpg' },
+  { id: 15, name: 'Hulu', logoPath: '/bxBlRiqHHAvvi2G4Vs7J7t7m36X.jpg' },
+  { id: 188, name: 'YouTube Premium', logoPath: '/4J1t12jV3fOecR3Y4g2aL4pW3Zf.jpg' },
+];
 
 export interface TMDBMediaItem {
   id: number;
@@ -225,11 +266,15 @@ export type ElementScale = 'small' | 'medium' | 'large' | 'xlarge';
 
 export interface SizingConfig {
   preset: DensityPreset;
-  textSize: ElementScale; // synopsis, descriptions, notes
+  textSize: ElementScale; // global text scaling across entire app
   castSize: ElementScale; // actor avatar size & card width
   tagSize: ElementScale;  // badge pills & chips
   rowDensity: ElementScale; // episode row heights & padding
   seasonEpisodeSize: ElementScale; // season header, episode title & thumbnail dimensions
+  posterSize: ElementScale; // poster cards width/height in lists & grids
+  buttonSize: ElementScale; // buttons, touch targets, icon buttons
+  providerSize: ElementScale; // streaming provider chips & badges
+  headerSize: ElementScale; // section headers, modal titles, screen titles
 }
 
 export const DEFAULT_SIZING_CONFIG: SizingConfig = {
@@ -239,6 +284,10 @@ export const DEFAULT_SIZING_CONFIG: SizingConfig = {
   tagSize: 'medium',
   rowDensity: 'medium',
   seasonEpisodeSize: 'medium',
+  posterSize: 'medium',
+  buttonSize: 'medium',
+  providerSize: 'medium',
+  headerSize: 'medium',
 };
 
 export const SIZING_PRESETS: Record<DensityPreset, SizingConfig> = {
@@ -249,6 +298,10 @@ export const SIZING_PRESETS: Record<DensityPreset, SizingConfig> = {
     tagSize: 'small',
     rowDensity: 'small',
     seasonEpisodeSize: 'small',
+    posterSize: 'small',
+    buttonSize: 'small',
+    providerSize: 'small',
+    headerSize: 'small',
   },
   default: {
     preset: 'default',
@@ -257,6 +310,10 @@ export const SIZING_PRESETS: Record<DensityPreset, SizingConfig> = {
     tagSize: 'medium',
     rowDensity: 'medium',
     seasonEpisodeSize: 'medium',
+    posterSize: 'medium',
+    buttonSize: 'medium',
+    providerSize: 'medium',
+    headerSize: 'medium',
   },
   large: {
     preset: 'large',
@@ -265,10 +322,14 @@ export const SIZING_PRESETS: Record<DensityPreset, SizingConfig> = {
     tagSize: 'large',
     rowDensity: 'large',
     seasonEpisodeSize: 'large',
+    posterSize: 'large',
+    buttonSize: 'large',
+    providerSize: 'large',
+    headerSize: 'large',
   },
 };
 
-export type EntityType = 'person' | 'company' | 'network' | 'genre';
+export type EntityType = 'person' | 'company' | 'network' | 'genre' | 'provider';
 
 export interface EntitySelection {
   type: EntityType;

@@ -31,9 +31,17 @@ import {
   DetailedMediaInfo,
   EntitySelection,
   ItemReminderConfig,
+  WatchProvider,
 } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
+import {
+  getTextScale,
+  getHeaderScale,
+  getButtonScale,
+  getPosterScale,
+  getProviderScale,
+} from '@/utils/sizing';
 import {
   formatDate,
   formatDateDisplay,
@@ -89,7 +97,28 @@ function TrackModalFormContent({
     selectedTimezone,
     remindersEnabled,
     deviceNotificationsEnabled,
+    streamingDisplayStrategy,
+    mySubscribedProviders,
+    streamingRegionStrategy,
+    customStreamingRegion,
   } = useMedia();
+
+  const textScale = getTextScale(sizingConfig.textSize);
+  const headerScale = getHeaderScale(sizingConfig.headerSize);
+  const buttonScale = getButtonScale(sizingConfig.buttonSize);
+  const posterScale = getPosterScale(sizingConfig.posterSize);
+  const providerScale = getProviderScale(sizingConfig.providerSize);
+
+  const initialStreamRegion = useMemo(() => {
+    if (streamingRegionStrategy === 'custom') {
+      return (customStreamingRegion || 'US').toUpperCase();
+    }
+    return (selectedRegion || 'US').toUpperCase();
+  }, [streamingRegionStrategy, customStreamingRegion, selectedRegion]);
+
+  const [activeStreamRegion, setActiveStreamRegion] = useState<string>(initialStreamRegion);
+  const [showWorldwideView, setShowWorldwideView] = useState<boolean>(streamingRegionStrategy === 'worldwide');
+  const [showRegionPickerModal, setShowRegionPickerModal] = useState<boolean>(false);
 
   const [showReminderModal, setShowReminderModal] = useState(false);
 
@@ -846,6 +875,25 @@ function TrackModalFormContent({
     return info.isUpcoming ? info : null;
   }, [effectiveTvNextAirDate, remindersEnabled, mediaType, selectedTimezone]);
 
+  const countdownProviders = useMemo(() => {
+    if (!detailedInfo?.watchProviders) return [];
+    const reg =
+      detailedInfo.watchProviders[activeStreamRegion] ||
+      detailedInfo.watchProviders[selectedRegion] ||
+      detailedInfo.watchProviders['US'];
+    if (!reg) return [];
+    const providers = [...(reg.flatrate || []), ...(reg.free || [])];
+    const seen = new Set<number>();
+    const unique: WatchProvider[] = [];
+    for (const p of providers) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        unique.push(p);
+      }
+    }
+    return unique;
+  }, [detailedInfo, activeStreamRegion, selectedRegion]);
+
   const isReminderActive = existingRecord?.reminder
     ? existingRecord.reminder.enabled
     : deviceNotificationsEnabled;
@@ -938,25 +986,36 @@ function TrackModalFormContent({
   const renderMediaSummary = () => (
     <>
           <View style={[styles.mediaSummary, { borderBottomColor: colors.divider }]}>
-            <View style={[styles.posterWrapper, { backgroundColor: colors.cardBorder }]}>
+            <View
+              style={[
+                styles.posterWrapper,
+                {
+                  width: Math.round(60 * posterScale),
+                  height: Math.round(90 * posterScale),
+                  backgroundColor: colors.cardBorder,
+                },
+              ]}>
               {posterUrl ? (
                 <Image source={{ uri: posterUrl }} style={styles.poster} contentFit="cover" />
               ) : (
                 <View style={[styles.poster, styles.posterFallback]}>
-                  <Ionicons name="film-outline" size={24} color={colors.textSecondary} />
+                  <Ionicons name="film-outline" size={24 * textScale} color={colors.textSecondary} />
                 </View>
               )}
             </View>
 
             <View style={styles.summaryDetails}>
               <View style={styles.titleRow}>
-                <Text style={[styles.mediaTitle, { color: colors.text }]} numberOfLines={2} selectable={true}>
+                <Text
+                  style={[styles.mediaTitle, { color: colors.text, fontSize: Math.round(16 * headerScale) }]}
+                  numberOfLines={2}
+                  selectable={true}>
                   {title}
                 </Text>
                 <View style={styles.headerActions}>
                   {syncFeedback ? (
                     <View style={[styles.syncFeedbackBadge, { backgroundColor: colors.primaryBg }]}>
-                      <Text style={[styles.syncFeedbackText, { color: colors.primary }]}>{syncFeedback}</Text>
+                      <Text style={[styles.syncFeedbackText, { color: colors.primary, fontSize: 10 * textScale }]}>{syncFeedback}</Text>
                     </View>
                   ) : null}
                   {apiKey ? (
@@ -968,23 +1027,23 @@ function TrackModalFormContent({
                       {isSyncing ? (
                         <ActivityIndicator size="small" color={colors.primary} />
                       ) : (
-                        <Ionicons name="cloud-download-outline" size={19} color={colors.primary} />
+                        <Ionicons name="cloud-download-outline" size={19 * textScale} color={colors.primary} />
                       )}
                     </Pressable>
                   ) : null}
                   <Pressable onPress={onClose} style={styles.closeButton} hitSlop={8}>
-                    <Ionicons name="close" size={20} color={colors.textSecondary} />
+                    <Ionicons name="close" size={20 * textScale} color={colors.textSecondary} />
                   </Pressable>
                 </View>
               </View>
 
               <View style={styles.metaBadgeRow}>
                 <View style={[styles.typeTag, { backgroundColor: colors.primaryBg }]}>
-                  <Text style={[styles.typeTagText, { color: colors.primary }]}>{mediaType.toUpperCase()}</Text>
+                  <Text style={[styles.typeTagText, { color: colors.primary, fontSize: 9 * textScale }]}>{mediaType.toUpperCase()}</Text>
                 </View>
 
                 {mediaType === 'tv' && (totalEpisodes || totalSeasons) ? (
-                  <Text style={[styles.metaText, { color: colors.textSecondary }]} selectable={true}>
+                  <Text style={[styles.metaText, { color: colors.textSecondary, fontSize: 12 * textScale }]} selectable={true}>
                     {totalEpisodes ? `${totalEpisodes} eps` : ''}
                     {totalEpisodes && totalSeasons ? ' • ' : ''}
                     {totalSeasons ? `${totalSeasons} season${totalSeasons > 1 ? 's' : ''}` : ''}
@@ -992,21 +1051,21 @@ function TrackModalFormContent({
                 ) : null}
 
                 {mediaType === 'movie' && runtimeMinutes ? (
-                  <Text style={[styles.metaText, { color: colors.textSecondary }]} selectable={true}>
+                  <Text style={[styles.metaText, { color: colors.textSecondary, fontSize: 12 * textScale }]} selectable={true}>
                     {formatRuntime(runtimeMinutes)}
                   </Text>
                 ) : null}
 
                 {releaseYear ? (
-                  <Text style={[styles.metaText, { color: colors.textSecondary }]} selectable={true}>
+                  <Text style={[styles.metaText, { color: colors.textSecondary, fontSize: 12 * textScale }]} selectable={true}>
                     ({releaseYear})
                   </Text>
                 ) : null}
 
                 {voteAverage ? (
                   <View style={styles.ratingTag}>
-                    <Ionicons name="star" size={11} color="#f59e0b" />
-                    <Text style={styles.ratingTagText} selectable={true}>
+                    <Ionicons name="star" size={11 * textScale} color="#f59e0b" />
+                    <Text style={[styles.ratingTagText, { fontSize: 11 * textScale }]} selectable={true}>
                       {voteAverage.toFixed(1)}
                     </Text>
                   </View>
@@ -1027,21 +1086,58 @@ function TrackModalFormContent({
                   <View style={[styles.countdownIconWrap, { backgroundColor: colors.card }]}>
                     <Ionicons
                       name={isReminderActive ? 'notifications' : 'notifications-outline'}
-                      size={18}
+                      size={18 * textScale}
                       color={colors.primary}
                     />
                   </View>
                   <View style={styles.countdownBannerContent}>
                     <View style={styles.countdownBannerTop}>
-                      <Text style={[styles.countdownBannerTitle, { color: colors.text }]} numberOfLines={1}>
+                      <Text style={[styles.countdownBannerTitle, { color: colors.text, fontSize: 13 * textScale }]} numberOfLines={1}>
                         {detailedInfo?.regionalReleaseType || 'Release'}: {formatDate(effectiveMovieDate, dateFormat)}
                       </Text>
                       <View style={[styles.countdownPill, { backgroundColor: colors.primary }]}>
-                        <Text style={styles.countdownPillText}>{movieCountdown.formattedCountdown}</Text>
+                        <Text style={[styles.countdownPillText, { fontSize: 10 * textScale }]}>{movieCountdown.formattedCountdown}</Text>
                       </View>
                     </View>
+
+                    {/* Dynamic streaming provider badges on premiere countdown */}
+                    {countdownProviders.length > 0 && (
+                      <View style={styles.countdownStreamingRow}>
+                        <Text style={[styles.countdownStreamingLabel, { color: colors.textSecondary, fontSize: 10 * textScale }]}>
+                          Streaming on:
+                        </Text>
+                        <View style={styles.countdownProvidersRow}>
+                          {countdownProviders.slice(0, 4).map((p) => (
+                            <Pressable
+                              key={`cd-p-${p.id}`}
+                              style={[styles.countdownProviderMiniLogoWrap, { borderColor: colors.cardBorder }]}
+                              onPress={() => {
+                                triggerHaptic('selection');
+                                setSelectedEntity({
+                                  type: 'provider',
+                                  id: p.id,
+                                  name: p.name,
+                                  profilePath: p.logoPath,
+                                });
+                              }}>
+                              <Image
+                                source={{ uri: TMDBService.getImageUrl(p.logoPath, 'w92') || '' }}
+                                style={styles.countdownProviderMiniLogo}
+                                contentFit="cover"
+                              />
+                            </Pressable>
+                          ))}
+                          {countdownProviders.length > 4 && (
+                            <Text style={[styles.countdownMoreText, { color: colors.textMuted, fontSize: 9 * textScale }]}>
+                              +{countdownProviders.length - 4}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    )}
+
                     <View style={styles.countdownBannerSubRow}>
-                      <Text style={[styles.countdownBannerSub, { color: colors.textSecondary }]}>
+                      <Text style={[styles.countdownBannerSub, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
                         Tap to manage alert
                       </Text>
                       <View
@@ -1049,7 +1145,7 @@ function TrackModalFormContent({
                           styles.reminderStatusPill,
                           { backgroundColor: isReminderActive ? colors.primary : colors.cardBorder },
                         ]}>
-                        <Text style={styles.reminderStatusPillText}>
+                        <Text style={[styles.reminderStatusPillText, { fontSize: 9 * textScale }]}>
                           {isReminderActive ? 'Alert On' : 'Alert Off'}
                         </Text>
                       </View>
@@ -1072,21 +1168,58 @@ function TrackModalFormContent({
                   <View style={[styles.countdownIconWrap, { backgroundColor: colors.card }]}>
                     <Ionicons
                       name={isReminderActive ? 'notifications' : 'notifications-outline'}
-                      size={18}
+                      size={18 * textScale}
                       color={colors.primary}
                     />
                   </View>
                   <View style={styles.countdownBannerContent}>
                     <View style={styles.countdownBannerTop}>
-                      <Text style={[styles.countdownBannerTitle, { color: colors.text }]} numberOfLines={1}>
+                      <Text style={[styles.countdownBannerTitle, { color: colors.text, fontSize: 13 * textScale }]} numberOfLines={1}>
                         {tvNextEpisode ? `S${tvNextEpisode.seasonNumber} E${tvNextEpisode.episodeNumber}` : 'Next Episode'}: {formatDate(effectiveTvNextAirDate, dateFormat)}
                       </Text>
                       <View style={[styles.countdownPill, { backgroundColor: colors.primary }]}>
-                        <Text style={styles.countdownPillText}>{tvCountdown.formattedCountdown}</Text>
+                        <Text style={[styles.countdownPillText, { fontSize: 10 * textScale }]}>{tvCountdown.formattedCountdown}</Text>
                       </View>
                     </View>
+
+                    {/* Dynamic streaming provider badges on TV air countdown */}
+                    {countdownProviders.length > 0 && (
+                      <View style={styles.countdownStreamingRow}>
+                        <Text style={[styles.countdownStreamingLabel, { color: colors.textSecondary, fontSize: 10 * textScale }]}>
+                          Streaming on:
+                        </Text>
+                        <View style={styles.countdownProvidersRow}>
+                          {countdownProviders.slice(0, 4).map((p) => (
+                            <Pressable
+                              key={`cd-tv-p-${p.id}`}
+                              style={[styles.countdownProviderMiniLogoWrap, { borderColor: colors.cardBorder }]}
+                              onPress={() => {
+                                triggerHaptic('selection');
+                                setSelectedEntity({
+                                  type: 'provider',
+                                  id: p.id,
+                                  name: p.name,
+                                  profilePath: p.logoPath,
+                                });
+                              }}>
+                              <Image
+                                source={{ uri: TMDBService.getImageUrl(p.logoPath, 'w92') || '' }}
+                                style={styles.countdownProviderMiniLogo}
+                                contentFit="cover"
+                              />
+                            </Pressable>
+                          ))}
+                          {countdownProviders.length > 4 && (
+                            <Text style={[styles.countdownMoreText, { color: colors.textMuted, fontSize: 9 * textScale }]}>
+                              +{countdownProviders.length - 4}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    )}
+
                     <View style={styles.countdownBannerSubRow}>
-                      <Text style={[styles.countdownBannerSub, { color: colors.textSecondary }]} numberOfLines={1}>
+                      <Text style={[styles.countdownBannerSub, { color: colors.textSecondary, fontSize: 11 * textScale }]} numberOfLines={1}>
                         Tap to manage alert
                       </Text>
                       <View
@@ -1094,7 +1227,7 @@ function TrackModalFormContent({
                           styles.reminderStatusPill,
                           { backgroundColor: isReminderActive ? colors.primary : colors.cardBorder },
                         ]}>
-                        <Text style={styles.reminderStatusPillText}>
+                        <Text style={[styles.reminderStatusPillText, { fontSize: 9 * textScale }]}>
                           {isReminderActive ? 'Alert On' : 'Alert Off'}
                         </Text>
                       </View>
@@ -1106,7 +1239,7 @@ function TrackModalFormContent({
               {isLoadingDetails && (
                 <View style={styles.loadingDetailsRow}>
                   <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={[styles.loadingDetailsText, { color: colors.primary }]}>Loading extra info...</Text>
+                  <Text style={[styles.loadingDetailsText, { color: colors.primary, fontSize: 12 * textScale }]}>Loading extra info...</Text>
                 </View>
               )}
             </View>
@@ -1114,6 +1247,332 @@ function TrackModalFormContent({
 
     </>
   );
+
+  // 1.5 Streaming & Watch Providers Section
+  const renderStreamingAvailability = () => {
+    if (streamingDisplayStrategy === 'none') return null;
+
+    const allProviders = detailedInfo?.watchProviders;
+    const availableCountryCodes = Object.keys(allProviders || {}).sort();
+
+    if (!allProviders || availableCountryCodes.length === 0) {
+      if (!apiKey) return null;
+      return (
+        <View style={[styles.streamingSection, { borderTopColor: colors.divider }]}>
+          <View style={styles.subSectionHeaderRow}>
+            <View style={styles.streamingTitleGroup}>
+              <Ionicons name="play-circle-outline" size={14 * headerScale} color={colors.primary} />
+              <Text style={[styles.subSectionTitle, { color: colors.textSecondary, fontSize: 13 * headerScale }]}>
+                WHERE TO WATCH
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.noProvidersText, { color: colors.textMuted, fontSize: 12 * textScale }]}>
+            {isLoadingDetails ? 'Loading streaming availability...' : 'No streaming availability reported for this title.'}
+          </Text>
+        </View>
+      );
+    }
+
+    const currentRegData = allProviders[activeStreamRegion];
+    const flatrateList = currentRegData?.flatrate || [];
+    const freeList = [...(currentRegData?.free || []), ...(currentRegData?.ads || [])];
+    const rentList = currentRegData?.rent || [];
+    const buyList = currentRegData?.buy || [];
+
+    const filterProviders = (list: WatchProvider[]) => {
+      if (streamingDisplayStrategy === 'subscribed') {
+        return list.filter((p) => mySubscribedProviders.includes(p.id));
+      }
+      return list;
+    };
+
+    const displayFlatrate = filterProviders(flatrateList);
+    const displayFree = filterProviders(freeList);
+    const displayRent = filterProviders(rentList);
+    const displayBuy = filterProviders(buyList);
+
+    const totalVisibleCount =
+      displayFlatrate.length + displayFree.length + displayRent.length + displayBuy.length;
+
+    const renderProviderChip = (p: WatchProvider) => {
+      const isSubscribed = mySubscribedProviders.includes(p.id);
+      const chipLogoSize = Math.round(26 * providerScale);
+
+      return (
+        <Pressable
+          key={`provider-${p.id}`}
+          style={({ pressed }) => [
+            styles.providerChip,
+            {
+              backgroundColor: isSubscribed ? colors.primaryBg : colors.inputBg,
+              borderColor: isSubscribed ? colors.primary : colors.cardBorder,
+              paddingVertical: Math.max(4, Math.round(6 * providerScale)),
+              paddingHorizontal: Math.max(6, Math.round(8 * providerScale)),
+            },
+            pressed && { opacity: 0.75 },
+          ]}
+          onPress={() => {
+            triggerHaptic('selection');
+            setSelectedEntity({
+              type: 'provider',
+              id: p.id,
+              name: p.name,
+              profilePath: p.logoPath,
+            });
+          }}>
+          <Image
+            source={{ uri: TMDBService.getImageUrl(p.logoPath, 'w92') || '' }}
+            style={[styles.providerLogo, { width: chipLogoSize, height: chipLogoSize }]}
+            contentFit="cover"
+          />
+          <View style={styles.providerChipTextCol}>
+            <Text
+              style={[
+                styles.providerNameText,
+                {
+                  color: isSubscribed ? colors.primary : colors.text,
+                  fontSize: Math.max(10, Math.round(11 * textScale)),
+                },
+              ]}
+              numberOfLines={1}>
+              {p.name}
+            </Text>
+            {isSubscribed && (
+              <Text style={[styles.subscribedBadgeText, { color: colors.primary, fontSize: Math.max(8, Math.round(9 * textScale)) }]}>
+                Subscribed
+              </Text>
+            )}
+          </View>
+        </Pressable>
+      );
+    };
+
+    return (
+      <View style={[styles.streamingSection, { borderTopColor: colors.divider }]}>
+        <View style={styles.subSectionHeaderRow}>
+          <View style={styles.streamingTitleGroup}>
+            <Ionicons name="play-circle-outline" size={14 * headerScale} color={colors.primary} />
+            <Text style={[styles.subSectionTitle, { color: colors.textSecondary, fontSize: 13 * headerScale }]}>
+              WHERE TO WATCH
+            </Text>
+          </View>
+
+          <View style={styles.streamingControlsRow}>
+            <Pressable
+              style={[
+                styles.streamControlPill,
+                showWorldwideView
+                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                  : { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+              ]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setShowWorldwideView(!showWorldwideView);
+              }}>
+              <Ionicons
+                name="globe-outline"
+                size={11 * textScale}
+                color={showWorldwideView ? '#ffffff' : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.streamControlPillText,
+                  {
+                    color: showWorldwideView ? '#ffffff' : colors.textSecondary,
+                    fontSize: 10 * textScale,
+                  },
+                ]}>
+                Worldwide
+              </Text>
+            </Pressable>
+
+            {!showWorldwideView && (
+              <Pressable
+                style={[
+                  styles.streamControlPill,
+                  { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setShowRegionPickerModal(true);
+                }}>
+                <Text style={[styles.streamControlPillText, { color: colors.primary, fontSize: 10 * textScale }]}>
+                  {activeStreamRegion}
+                </Text>
+                <Ionicons name="chevron-down" size={10 * textScale} color={colors.primary} />
+              </Pressable>
+            )}
+          </View>
+        </View>
+
+        {showWorldwideView ? (
+          <View style={styles.worldwideContainer}>
+            <Text style={[styles.worldwideHintText, { color: colors.textMuted, fontSize: 11 * textScale }]}>
+              Available across {availableCountryCodes.length} countries. Tap a country to view providers:
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.worldwideScroll}>
+              {availableCountryCodes.map((code) => {
+                const reg = allProviders[code];
+                const count =
+                  (reg?.flatrate?.length || 0) + (reg?.free?.length || 0) + (reg?.rent?.length || 0) + (reg?.buy?.length || 0);
+                const isCurrent = code === activeStreamRegion;
+
+                return (
+                  <Pressable
+                    key={`world-${code}`}
+                    style={[
+                      styles.worldwideCountryChip,
+                      {
+                        backgroundColor: isCurrent ? colors.primaryBg : colors.inputBg,
+                        borderColor: isCurrent ? colors.primary : colors.cardBorder,
+                      },
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setActiveStreamRegion(code);
+                      setShowWorldwideView(false);
+                    }}>
+                    <Text style={[styles.countryCodeText, { color: isCurrent ? colors.primary : colors.text, fontSize: 11 * textScale }]}>
+                      {code}
+                    </Text>
+                    <Text style={[styles.countryCountText, { color: colors.textMuted, fontSize: 9 * textScale }]}>
+                      {count} src
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : (
+          <View style={styles.regionalProvidersContainer}>
+            {totalVisibleCount === 0 ? (
+              <View style={[styles.emptyProvidersNotice, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                <Text style={[styles.emptyNoticeText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                  {streamingDisplayStrategy === 'subscribed'
+                    ? `None of your subscribed services stream this in ${activeStreamRegion}.`
+                    : `No streaming options reported for ${activeStreamRegion}.`}
+                </Text>
+                {streamingDisplayStrategy === 'subscribed' && (
+                  <Pressable
+                    style={[styles.emptyNoticeActionBtn, { borderColor: colors.primary }]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setShowWorldwideView(true);
+                    }}>
+                    <Text style={[styles.emptyNoticeActionText, { color: colors.primary, fontSize: 11 * textScale }]}>
+                      Explore Other Countries
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            ) : (
+              <>
+                {displayFlatrate.length > 0 && (
+                  <View style={styles.providerCategoryGroup}>
+                    <Text style={[styles.providerCategoryLabel, { color: colors.textMuted, fontSize: 10 * textScale }]}>
+                      STREAM
+                    </Text>
+                    <View style={styles.providerChipsWrap}>
+                      {displayFlatrate.map(renderProviderChip)}
+                    </View>
+                  </View>
+                )}
+
+                {displayFree.length > 0 && (
+                  <View style={styles.providerCategoryGroup}>
+                    <Text style={[styles.providerCategoryLabel, { color: colors.textMuted, fontSize: 10 * textScale }]}>
+                      FREE / ADS
+                    </Text>
+                    <View style={styles.providerChipsWrap}>
+                      {displayFree.map(renderProviderChip)}
+                    </View>
+                  </View>
+                )}
+
+                {displayRent.length > 0 && (
+                  <View style={styles.providerCategoryGroup}>
+                    <Text style={[styles.providerCategoryLabel, { color: colors.textMuted, fontSize: 10 * textScale }]}>
+                      RENT
+                    </Text>
+                    <View style={styles.providerChipsWrap}>
+                      {displayRent.map(renderProviderChip)}
+                    </View>
+                  </View>
+                )}
+
+                {displayBuy.length > 0 && (
+                  <View style={styles.providerCategoryGroup}>
+                    <Text style={[styles.providerCategoryLabel, { color: colors.textMuted, fontSize: 10 * textScale }]}>
+                      BUY
+                    </Text>
+                    <View style={styles.providerChipsWrap}>
+                      {displayBuy.map(renderProviderChip)}
+                    </View>
+                  </View>
+                )}
+              </>
+            )}
+
+            <Text style={[styles.tmdbAttribution, { color: colors.textMuted, fontSize: 9 * textScale }]}>
+              Watch data provided by JustWatch via TMDB. Tap any service to search titles.
+            </Text>
+          </View>
+        )}
+
+        {showRegionPickerModal && (
+          <Modal
+            visible={showRegionPickerModal}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowRegionPickerModal(false)}>
+            <Pressable style={styles.modalBackdrop} onPress={() => setShowRegionPickerModal(false)}>
+              <View
+                style={[
+                  styles.regionPickerCard,
+                  { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                ]}>
+                <View style={styles.regionPickerHeader}>
+                  <Text style={[styles.regionPickerTitle, { color: colors.text, fontSize: 14 * headerScale }]}>
+                    Select Streaming Region
+                  </Text>
+                  <Pressable onPress={() => setShowRegionPickerModal(false)}>
+                    <Ionicons name="close" size={20} color={colors.textSecondary} />
+                  </Pressable>
+                </View>
+                <ScrollView style={{ maxHeight: 300 }}>
+                  {availableCountryCodes.map((cCode) => (
+                    <Pressable
+                      key={cCode}
+                      style={[
+                        styles.regionPickerItem,
+                        cCode === activeStreamRegion && { backgroundColor: colors.primaryBg },
+                      ]}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        setActiveStreamRegion(cCode);
+                        setShowRegionPickerModal(false);
+                      }}>
+                      <Text
+                        style={[
+                          styles.regionPickerItemText,
+                          { color: cCode === activeStreamRegion ? colors.primary : colors.text },
+                        ]}>
+                        {cCode}
+                      </Text>
+                      {cCode === activeStreamRegion && (
+                        <Ionicons name="checkmark" size={16} color={colors.primary} />
+                      )}
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            </Pressable>
+          </Modal>
+        )}
+      </View>
+    );
+  };
 
   // 2. Rich Media Details (tagline, genres, synopsis, cast, creators)
   const renderRichInfo = () => (
@@ -1391,6 +1850,8 @@ function TrackModalFormContent({
                 ) : null}
               </View>
             ) : null}
+
+            {renderStreamingAvailability()}
           </View>
 
     </>
@@ -2136,7 +2597,7 @@ function TrackModalFormContent({
             <Pressable
               style={({ pressed }) => [
                 styles.saveButton,
-                { backgroundColor: colors.primary },
+                { backgroundColor: colors.primary, paddingVertical: Math.max(10, Math.round(14 * buttonScale)) },
                 !status && styles.saveButtonDisabled,
                 pressed && styles.buttonPressed,
               ]}
@@ -2144,10 +2605,10 @@ function TrackModalFormContent({
               disabled={!status}>
               <Ionicons
                 name={status ? 'checkmark-circle' : 'add-circle-outline'}
-                size={18}
+                size={Math.round(18 * buttonScale)}
                 color="#ffffff"
               />
-              <Text style={styles.saveButtonText}>
+              <Text style={[styles.saveButtonText, { fontSize: Math.round(15 * textScale) }]}>
                 {existingRecord
                   ? 'Update Tracking'
                   : status
@@ -2160,11 +2621,12 @@ function TrackModalFormContent({
               <Pressable
                 style={({ pressed }) => [
                   styles.removeButton,
+                  { paddingVertical: Math.max(8, Math.round(12 * buttonScale)) },
                   pressed && styles.buttonPressed,
                 ]}
                 onPress={handleRemove}>
-                <Ionicons name="trash-outline" size={16} color="#ef4444" />
-                <Text style={styles.removeButtonText}>Remove from List</Text>
+                <Ionicons name="trash-outline" size={Math.round(16 * buttonScale)} color="#ef4444" />
+                <Text style={[styles.removeButtonText, { fontSize: Math.round(13 * textScale) }]}>Remove from List</Text>
               </Pressable>
             )}
           </View>
@@ -3392,5 +3854,190 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     fontWeight: '700',
   },
+  countdownStreamingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  countdownStreamingLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  countdownProvidersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  countdownProviderMiniLogoWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  countdownProviderMiniLogo: {
+    width: '100%',
+    height: '100%',
+  },
+  countdownMoreText: {
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  streamingSection: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+  },
+  streamingTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  streamingControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  streamControlPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  streamControlPillText: {
+    fontWeight: '700',
+  },
+  worldwideContainer: {
+    marginTop: 10,
+  },
+  worldwideHintText: {
+    marginBottom: 8,
+  },
+  worldwideScroll: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingBottom: 6,
+  },
+  worldwideCountryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  countryCodeText: {
+    fontWeight: '800',
+  },
+  countryCountText: {
+    fontWeight: '500',
+  },
+  regionalProvidersContainer: {
+    marginTop: 10,
+  },
+  emptyProvidersNotice: {
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyNoticeText: {
+    textAlign: 'center',
+  },
+  emptyNoticeActionBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  emptyNoticeActionText: {
+    fontWeight: '700',
+  },
+  providerCategoryGroup: {
+    marginBottom: 10,
+  },
+  providerCategoryLabel: {
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  providerChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  providerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    maxWidth: '100%',
+  },
+  providerLogo: {
+    borderRadius: 6,
+  },
+  providerChipTextCol: {
+    flexShrink: 1,
+  },
+  providerNameText: {
+    fontWeight: '600',
+  },
+  subscribedBadgeText: {
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  noProvidersText: {
+    marginTop: 6,
+    fontStyle: 'italic',
+  },
+  tmdbAttribution: {
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  regionPickerCard: {
+    width: '85%',
+    maxWidth: 360,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+  },
+  regionPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#232838',
+  },
+  regionPickerTitle: {
+    fontWeight: '700',
+  },
+  regionPickerItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  regionPickerItemText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
+
 

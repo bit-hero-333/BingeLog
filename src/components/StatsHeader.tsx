@@ -3,6 +3,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { STATUS_CONFIG } from '@/types/media';
 import { useAppTheme } from '@/context/ThemeContext';
+import { useMedia } from '@/context/MediaContext';
+import { getTextScale } from '@/utils/sizing';
 
 interface StatsHeaderProps {
   total: number;
@@ -24,6 +26,8 @@ export function StatsHeader({
   meanScore,
 }: StatsHeaderProps) {
   const { colors } = useAppTheme();
+  const { sizingConfig } = useMedia();
+  const textScale = getTextScale(sizingConfig?.textSize);
 
   if (total === 0) return null;
 
@@ -32,17 +36,17 @@ export function StatsHeader({
       {/* Top summary row */}
       <View style={styles.topRow}>
         <View style={styles.statBox}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Entries</Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>{total}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary, fontSize: Math.round(11 * textScale) }]}>Total Entries</Text>
+          <Text style={[styles.statValue, { color: colors.text, fontSize: Math.round(18 * textScale) }]}>{total}</Text>
         </View>
 
         <View style={[styles.statDivider, { backgroundColor: colors.divider }]} />
 
         <View style={styles.statBox}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mean Score</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary, fontSize: Math.round(11 * textScale) }]}>Mean Score</Text>
           <View style={styles.scoreRow}>
-            <Ionicons name="star" size={14} color="#f59e0b" />
-            <Text style={[styles.statValue, { color: colors.text }]}>
+            <Ionicons name="star" size={Math.round(14 * textScale)} color="#f59e0b" />
+            <Text style={[styles.statValue, { color: colors.text, fontSize: Math.round(18 * textScale) }]}>
               {meanScore > 0 ? meanScore.toFixed(1) : '-'}
             </Text>
           </View>
@@ -51,8 +55,8 @@ export function StatsHeader({
         <View style={[styles.statDivider, { backgroundColor: colors.divider }]} />
 
         <View style={styles.statBox}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Completed</Text>
-          <Text style={[styles.statValue, { color: STATUS_CONFIG.completed.color }]}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary, fontSize: Math.round(11 * textScale) }]}>Completed</Text>
+          <Text style={[styles.statValue, { color: STATUS_CONFIG.completed.color, fontSize: Math.round(18 * textScale) }]}>
             {completed}
           </Text>
         </View>
@@ -113,19 +117,19 @@ export function StatsHeader({
           <View
             style={[styles.dot, { backgroundColor: STATUS_CONFIG.watching.color }]}
           />
-          <Text style={[styles.badgeText, { color: colors.textSecondary }]}>Watching: {watching}</Text>
+          <Text style={[styles.badgeText, { color: colors.textSecondary, fontSize: Math.round(11 * textScale) }]}>Watching: {watching}</Text>
         </View>
         <View style={styles.badgeItem}>
           <View
             style={[styles.dot, { backgroundColor: STATUS_CONFIG.plan_to_watch.color }]}
           />
-          <Text style={[styles.badgeText, { color: colors.textSecondary }]}>Plan: {planToWatch}</Text>
+          <Text style={[styles.badgeText, { color: colors.textSecondary, fontSize: Math.round(11 * textScale) }]}>Plan: {planToWatch}</Text>
         </View>
         <View style={styles.badgeItem}>
           <View
             style={[styles.dot, { backgroundColor: STATUS_CONFIG.completed.color }]}
           />
-          <Text style={[styles.badgeText, { color: colors.textSecondary }]}>Done: {completed}</Text>
+          <Text style={[styles.badgeText, { color: colors.textSecondary, fontSize: Math.round(11 * textScale) }]}>Done: {completed}</Text>
         </View>
       </View>
     </View>

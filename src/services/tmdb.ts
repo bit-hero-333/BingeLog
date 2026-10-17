@@ -11,6 +11,7 @@ import {
   CompanyFullDetails,
   GenreFullDetails,
   EntityType,
+  WatchProvider,
 } from '@/types/media';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
@@ -102,12 +103,50 @@ interface RawCreditsResponse {
       department: string;
     }[];
   };
+  ['watch/providers']?: {
+    results?: Record<string, {
+      link?: string;
+      flatrate?: {
+        provider_id: number;
+        provider_name: string;
+        logo_path: string | null;
+        display_priority?: number;
+      }[];
+      free?: {
+        provider_id: number;
+        provider_name: string;
+        logo_path: string | null;
+        display_priority?: number;
+      }[];
+      ads?: {
+        provider_id: number;
+        provider_name: string;
+        logo_path: string | null;
+        display_priority?: number;
+      }[];
+      rent?: {
+        provider_id: number;
+        provider_name: string;
+        logo_path: string | null;
+        display_priority?: number;
+      }[];
+      buy?: {
+        provider_id: number;
+        provider_name: string;
+        logo_path: string | null;
+        display_priority?: number;
+      }[];
+    }>;
+  };
+  watch_providers?: {
+    results?: Record<string, any>;
+  };
 }
 
 export const TMDBService = {
   getImageUrl(
     path: string | null | undefined,
-    size: 'w185' | 'w342' | 'w500' | 'original' = 'w342'
+    size: 'w92' | 'w154' | 'w185' | 'w342' | 'w500' | 'original' = 'w342'
   ): string | null {
     if (!path) return null;
     return `${IMAGE_BASE_URL}/${size}${path}`;
@@ -244,7 +283,7 @@ export const TMDBService = {
   ): Promise<DetailedMediaInfo> {
     try {
       const endpoint = type === 'movie' ? `/movie/${id}` : `/tv/${id}`;
-      const append = type === 'movie' ? 'credits,release_dates' : 'credits';
+      const append = type === 'movie' ? 'credits,release_dates,watch/providers' : 'credits,watch/providers';
       const data = await this.request<RawCreditsResponse>(endpoint, apiKey, {
         append_to_response: append,
       });
@@ -355,6 +394,35 @@ export const TMDBService = {
         };
       }
 
+      // Parse watch providers for all regions
+      const rawProviders = data['watch/providers']?.results || data.watch_providers?.results;
+      let watchProviders: DetailedMediaInfo['watchProviders'];
+
+      if (rawProviders && typeof rawProviders === 'object') {
+        watchProviders = {};
+        for (const [countryCode, provData] of Object.entries(rawProviders)) {
+          if (!provData || typeof provData !== 'object') continue;
+          const mapList = (list: any[] | undefined): WatchProvider[] | undefined => {
+            if (!Array.isArray(list) || list.length === 0) return undefined;
+            return list.map((p) => ({
+              id: p.provider_id,
+              name: p.provider_name,
+              logoPath: p.logo_path || null,
+              displayPriority: p.display_priority,
+            }));
+          };
+
+          watchProviders[countryCode.toUpperCase()] = {
+            link: provData.link,
+            flatrate: mapList(provData.flatrate),
+            free: mapList(provData.free),
+            ads: mapList(provData.ads),
+            rent: mapList(provData.rent),
+            buy: mapList(provData.buy),
+          };
+        }
+      }
+
       return {
         runtime: data.runtime || undefined,
         numberOfEpisodes: data.number_of_episodes || undefined,
@@ -374,6 +442,7 @@ export const TMDBService = {
         regionalReleaseType,
         nextAirDate,
         nextEpisode,
+        watchProviders,
       };
     } catch (e) {
       console.warn('Failed to fetch detailed media info from TMDB', e);
@@ -597,7 +666,8 @@ export const TMDBService = {
     entityType: EntityType,
     entityId: number,
     apiKey: string,
-    page: number = 1
+    page: number = 1,
+    watchRegion?: string
   ): Promise<TMDBMediaItem[]> {
     try {
       const params: Record<string, string | number> = {
@@ -610,6 +680,11 @@ export const TMDBService = {
         params.with_companies = entityId;
       } else if (entityType === 'genre') {
         params.with_genres = entityId;
+      } else if (entityType === 'provider') {
+        params.with_watch_providers = entityId;
+        if (watchRegion && watchRegion !== 'ALL') {
+          params.watch_region = watchRegion;
+        }
       }
 
       const [moviesRes, tvRes] = await Promise.allSettled([

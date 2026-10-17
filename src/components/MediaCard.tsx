@@ -7,6 +7,7 @@ import { TMDBService } from '@/services/tmdb';
 import { formatDateDisplay, getRelativeTime, formatRuntime, getCountdownInfo } from '@/utils/date';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useMedia } from '@/context/MediaContext';
+import { getTextScale, getHeaderScale, getPosterScale } from '@/utils/sizing';
 
 interface MediaCardProps {
   item: TMDBMediaItem | TrackedItem;
@@ -18,7 +19,11 @@ interface MediaCardProps {
 
 export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }: MediaCardProps) {
   const { colors } = useAppTheme();
-  const { triggerHaptic, dateFormat, selectedTimezone, remindersEnabled } = useMedia();
+  const { triggerHaptic, dateFormat, selectedTimezone, remindersEnabled, sizingConfig } = useMedia();
+
+  const textScale = getTextScale(sizingConfig?.textSize);
+  const headerScale = getHeaderScale(sizingConfig?.headerSize);
+  const posterScale = getPosterScale(sizingConfig?.posterSize);
   // Normalize fields between TMDBMediaItem and TrackedItem
   const isTrackedItem = 'status' in item;
   const title = ('title' in item && item.title) ? item.title : ('name' in item ? item.name : 'Untitled');
@@ -79,7 +84,11 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
     <Pressable
       style={({ pressed }) => [
         styles.card,
-        { backgroundColor: colors.card, borderColor: colors.cardBorder },
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.cardBorder,
+          minHeight: Math.round(140 * posterScale),
+        },
         style,
         pressed && styles.cardPressed,
       ]}
@@ -89,7 +98,15 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
       }}
       android_ripple={{ color: 'rgba(255, 255, 255, 0.05)' }}>
       {/* Poster */}
-      <View style={[styles.posterContainer, { backgroundColor: colors.cardSelected }]}>
+      <View
+        style={[
+          styles.posterContainer,
+          {
+            width: Math.round(90 * posterScale),
+            height: Math.round(140 * posterScale),
+            backgroundColor: colors.cardSelected,
+          },
+        ]}>
         {posterUrl ? (
           <Image
             source={{ uri: posterUrl }}
@@ -99,21 +116,21 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
           />
         ) : (
           <View style={[styles.poster, styles.posterFallback, { backgroundColor: colors.inputBg }]}>
-            <Ionicons name="film-outline" size={32} color={colors.textMuted} />
-            <Text style={[styles.noPosterText, { color: colors.textMuted }]}>No Poster</Text>
+            <Ionicons name="film-outline" size={32 * textScale} color={colors.textMuted} />
+            <Text style={[styles.noPosterText, { color: colors.textMuted, fontSize: 10 * textScale }]}>No Poster</Text>
           </View>
         )}
 
         {/* Media type badge */}
         <View style={styles.mediaTypeBadge}>
-          <Text style={styles.mediaTypeText}>{mediaType.toUpperCase()}</Text>
+          <Text style={[styles.mediaTypeText, { fontSize: 9 * textScale }]}>{mediaType.toUpperCase()}</Text>
         </View>
 
         {/* Countdown Badge on Poster */}
         {countdownTarget && (
           <View style={[styles.countdownBadge, { backgroundColor: colors.primary }]}>
-            <Ionicons name="calendar-outline" size={9} color="#ffffff" />
-            <Text style={styles.countdownBadgeText}>{countdownTarget.formattedCountdown}</Text>
+            <Ionicons name="calendar-outline" size={9 * textScale} color="#ffffff" />
+            <Text style={[styles.countdownBadgeText, { fontSize: 9 * textScale }]}>{countdownTarget.formattedCountdown}</Text>
           </View>
         )}
 
@@ -131,21 +148,24 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
       {/* Content Info */}
       <View style={styles.infoContainer}>
         <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: colors.text }]} numberOfLines={2} selectable={true}>
+          <Text
+            style={[styles.title, { color: colors.text, fontSize: Math.round(15 * headerScale) }]}
+            numberOfLines={2}
+            selectable={true}>
             {title}
           </Text>
         </View>
 
         <View style={styles.metaRow}>
           {releaseYear ? (
-            <Text style={[styles.yearText, { color: colors.textSecondary }]}>{releaseYear}</Text>
+            <Text style={[styles.yearText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>{releaseYear}</Text>
           ) : null}
 
           {/* Countdown indicator chip in meta row */}
           {countdownTarget && (
             <View style={[styles.countdownMetaChip, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
-              <Ionicons name="time-outline" size={10} color={colors.primary} />
-              <Text style={[styles.countdownMetaText, { color: colors.primary }]}>
+              <Ionicons name="time-outline" size={10 * textScale} color={colors.primary} />
+              <Text style={[styles.countdownMetaText, { color: colors.primary, fontSize: 10 * textScale }]}>
                 {countdownTarget.formattedCountdown}
               </Text>
             </View>
@@ -155,16 +175,16 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
           {currentTracked ? (
             mediaType === 'tv' ? (
               <View style={[styles.progressChip, { backgroundColor: colors.primaryBg }]}>
-                <Ionicons name="tv-outline" size={11} color={colors.primary} />
-                <Text style={[styles.progressChipText, { color: colors.primary }]}>
+                <Ionicons name="tv-outline" size={11 * textScale} color={colors.primary} />
+                <Text style={[styles.progressChipText, { color: colors.primary, fontSize: 11 * textScale }]}>
                   Ep {currentTracked.currentProgress || 0}
                   {currentTracked.totalEpisodes ? `/${currentTracked.totalEpisodes}` : ''}
                 </Text>
               </View>
             ) : currentTracked.runtimeMinutes ? (
               <View style={[styles.progressChip, { backgroundColor: colors.primaryBg }]}>
-                <Ionicons name="time-outline" size={11} color={colors.primary} />
-                <Text style={[styles.progressChipText, { color: colors.primary }]}>
+                <Ionicons name="time-outline" size={11 * textScale} color={colors.primary} />
+                <Text style={[styles.progressChipText, { color: colors.primary, fontSize: 11 * textScale }]}>
                   {formatRuntime(currentTracked.runtimeMinutes)}
                 </Text>
               </View>
@@ -173,8 +193,8 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
 
           {voteAverage ? (
             <View style={styles.ratingBadge}>
-              <Ionicons name="star" size={11} color="#f59e0b" />
-              <Text style={styles.ratingText}>{voteAverage.toFixed(1)}</Text>
+              <Ionicons name="star" size={11 * textScale} color="#f59e0b" />
+              <Text style={[styles.ratingText, { fontSize: 11 * textScale }]}>{voteAverage.toFixed(1)}</Text>
             </View>
           ) : null}
         </View>
@@ -182,8 +202,8 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
         {/* Date Info Row */}
         {dateLabel && (
           <View style={styles.dateInfoRow}>
-            <Ionicons name="calendar-outline" size={11} color="#64748b" />
-            <Text style={styles.dateInfoText}>{dateLabel}</Text>
+            <Ionicons name="calendar-outline" size={11 * textScale} color="#64748b" />
+            <Text style={[styles.dateInfoText, { fontSize: 11 * textScale }]}>{dateLabel}</Text>
           </View>
         )}
 
@@ -205,7 +225,7 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
                 <Text
                   style={[
                     styles.statusTagText,
-                    { color: statusConfig?.color || '#3b82f6' },
+                    { color: statusConfig?.color || '#3b82f6', fontSize: 11 * textScale },
                   ]}>
                   {statusConfig?.shortLabel}
                 </Text>
@@ -213,15 +233,15 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
 
               {currentTracked.userScore > 0 && (
                 <View style={styles.userScoreTag}>
-                  <Ionicons name="star" size={11} color="#fbbf24" />
-                  <Text style={styles.userScoreText}>{currentTracked.userScore}/10</Text>
+                  <Ionicons name="star" size={11 * textScale} color="#fbbf24" />
+                  <Text style={[styles.userScoreText, { fontSize: 11 * textScale }]}>{currentTracked.userScore}/10</Text>
                 </View>
               )}
 
               {Boolean(currentTracked.rewatchCount && currentTracked.rewatchCount > 0) && (
                 <View style={[styles.rewatchChip, { backgroundColor: colors.primaryBg }]}>
-                  <Ionicons name="repeat" size={11} color={colors.primary} />
-                  <Text style={[styles.rewatchChipText, { color: colors.primary }]}>
+                  <Ionicons name="repeat" size={11 * textScale} color={colors.primary} />
+                  <Text style={[styles.rewatchChipText, { color: colors.primary, fontSize: 11 * textScale }]}>
                     {currentTracked.rewatchCount}×
                   </Text>
                 </View>
@@ -242,8 +262,8 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
                   onPress();
                 }
               }}>
-              <Ionicons name="add" size={14} color="#ffffff" />
-              <Text style={styles.trackButtonText}>Track</Text>
+              <Ionicons name="add" size={14 * textScale} color="#ffffff" />
+              <Text style={[styles.trackButtonText, { fontSize: 12 * textScale }]}>Track</Text>
             </Pressable>
           )}
 

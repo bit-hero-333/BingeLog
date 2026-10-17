@@ -3,6 +3,7 @@ import { ScrollView, Text, StyleSheet, Pressable, View, ColorValue } from 'react
 import { MediaStatus, STATUS_CONFIG } from '@/types/media';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useMedia } from '@/context/MediaContext';
+import { getTextScale } from '@/utils/sizing';
 
 export type FilterStatus = 'all' | MediaStatus;
 
@@ -18,7 +19,8 @@ export function StatusFilterChips({
   counts,
 }: StatusFilterChipsProps) {
   const { colors } = useAppTheme();
-  const { triggerHaptic } = useMedia();
+  const { triggerHaptic, sizingConfig } = useMedia();
+  const textScale = getTextScale(sizingConfig?.textSize);
 
   const options: { id: FilterStatus; label: string; color: ColorValue }[] = [
     { id: 'all', label: 'All', color: colors.primary },
@@ -56,7 +58,7 @@ export function StatusFilterChips({
             <Text
               style={[
                 styles.chipText,
-                { color: isSelected ? '#ffffff' : colors.textSecondary },
+                { color: isSelected ? '#ffffff' : colors.textSecondary, fontSize: Math.round(13 * textScale) },
                 isSelected && styles.chipTextSelected,
               ]}>
               {opt.label}
@@ -69,7 +71,7 @@ export function StatusFilterChips({
               <Text
                 style={[
                   styles.badgeText,
-                  { color: isSelected ? '#ffffff' : colors.textSecondary },
+                  { color: isSelected ? '#ffffff' : colors.textSecondary, fontSize: Math.round(11 * textScale) },
                   isSelected && styles.badgeTextSelected,
                 ]}>
                 {count}

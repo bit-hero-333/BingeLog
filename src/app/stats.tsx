@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { useMedia } from '@/context/MediaContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { STATUS_CONFIG, MediaStatus } from '@/types/media';
+import { getTextScale, getHeaderScale } from '@/utils/sizing';
 
 function formatMinutesToDH(minutes: number): { days: number; hours: number; mins: number; formatted: string } {
   if (minutes <= 0) {
@@ -32,8 +33,10 @@ function formatMinutesToDH(minutes: number): { days: number; hours: number; mins
 
 export default function StatsScreen() {
   const router = useRouter();
-  const { trackedItems, triggerHaptic } = useMedia();
+  const { trackedItems, triggerHaptic, sizingConfig } = useMedia();
   const { colors } = useAppTheme();
+  const textScale = getTextScale(sizingConfig?.textSize);
+  const headerScale = getHeaderScale(sizingConfig?.headerSize);
   const { width } = useWindowDimensions();
   const isTablet = width >= 720;
 
@@ -210,38 +213,38 @@ export default function StatsScreen() {
       <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <View style={styles.heroTopRow}>
           <View style={styles.heroTitleGroup}>
-            <Text style={[styles.heroEyebrow, { color: colors.primary }]}>WATCH TIME ANALYTICS</Text>
-            <Text style={[styles.heroMainMetric, { color: colors.text }]} selectable={true}>
+            <Text style={[styles.heroEyebrow, { color: colors.primary, fontSize: Math.round(11 * textScale) }]}>WATCH TIME ANALYTICS</Text>
+            <Text style={[styles.heroMainMetric, { color: colors.text, fontSize: Math.round(32 * headerScale) }]} selectable={true}>
               {insights.totalWatchTime.days > 0 ? (
                 <>
                   {insights.totalWatchTime.days}
-                  <Text style={[styles.heroMetricUnit, { color: colors.textSecondary }]}>d </Text>
+                  <Text style={[styles.heroMetricUnit, { color: colors.textSecondary, fontSize: Math.round(16 * textScale) }]}>d </Text>
                   {insights.totalWatchTime.hours}
-                  <Text style={[styles.heroMetricUnit, { color: colors.textSecondary }]}>h </Text>
+                  <Text style={[styles.heroMetricUnit, { color: colors.textSecondary, fontSize: Math.round(16 * textScale) }]}>h </Text>
                   {insights.totalWatchTime.mins}
-                  <Text style={[styles.heroMetricUnit, { color: colors.textSecondary }]}>m</Text>
+                  <Text style={[styles.heroMetricUnit, { color: colors.textSecondary, fontSize: Math.round(16 * textScale) }]}>m</Text>
                 </>
               ) : insights.totalWatchTime.hours > 0 ? (
                 <>
                   {insights.totalWatchTime.hours}
-                  <Text style={[styles.heroMetricUnit, { color: colors.textSecondary }]}>h </Text>
+                  <Text style={[styles.heroMetricUnit, { color: colors.textSecondary, fontSize: Math.round(16 * textScale) }]}>h </Text>
                   {insights.totalWatchTime.mins}
-                  <Text style={[styles.heroMetricUnit, { color: colors.textSecondary }]}>m</Text>
+                  <Text style={[styles.heroMetricUnit, { color: colors.textSecondary, fontSize: Math.round(16 * textScale) }]}>m</Text>
                 </>
               ) : (
                 <>
                   {insights.totalWatchTime.mins}
-                  <Text style={[styles.heroMetricUnit, { color: colors.textSecondary }]}>m</Text>
+                  <Text style={[styles.heroMetricUnit, { color: colors.textSecondary, fontSize: Math.round(16 * textScale) }]}>m</Text>
                 </>
               )}
             </Text>
-            <Text style={[styles.heroSubLabel, { color: colors.textSecondary }]} selectable={true}>
+            <Text style={[styles.heroSubLabel, { color: colors.textSecondary, fontSize: Math.round(12 * textScale) }]} selectable={true}>
               Total Estimated Time Spent Watching
             </Text>
           </View>
 
           <View style={[styles.heroIconBadge, { backgroundColor: colors.primaryBg }]}>
-            <Ionicons name="time" size={28} color={colors.primary} />
+            <Ionicons name="time" size={Math.round(28 * headerScale)} color={colors.primary} />
           </View>
         </View>
 
@@ -272,15 +275,15 @@ export default function StatsScreen() {
             <View style={styles.splitLegendRow}>
               <View style={styles.splitLegendItem}>
                 <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
-                <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>
-                  Movies: <Text style={[styles.legendValue, { color: colors.text }]} selectable={true}>{insights.movieWatchTime.formatted}</Text>
+                <Text style={[styles.legendLabel, { color: colors.textSecondary, fontSize: Math.round(12 * textScale) }]}>
+                  Movies: <Text style={[styles.legendValue, { color: colors.text, fontSize: Math.round(12 * textScale) }]} selectable={true}>{insights.movieWatchTime.formatted}</Text>
                 </Text>
               </View>
 
               <View style={styles.splitLegendItem}>
                 <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
-                <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>
-                  TV Shows: <Text style={[styles.legendValue, { color: colors.text }]} selectable={true}>{insights.tvWatchTime.formatted}</Text>
+                <Text style={[styles.legendLabel, { color: colors.textSecondary, fontSize: Math.round(12 * textScale) }]}>
+                  TV Shows: <Text style={[styles.legendValue, { color: colors.text, fontSize: Math.round(12 * textScale) }]} selectable={true}>{insights.tvWatchTime.formatted}</Text>
                 </Text>
               </View>
             </View>
@@ -293,13 +296,13 @@ export default function StatsScreen() {
         {/* Total Titles */}
         <View style={[styles.metricCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <View style={styles.metricCardHeader}>
-            <Text style={[styles.metricCardTitle, { color: colors.textSecondary }]}>Total Titles</Text>
-            <Ionicons name="library-outline" size={16} color={colors.primary} />
+            <Text style={[styles.metricCardTitle, { color: colors.textSecondary, fontSize: Math.round(12 * textScale) }]}>Total Titles</Text>
+            <Ionicons name="library-outline" size={Math.round(16 * textScale)} color={colors.primary} />
           </View>
-          <Text style={[styles.metricCardValue, { color: colors.text }]} selectable={true}>
+          <Text style={[styles.metricCardValue, { color: colors.text, fontSize: Math.round(22 * headerScale) }]} selectable={true}>
             {insights.totalItems}
           </Text>
-          <Text style={[styles.metricCardSub, { color: colors.textMuted }]}>
+          <Text style={[styles.metricCardSub, { color: colors.textMuted, fontSize: Math.round(11 * textScale) }]}>
             {insights.movieTotalCount} Movies • {insights.tvTotalCount} Shows
           </Text>
         </View>
@@ -307,13 +310,13 @@ export default function StatsScreen() {
         {/* Completion Rate */}
         <View style={[styles.metricCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <View style={styles.metricCardHeader}>
-            <Text style={[styles.metricCardTitle, { color: colors.textSecondary }]}>Completion Rate</Text>
-            <Ionicons name="checkmark-done-circle-outline" size={17} color="#22c55e" />
+            <Text style={[styles.metricCardTitle, { color: colors.textSecondary, fontSize: Math.round(12 * textScale) }]}>Completion Rate</Text>
+            <Ionicons name="checkmark-done-circle-outline" size={Math.round(17 * textScale)} color="#22c55e" />
           </View>
-          <Text style={[styles.metricCardValue, { color: colors.text }]} selectable={true}>
+          <Text style={[styles.metricCardValue, { color: colors.text, fontSize: Math.round(22 * headerScale) }]} selectable={true}>
             {insights.completionRate}%
           </Text>
-          <Text style={[styles.metricCardSub, { color: colors.textMuted }]}>
+          <Text style={[styles.metricCardSub, { color: colors.textMuted, fontSize: Math.round(11 * textScale) }]}>
             {insights.statusCounts.completed} Completed
           </Text>
         </View>
@@ -321,13 +324,13 @@ export default function StatsScreen() {
         {/* Average User Score */}
         <View style={[styles.metricCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <View style={styles.metricCardHeader}>
-            <Text style={[styles.metricCardTitle, { color: colors.textSecondary }]}>Mean Score</Text>
-            <Ionicons name="star" size={16} color="#fbbf24" />
+            <Text style={[styles.metricCardTitle, { color: colors.textSecondary, fontSize: Math.round(12 * textScale) }]}>Mean Score</Text>
+            <Ionicons name="star" size={Math.round(16 * textScale)} color="#fbbf24" />
           </View>
-          <Text style={[styles.metricCardValue, { color: colors.text }]} selectable={true}>
+          <Text style={[styles.metricCardValue, { color: colors.text, fontSize: Math.round(22 * headerScale) }]} selectable={true}>
             {insights.averageUserScore > 0 ? `${insights.averageUserScore}/10` : '—'}
           </Text>
-          <Text style={[styles.metricCardSub, { color: colors.textMuted }]}>
+          <Text style={[styles.metricCardSub, { color: colors.textMuted, fontSize: Math.round(11 * textScale) }]}>
             {insights.scoredItemsCount} Rated ({insights.unratedCount} Unrated)
           </Text>
         </View>
@@ -335,13 +338,13 @@ export default function StatsScreen() {
         {/* TV Episodes & Rewatches */}
         <View style={[styles.metricCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <View style={styles.metricCardHeader}>
-            <Text style={[styles.metricCardTitle, { color: colors.textSecondary }]}>Episodes Watched</Text>
-            <Ionicons name="tv-outline" size={16} color="#38bdf8" />
+            <Text style={[styles.metricCardTitle, { color: colors.textSecondary, fontSize: Math.round(12 * textScale) }]}>Episodes Watched</Text>
+            <Ionicons name="tv-outline" size={Math.round(16 * textScale)} color="#38bdf8" />
           </View>
-          <Text style={[styles.metricCardValue, { color: colors.text }]} selectable={true}>
+          <Text style={[styles.metricCardValue, { color: colors.text, fontSize: Math.round(22 * headerScale) }]} selectable={true}>
             {insights.totalEpisodesWatched}
           </Text>
-          <Text style={[styles.metricCardSub, { color: colors.textMuted }]}>
+          <Text style={[styles.metricCardSub, { color: colors.textMuted, fontSize: Math.round(11 * textScale) }]}>
             +{insights.totalRewatches} Total Rewatches
           </Text>
         </View>
@@ -351,12 +354,12 @@ export default function StatsScreen() {
       <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionTitleWithIcon}>
-            <Ionicons name="pie-chart-outline" size={18} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]} selectable={true}>
+            <Ionicons name="pie-chart-outline" size={Math.round(18 * headerScale)} color={colors.primary} />
+            <Text style={[styles.sectionTitle, { color: colors.text, fontSize: Math.round(15 * headerScale) }]} selectable={true}>
               Library Status Distribution
             </Text>
           </View>
-          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary, fontSize: Math.round(12 * textScale) }]}>
             {insights.totalItems} titles
           </Text>
         </View>
@@ -400,15 +403,15 @@ export default function StatsScreen() {
                 ]}>
                 <View style={styles.statusListLeft}>
                   <View style={[styles.statusPip, { backgroundColor: config.color }]} />
-                  <Text style={[styles.statusItemLabel, { color: colors.text }]} selectable={true}>
+                  <Text style={[styles.statusItemLabel, { color: colors.text, fontSize: Math.round(13 * textScale) }]} selectable={true}>
                     {config.label}
                   </Text>
                 </View>
                 <View style={styles.statusListRight}>
-                  <Text style={[styles.statusItemCount, { color: colors.text }]} selectable={true}>
+                  <Text style={[styles.statusItemCount, { color: colors.text, fontSize: Math.round(14 * textScale) }]} selectable={true}>
                     {count}
                   </Text>
-                  <Text style={[styles.statusItemPct, { color: colors.textMuted }]}>
+                  <Text style={[styles.statusItemPct, { color: colors.textMuted, fontSize: Math.round(11 * textScale) }]}>
                     ({pct}%)
                   </Text>
                 </View>
@@ -422,15 +425,15 @@ export default function StatsScreen() {
       <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionTitleWithIcon}>
-            <Ionicons name="bar-chart-outline" size={18} color="#fbbf24" />
-            <Text style={[styles.sectionTitle, { color: colors.text }]} selectable={true}>
+            <Ionicons name="bar-chart-outline" size={Math.round(18 * headerScale)} color="#fbbf24" />
+            <Text style={[styles.sectionTitle, { color: colors.text, fontSize: Math.round(15 * headerScale) }]} selectable={true}>
               Rating Distribution (10 → 1)
             </Text>
           </View>
           {insights.averageUserScore > 0 && (
             <View style={[styles.scoreBadgeHeader, { backgroundColor: 'rgba(251, 191, 36, 0.15)' }]}>
-              <Ionicons name="star" size={11} color="#fbbf24" />
-              <Text style={styles.scoreBadgeHeaderText}>{insights.averageUserScore} Avg</Text>
+              <Ionicons name="star" size={Math.round(11 * textScale)} color="#fbbf24" />
+              <Text style={[styles.scoreBadgeHeaderText, { fontSize: Math.round(11 * textScale) }]}>{insights.averageUserScore} Avg</Text>
             </View>
           )}
         </View>
@@ -448,8 +451,8 @@ export default function StatsScreen() {
             return (
               <View key={`hist-${s}`} style={styles.histogramRow}>
                 <View style={styles.histogramLabelCol}>
-                  <Text style={[styles.histogramScoreNum, { color: colors.text }]} selectable={true}>{s}</Text>
-                  <Ionicons name="star" size={10} color="#fbbf24" />
+                  <Text style={[styles.histogramScoreNum, { color: colors.text, fontSize: Math.round(13 * textScale) }]} selectable={true}>{s}</Text>
+                  <Ionicons name="star" size={Math.round(10 * textScale)} color="#fbbf24" />
                 </View>
 
                 <View style={[styles.histogramBarTrack, { backgroundColor: colors.inputBg }]}>
@@ -467,10 +470,10 @@ export default function StatsScreen() {
                 </View>
 
                 <View style={styles.histogramCountCol}>
-                  <Text style={[styles.histogramCountText, { color: count > 0 ? colors.text : colors.textMuted }]} selectable={true}>
+                  <Text style={[styles.histogramCountText, { color: count > 0 ? colors.text : colors.textMuted, fontSize: Math.round(12 * textScale) }]} selectable={true}>
                     {count}
                   </Text>
-                  <Text style={[styles.histogramPctText, { color: colors.textMuted }]}>
+                  <Text style={[styles.histogramPctText, { color: colors.textMuted, fontSize: Math.round(11 * textScale) }]}>
                     {pct}%
                   </Text>
                 </View>
@@ -485,12 +488,12 @@ export default function StatsScreen() {
         <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <View style={styles.sectionHeaderRow}>
             <View style={styles.sectionTitleWithIcon}>
-              <Ionicons name="film-outline" size={18} color={colors.primary} />
-              <Text style={[styles.sectionTitle, { color: colors.text }]} selectable={true}>
+              <Ionicons name="film-outline" size={Math.round(18 * headerScale)} color={colors.primary} />
+              <Text style={[styles.sectionTitle, { color: colors.text, fontSize: Math.round(15 * headerScale) }]} selectable={true}>
                 Top Favorite Genres
               </Text>
             </View>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary, fontSize: Math.round(12 * textScale) }]}>
               {insights.topGenres.length} genres
             </Text>
           </View>
@@ -506,17 +509,17 @@ export default function StatsScreen() {
                 <View key={genre.name} style={styles.genreItemCard}>
                   <View style={styles.genreMetaRow}>
                     <View style={styles.genreLeft}>
-                      <Text style={[styles.genreRank, { color: colors.textMuted }]}>#{idx + 1}</Text>
-                      <Text style={[styles.genreName, { color: colors.text }]} selectable={true}>
+                      <Text style={[styles.genreRank, { color: colors.textMuted, fontSize: Math.round(12 * textScale) }]}>#{idx + 1}</Text>
+                      <Text style={[styles.genreName, { color: colors.text, fontSize: Math.round(13 * textScale) }]} selectable={true}>
                         {genre.name}
                       </Text>
                     </View>
 
                     <View style={styles.genreRight}>
-                      <Text style={[styles.genreCount, { color: colors.text }]} selectable={true}>
+                      <Text style={[styles.genreCount, { color: colors.text, fontSize: Math.round(12 * textScale) }]} selectable={true}>
                         {genre.count}
                       </Text>
-                      <Text style={[styles.genrePct, { color: colors.textMuted }]}>
+                      <Text style={[styles.genrePct, { color: colors.textMuted, fontSize: Math.round(11 * textScale) }]}>
                         ({pct}%)
                       </Text>
                     </View>
@@ -544,10 +547,10 @@ export default function StatsScreen() {
       {!hasItems && (
         <View style={[styles.emptyContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <Ionicons name="analytics-outline" size={48} color={colors.textMuted} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]} selectable={true}>
+          <Text style={[styles.emptyTitle, { color: colors.text, fontSize: Math.round(17 * headerScale) }]} selectable={true}>
             No Tracking Data Yet
           </Text>
-          <Text style={[styles.emptySub, { color: colors.textSecondary }]} selectable={true}>
+          <Text style={[styles.emptySub, { color: colors.textSecondary, fontSize: Math.round(13 * textScale) }]} selectable={true}>
             Start adding movies and shows to your watchlist to unlock in-depth stats, watch time breakdowns, and rating distribution histograms.
           </Text>
           <Pressable
@@ -556,8 +559,8 @@ export default function StatsScreen() {
               triggerHaptic('selection');
               router.push('/');
             }}>
-            <Ionicons name="compass-outline" size={16} color="#ffffff" />
-            <Text style={styles.emptyBtnText}>Explore Titles</Text>
+            <Ionicons name="compass-outline" size={Math.round(16 * textScale)} color="#ffffff" />
+            <Text style={[styles.emptyBtnText, { fontSize: Math.round(14 * textScale) }]}>Explore Titles</Text>
           </Pressable>
         </View>
       )}
