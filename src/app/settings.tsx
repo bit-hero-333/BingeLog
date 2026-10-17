@@ -51,6 +51,8 @@ import {
 import { getTodayFormatted } from '@/utils/date';
 import { SyncModal } from '@/components/SyncModal';
 import { EntityModal } from '@/components/EntityModal';
+import { CustomizeInsightsModal } from '@/components/insights/CustomizeInsightsModal';
+import { INSIGHT_WIDGET_CATALOG } from '@/types/insights';
 import { router } from 'expo-router';
 
 const SCALES: ElementScale[] = ['small', 'medium', 'large', 'xlarge'];
@@ -120,6 +122,8 @@ export default function SettingsScreen() {
     setStreamingRegionStrategy,
     customStreamingRegion,
     setCustomStreamingRegion,
+    insightsLayout,
+    resetInsightsLayout,
   } = useMedia();
 
   // Collapsible Accordion Sections State
@@ -132,9 +136,12 @@ export default function SettingsScreen() {
     regional: false,
     notifications: false,
     api: false,
+    insights: false,
     storage: false,
     about: false,
   });
+
+  const [showInsightsCustomizer, setShowInsightsCustomizer] = useState(false);
 
   const {
     mode,
@@ -185,6 +192,11 @@ export default function SettingsScreen() {
       },
     }),
     [textScale, headerScale, buttonScale, providerScale]
+  );
+
+  const activeInsightsCount = useMemo(
+    () => (insightsLayout || []).filter((w) => w.enabled).length,
+    [insightsLayout]
   );
 
   // Streaming Provider Catalog State
@@ -302,6 +314,7 @@ export default function SettingsScreen() {
       regional: next,
       notifications: next,
       api: next,
+      insights: next,
       storage: next,
       about: next,
     });
@@ -2470,6 +2483,72 @@ export default function SettingsScreen() {
         )}
       </View>
 
+      {/* ============================================================== */}
+      {/* MEDIA INSIGHTS DASHBOARD SECTION */}
+      {/* ============================================================== */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => toggleSection('insights')}>
+          <View style={styles.accordionLeft}>
+            <Ionicons name="stats-chart-outline" size={Math.round(20 * headerScale)} color={colors.primary} />
+            <View style={styles.accordionTextGroup}>
+              <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>Media Insights Dashboard</Text>
+              <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
+                {activeInsightsCount} of {INSIGHT_WIDGET_CATALOG.length} modules active
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name={expandedSections.insights ? 'chevron-up' : 'chevron-down'}
+            size={Math.round(18 * headerScale)}
+            color={colors.textSecondary}
+          />
+        </Pressable>
+
+        {expandedSections.insights && (
+          <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
+            <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
+              Customize the statistics, deep analytics, and taste profiles rendered on your Media Insights screen. Rearrange module order, toggle visibility, and adjust card widths.
+            </Text>
+
+            <View style={{ marginTop: 12, flexDirection: 'row', gap: 10 }}>
+              <Pressable
+                style={[
+                  styles.backupBtn,
+                  dynTypography.presetBtn,
+                  { flex: 1, backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setShowInsightsCustomizer(true);
+                }}>
+                <Ionicons name="options-outline" size={Math.round(16 * buttonScale)} color={colors.primary} />
+                <Text style={[styles.backupBtnText, dynTypography.presetBtnText, { color: colors.primary }]}>
+                  Customize Insights
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.backupBtn,
+                  dynTypography.presetBtn,
+                  { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, paddingHorizontal: 14 },
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  void resetInsightsLayout();
+                }}>
+                <Ionicons name="refresh-outline" size={Math.round(16 * buttonScale)} color={colors.textSecondary} />
+                <Text style={[styles.backupBtnText, dynTypography.presetBtnText, { color: colors.textSecondary }]}>
+                  Reset
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+      </View>
+
       {/* Storage & Data Section */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <Pressable
@@ -2729,7 +2808,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.17.1 • TMDB & MAL Attributions
+                Version 0.18.0 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2829,7 +2908,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.17.1 • Build 28 • Expo SDK 57
+              Version 0.18.0 • Build 29 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -2860,6 +2939,12 @@ export default function SettingsScreen() {
             },
           });
         }}
+      />
+
+      {/* Media Insights Customizer Modal */}
+      <CustomizeInsightsModal
+        visible={showInsightsCustomizer}
+        onClose={() => setShowInsightsCustomizer(false)}
       />
     </ScrollView>
   );

@@ -14,6 +14,7 @@ import {
 } from '@/types/media';
 import { ThemeMode, ThemePresetId } from '@/constants/theme';
 import { HapticIntensity } from '@/services/haptics';
+import { InsightWidgetConfig, DEFAULT_INSIGHTS_LAYOUT } from '@/types/insights';
 
 export interface SavedThemeConfig {
   mode: ThemeMode;
@@ -49,6 +50,7 @@ const STORAGE_KEYS = {
   MY_SUBSCRIBED_PROVIDERS: '@pmt_my_subscribed_providers',
   STREAMING_REGION_STRATEGY: '@pmt_streaming_region_strategy',
   CUSTOM_STREAMING_REGION: '@pmt_custom_streaming_region',
+  INSIGHTS_LAYOUT: '@pmt_insights_layout',
 };
 
 export const StorageService = {
@@ -668,6 +670,50 @@ export const StorageService = {
       await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_STREAMING_REGION, region);
       return true;
     } catch {
+      return false;
+    }
+  },
+
+  async getInsightsLayout(): Promise<InsightWidgetConfig[]> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.INSIGHTS_LAYOUT);
+      if (!data) return DEFAULT_INSIGHTS_LAYOUT;
+      const parsed: InsightWidgetConfig[] = JSON.parse(data);
+      if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_INSIGHTS_LAYOUT;
+
+      // Merge with default layout to ensure newly introduced widgets exist
+      const existingMap = new Map(parsed.map((item) => [item.id, item]));
+      const merged: InsightWidgetConfig[] = [];
+
+      for (const def of DEFAULT_INSIGHTS_LAYOUT) {
+        if (existingMap.has(def.id)) {
+          merged.push(existingMap.get(def.id)!);
+          existingMap.delete(def.id);
+        } else {
+          merged.push(def);
+        }
+      }
+
+      // Append any legacy custom configs if any
+      for (const remaining of existingMap.values()) {
+        merged.push(remaining);
+      }
+
+      // Sort by order
+      merged.sort((a, b) => a.order - b.order);
+      return merged;
+    } catch (e) {
+      console.error('Failed to load insights layout from storage', e);
+      return DEFAULT_INSIGHTS_LAYOUT;
+    }
+  },
+
+  async saveInsightsLayout(layout: InsightWidgetConfig[]): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.INSIGHTS_LAYOUT, JSON.stringify(layout));
+      return true;
+    } catch (e) {
+      console.error('Failed to save insights layout to storage', e);
       return false;
     }
   },

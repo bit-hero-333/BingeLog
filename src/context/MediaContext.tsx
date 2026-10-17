@@ -19,6 +19,12 @@ import {
   ProviderDisplayStrategy,
   StreamingRegionStrategy,
 } from '@/types/media';
+import {
+  InsightWidgetConfig,
+  InsightWidgetId,
+  InsightWidgetSize,
+  DEFAULT_INSIGHTS_LAYOUT,
+} from '@/types/insights';
 
 interface MediaStats {
   total: number;
@@ -114,6 +120,14 @@ interface MediaContextType {
   // Active Discover filter
   activeDiscoverFilter: DiscoverFilter | null;
   setActiveDiscoverFilter: (filter: DiscoverFilter | null) => void;
+
+  // Media Insights Layout
+  insightsLayout: InsightWidgetConfig[];
+  updateInsightsLayout: (layout: InsightWidgetConfig[]) => Promise<boolean>;
+  toggleInsightWidget: (widgetId: InsightWidgetId, enabled?: boolean) => Promise<boolean>;
+  setInsightWidgetSize: (widgetId: InsightWidgetId, size: InsightWidgetSize) => Promise<boolean>;
+  reorderInsightWidget: (fromIndex: number, toIndex: number) => Promise<boolean>;
+  resetInsightsLayout: () => Promise<boolean>;
 }
 
 const MediaContext = createContext<MediaContextType | undefined>(undefined);
@@ -148,6 +162,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   const [mySubscribedProviders, setMySubscribedProvidersState] = useState<number[]>([]);
   const [streamingRegionStrategy, setStreamingRegionStrategyState] = useState<StreamingRegionStrategy>('match_region');
   const [customStreamingRegion, setCustomStreamingRegionState] = useState<string>('US');
+  const [insightsLayout, setInsightsLayoutState] = useState<InsightWidgetConfig[]>(DEFAULT_INSIGHTS_LAYOUT);
   const [isLoadingStorage, setIsLoadingStorage] = useState(true);
 
   useEffect(() => {
@@ -181,6 +196,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           savedSubscribedProviders,
           savedStreamingRegionStrategy,
           savedCustomStreamingRegion,
+          savedInsightsLayout,
         ] = await Promise.all([
           StorageService.getApiKey(),
           StorageService.getTrackedItems(),
@@ -207,6 +223,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           StorageService.getMySubscribedProviders(),
           StorageService.getStreamingRegionStrategy(),
           StorageService.getCustomStreamingRegion(),
+          StorageService.getInsightsLayout(),
         ]);
         if (savedKey) setApiKeyState(savedKey);
         setShowSeasonEpisodeImagesState(savedSeasonEpImages);
@@ -232,6 +249,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setMySubscribedProvidersState(savedSubscribedProviders);
         setStreamingRegionStrategyState(savedStreamingRegionStrategy);
         setCustomStreamingRegionState(savedCustomStreamingRegion);
+        if (savedInsightsLayout && savedInsightsLayout.length > 0) {
+          setInsightsLayoutState(savedInsightsLayout);
+        }
         HapticsService.setIntensity(savedHaptic);
 
         // Auto-refresh missing next air dates for active watchlist TV shows
@@ -729,6 +749,43 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     return success;
   };
 
+  const updateInsightsLayout = async (layout: InsightWidgetConfig[]): Promise<boolean> => {
+    const success = await StorageService.saveInsightsLayout(layout);
+    if (success) {
+      setInsightsLayoutState(layout);
+    }
+    return success;
+  };
+
+  const toggleInsightWidget = async (widgetId: InsightWidgetId, enabled?: boolean): Promise<boolean> => {
+    const next = insightsLayout.map((item) =>
+      item.id === widgetId ? { ...item, enabled: enabled !== undefined ? enabled : !item.enabled } : item
+    );
+    return updateInsightsLayout(next);
+  };
+
+  const setInsightWidgetSize = async (widgetId: InsightWidgetId, size: InsightWidgetSize): Promise<boolean> => {
+    const next = insightsLayout.map((item) =>
+      item.id === widgetId ? { ...item, size } : item
+    );
+    return updateInsightsLayout(next);
+  };
+
+  const reorderInsightWidget = async (fromIndex: number, toIndex: number): Promise<boolean> => {
+    if (fromIndex < 0 || fromIndex >= insightsLayout.length || toIndex < 0 || toIndex >= insightsLayout.length) {
+      return false;
+    }
+    const copy = [...insightsLayout];
+    const [moved] = copy.splice(fromIndex, 1);
+    copy.splice(toIndex, 0, moved);
+    const updated = copy.map((item, idx) => ({ ...item, order: idx }));
+    return updateInsightsLayout(updated);
+  };
+
+  const resetInsightsLayout = async (): Promise<boolean> => {
+    return updateInsightsLayout(DEFAULT_INSIGHTS_LAYOUT);
+  };
+
   const triggerHaptic = (type: 'selection' | 'impact' | 'success' | 'warning' | 'error' = 'impact') => {
     HapticsService.trigger(type);
   };
@@ -850,6 +907,12 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setStreamingRegionStrategy,
         customStreamingRegion,
         setCustomStreamingRegion,
+        insightsLayout,
+        updateInsightsLayout,
+        toggleInsightWidget,
+        setInsightWidgetSize,
+        reorderInsightWidget,
+        resetInsightsLayout,
       }}>
       {children}
     </MediaContext.Provider>
