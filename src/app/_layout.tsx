@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { Tabs, router } from 'expo-router';
+import { Platform, BackHandler, ToastAndroid } from 'react-native';
+import { Tabs, router, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
@@ -11,6 +12,34 @@ function TabLayoutContent() {
   const { trackedItems } = useMedia();
   const { isDark, colors } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    let lastBackPress = 0;
+    const backSubscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      // If navigation can go back in tab history, pop previous page
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+        return true;
+      }
+
+      // Root level double back to exit
+      const now = Date.now();
+      if (now - lastBackPress < 2000) {
+        BackHandler.exitApp();
+        return true;
+      }
+      lastBackPress = now;
+      ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
+      return true;
+    });
+
+    return () => {
+      backSubscription.remove();
+    };
+  }, [navigation]);
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(() => {
@@ -33,6 +62,7 @@ function TabLayoutContent() {
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Tabs
+        backBehavior="history"
         screenOptions={{
           headerStyle: {
             backgroundColor: colors.headerBg,

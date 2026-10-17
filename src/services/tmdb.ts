@@ -13,6 +13,7 @@ import {
   EntityType,
   WatchProvider,
   POPULAR_STREAMING_PROVIDERS,
+  MultiDiscoverFilter,
 } from '@/types/media';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
@@ -801,6 +802,264 @@ export const TMDBService = {
       name: p.name,
       logoPath: p.logoPath,
     }));
+  },
+
+  async searchPeople(
+    query: string,
+    apiKey: string
+  ): Promise<{ id: number; name: string; profilePath: string | null; department?: string }[]> {
+    if (!query.trim() || !apiKey) return [];
+    try {
+      const data = await this.request<
+        TMDBResponse<{
+          id: number;
+          name: string;
+          profile_path: string | null;
+          known_for_department?: string;
+        }>
+      >('/search/person', apiKey, { query: query.trim() });
+      return (data.results || []).slice(0, 15).map((p) => ({
+        id: p.id,
+        name: p.name,
+        profilePath: p.profile_path,
+        department: p.known_for_department,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  async searchCompanies(
+    query: string,
+    apiKey: string
+  ): Promise<{ id: number; name: string; logoPath: string | null }[]> {
+    if (!query.trim() || !apiKey) return [];
+    try {
+      const data = await this.request<
+        TMDBResponse<{
+          id: number;
+          name: string;
+          logo_path: string | null;
+        }>
+      >('/search/company', apiKey, { query: query.trim() });
+      return (data.results || []).slice(0, 15).map((c) => ({
+        id: c.id,
+        name: c.name,
+        logoPath: c.logo_path,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  async advancedDiscover(
+    filter: MultiDiscoverFilter,
+    apiKey: string,
+    page = 1,
+    userRegion = 'US',
+    userSubscribedProviders: number[] = []
+  ): Promise<{ results: TMDBMediaItem[]; totalPages: number }> {
+    if (!apiKey) {
+      return { results: [], totalPages: 0 };
+    }
+
+    try {
+      const today = new Date();
+      const formatDate = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const todayStr = formatDate(today);
+
+      let releaseDateMin: string | undefined;
+      let releaseDateMax: string | undefined;
+      let releaseType: string | undefined;
+
+      if (filter.releaseWindow === 'upcoming_30') {
+        releaseDateMin = todayStr;
+        const d = new Date(today);
+        d.setDate(d.getDate() + 30);
+        releaseDateMax = formatDate(d);
+      } else if (filter.releaseWindow === 'upcoming_60') {
+        releaseDateMin = todayStr;
+        const d = new Date(today);
+        d.setDate(d.getDate() + 60);
+        releaseDateMax = formatDate(d);
+      } else if (filter.releaseWindow === 'upcoming_90') {
+        releaseDateMin = todayStr;
+        const d = new Date(today);
+        d.setDate(d.getDate() + 90);
+        releaseDateMax = formatDate(d);
+      } else if (filter.releaseWindow === 'in_theaters') {
+        const dMin = new Date(today);
+        dMin.setDate(dMin.getDate() - 30);
+        releaseDateMin = formatDate(dMin);
+        const dMax = new Date(today);
+        dMax.setDate(dMax.getDate() + 14);
+        releaseDateMax = formatDate(dMax);
+        releaseType = '2|3';
+      } else if (filter.releaseWindow === 'digital_premieres') {
+        const dMin = new Date(today);
+        dMin.setDate(dMin.getDate() - 14);
+        releaseDateMin = formatDate(dMin);
+        const dMax = new Date(today);
+        dMax.setDate(dMax.getDate() + 45);
+        releaseDateMax = formatDate(dMax);
+        releaseType = '4';
+      }
+
+      // Provider IDs resolution
+      let providerIds: number[] = [];
+      if (filter.providerScope === 'subscribed') {
+        providerIds = userSubscribedProviders;
+      } else if (filter.providerScope === 'region' || filter.providerScope === 'worldwide') {
+        providerIds = filter.selectedProviders;
+      }
+
+      const effectiveRegion = userRegion && userRegion !== 'ALL' ? userRegion : 'US';
+
+      // Base query params builder
+      const buildParams = (isTv: boolean): Record<string, string | number> => {
+        const params: Record<string, string | number> = {
+          page,
+        };
+
+        // Sort by
+        if (isTv) {
+          if (filter.sortBy === 'primary_release_date.desc') {
+            params.sort_by = 'first_air_date.desc';
+          } else if (filter.sortBy === 'primary_release_date.asc') {
+            params.sort_by = 'first_air_date.asc';
+          } else {
+            params.sort_by = filter.sortBy;
+          }
+        } else {
+          params.sort_by = filter.sortBy;
+        }
+
+        // Release dates
+        if (releaseDateMin) {
+          if (isTv) {
+            params['first_air_date.gte'] = releaseDateMin;
+          } else {
+            params['primary_release_date.gte'] = releaseDateMin;
+          }
+        }
+        if (releaseDateMax) {
+          if (isTv) {
+            params['first_air_date.lte'] = releaseDateMax;
+          } else {
+            params['primary_release_date.lte'] = releaseDateMax;
+          }
+        }
+        if (!isTv && releaseType) {
+          params.with_release_type = releaseType;
+        }
+
+        // Streaming providers
+        if (providerIds.length > 0) {
+          params.with_watch_providers = providerIds.join('|');
+          params.watch_region = effectiveRegion;
+          params.with_watch_monetization_types = 'flatrate|free|ads';
+        }
+
+        // Genres
+        if (filter.selectedGenres.length > 0) {
+          params.with_genres = filter.selectedGenres.join('|');
+        }
+
+        // Min rating
+        if (filter.minRating > 0) {
+          params['vote_average.gte'] = filter.minRating;
+          params['vote_count.gte'] = 20;
+        }
+
+        // People
+        if (filter.selectedPeople.length > 0) {
+          params.with_people = filter.selectedPeople.map((p) => p.id).join('|');
+        }
+
+        // Studios / Companies
+        if (filter.selectedCompanies.length > 0) {
+          params.with_companies = filter.selectedCompanies.map((c) => c.id).join('|');
+        }
+
+        return params;
+      };
+
+      if (filter.mediaType === 'movie') {
+        const movieRes = await this.request<TMDBResponse<TMDBMediaItem>>(
+          '/discover/movie',
+          apiKey,
+          buildParams(false)
+        );
+        return {
+          results: (movieRes.results || []).map((m) => ({ ...m, media_type: 'movie' as MediaType })),
+          totalPages: movieRes.total_pages || 1,
+        };
+      }
+
+      if (filter.mediaType === 'tv') {
+        const tvRes = await this.request<TMDBResponse<TMDBMediaItem>>(
+          '/discover/tv',
+          apiKey,
+          buildParams(true)
+        );
+        return {
+          results: (tvRes.results || []).map((t) => ({ ...t, media_type: 'tv' as MediaType })),
+          totalPages: tvRes.total_pages || 1,
+        };
+      }
+
+      // Both Movie and TV (mediaType === 'all')
+      const [movieSettled, tvSettled] = await Promise.allSettled([
+        this.request<TMDBResponse<TMDBMediaItem>>('/discover/movie', apiKey, buildParams(false)),
+        this.request<TMDBResponse<TMDBMediaItem>>('/discover/tv', apiKey, buildParams(true)),
+      ]);
+
+      const movies =
+        movieSettled.status === 'fulfilled'
+          ? (movieSettled.value.results || []).map((m) => ({ ...m, media_type: 'movie' as MediaType }))
+          : [];
+      const tvs =
+        tvSettled.status === 'fulfilled'
+          ? (tvSettled.value.results || []).map((t) => ({ ...t, media_type: 'tv' as MediaType }))
+          : [];
+
+      const moviePages = movieSettled.status === 'fulfilled' ? movieSettled.value.total_pages : 1;
+      const tvPages = tvSettled.status === 'fulfilled' ? tvSettled.value.total_pages : 1;
+      const totalPages = Math.max(moviePages, tvPages);
+
+      const merged = [...movies, ...tvs];
+
+      // Sort merged results
+      if (filter.sortBy === 'vote_average.desc') {
+        merged.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
+      } else if (filter.sortBy === 'primary_release_date.desc') {
+        merged.sort((a, b) => {
+          const dateA = a.release_date || a.first_air_date || '';
+          const dateB = b.release_date || b.first_air_date || '';
+          return dateB.localeCompare(dateA);
+        });
+      } else if (filter.sortBy === 'primary_release_date.asc') {
+        merged.sort((a, b) => {
+          const dateA = a.release_date || a.first_air_date || '';
+          const dateB = b.release_date || b.first_air_date || '';
+          return dateA.localeCompare(dateB);
+        });
+      } else {
+        // Popularity default
+        merged.sort((a, b) => (b.popularity || b.vote_count || 0) - (a.popularity || a.vote_count || 0));
+      }
+
+      return { results: merged, totalPages };
+    } catch (e) {
+      console.warn('Advanced discover query failed', e);
+      return { results: [], totalPages: 0 };
+    }
   },
 
   clearProvidersCache(): void {

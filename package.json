@@ -1,7 +1,7 @@
 {
   "name": "bingelog",
   "main": "expo-router/entry",
-  "version": "0.16.2",
+  "version": "0.17.0",
   "dependencies": {
     "@expo/ui": "~57.0.25",
     "@expo/vector-icons": "^15.0.2",

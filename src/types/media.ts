@@ -152,6 +152,7 @@ export interface TMDBMediaItem {
   runtime?: number;
   number_of_episodes?: number;
   number_of_seasons?: number;
+  popularity?: number;
 }
 
 export interface TrackedItem {
@@ -374,6 +375,66 @@ export interface DiscoverFilter {
   id: number;
   name: string;
 }
+
+export type DiscoverReleaseWindow =
+  | 'all'
+  | 'upcoming_30'
+  | 'upcoming_60'
+  | 'upcoming_90'
+  | 'in_theaters'
+  | 'digital_premieres';
+
+export type DiscoverSortOption =
+  | 'popularity.desc'
+  | 'primary_release_date.desc'
+  | 'primary_release_date.asc'
+  | 'vote_average.desc';
+
+export interface MultiDiscoverFilter {
+  mediaType: 'all' | 'movie' | 'tv';
+  releaseWindow: DiscoverReleaseWindow;
+  providerScope: 'none' | 'subscribed' | 'region' | 'worldwide';
+  selectedProviders: number[];
+  selectedGenres: number[];
+  minRating: number;
+  selectedPeople: { id: number; name: string; profilePath?: string | null }[];
+  selectedCompanies: { id: number; name: string; logoPath?: string | null }[];
+  sortBy: DiscoverSortOption;
+}
+
+export const DEFAULT_MULTI_DISCOVER_FILTER: MultiDiscoverFilter = {
+  mediaType: 'all',
+  releaseWindow: 'upcoming_30',
+  providerScope: 'none',
+  selectedProviders: [],
+  selectedGenres: [],
+  minRating: 0,
+  selectedPeople: [],
+  selectedCompanies: [],
+  sortBy: 'primary_release_date.asc',
+};
+
+export const TMDB_GENRES: GenreInfo[] = [
+  { id: 28, name: 'Action' },
+  { id: 12, name: 'Adventure' },
+  { id: 16, name: 'Animation' },
+  { id: 35, name: 'Comedy' },
+  { id: 80, name: 'Crime' },
+  { id: 99, name: 'Documentary' },
+  { id: 18, name: 'Drama' },
+  { id: 10751, name: 'Family' },
+  { id: 14, name: 'Fantasy' },
+  { id: 36, name: 'History' },
+  { id: 27, name: 'Horror' },
+  { id: 10402, name: 'Music' },
+  { id: 9648, name: 'Mystery' },
+  { id: 10749, name: 'Romance' },
+  { id: 878, name: 'Sci-Fi' },
+  { id: 10765, name: 'Sci-Fi & Fantasy' },
+  { id: 53, name: 'Thriller' },
+  { id: 10752, name: 'War' },
+  { id: 37, name: 'Western' },
+];
 
 export type DateFormatOption =
   | 'DD.MM.YYYY'

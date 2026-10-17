@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,11 @@ import {
   useWindowDimensions,
   ScrollView,
   Modal,
+  BackHandler,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useMedia } from '@/context/MediaContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { TrackedItem, MediaType } from '@/types/media';
@@ -95,6 +97,31 @@ export default function MyListScreen() {
   // Modal state
   const [activeItem, setActiveItem] = useState<TrackedItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  // Back gesture handler: dismisses local modals and search before tab navigation
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (sortModalVisible) {
+          setSortModalVisible(false);
+          return true;
+        }
+        if (mediaTypeModalVisible) {
+          setMediaTypeModalVisible(false);
+          return true;
+        }
+        if (filterQuery.trim().length > 0) {
+          setFilterQuery('');
+          Keyboard.dismiss();
+          return true;
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [sortModalVisible, mediaTypeModalVisible, filterQuery])
+  );
 
   // Movie vs TV counts
   const movieCount = useMemo(

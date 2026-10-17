@@ -14,10 +14,18 @@ interface MediaCardProps {
   trackedRecord?: TrackedItem;
   onPress: () => void;
   onQuickTrack?: () => void;
+  onSetReminder?: () => void;
   style?: StyleProp<ViewStyle>;
 }
 
-export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }: MediaCardProps) {
+export function MediaCard({
+  item,
+  trackedRecord,
+  onPress,
+  onQuickTrack,
+  onSetReminder,
+  style,
+}: MediaCardProps) {
   const { colors } = useAppTheme();
   const { triggerHaptic, dateFormat, selectedTimezone, remindersEnabled, sizingConfig } = useMedia();
 
@@ -267,6 +275,29 @@ export function MediaCard({ item, trackedRecord, onPress, onQuickTrack, style }:
             </Pressable>
           )}
 
+          {/* Quick Release Reminder button */}
+          {countdownTarget?.isUpcoming && onSetReminder && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.reminderButton,
+                { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={(e) => {
+                e.stopPropagation();
+                onSetReminder();
+              }}>
+              <Ionicons
+                name={currentTracked?.reminder?.enabled ? 'notifications' : 'notifications-outline'}
+                size={13 * textScale}
+                color={colors.primary}
+              />
+              <Text style={[styles.reminderButtonText, { color: colors.primary, fontSize: 11 * textScale }]}>
+                {currentTracked?.reminder?.enabled ? 'Reminded' : 'Remind'}
+              </Text>
+            </Pressable>
+          )}
+
           {/* Quick Edit icon if already tracked */}
           {currentTracked && (
             <Pressable
@@ -478,6 +509,18 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 6,
     backgroundColor: '#1f2432',
+  },
+  reminderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  reminderButtonText: {
+    fontWeight: '700',
   },
   buttonPressed: {
     opacity: 0.7,
