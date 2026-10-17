@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -39,13 +39,19 @@ import {
   POPULAR_STREAMING_PROVIDERS,
   ProviderDisplayStrategy,
   StreamingRegionStrategy,
+  EntitySelection,
+  WatchProvider,
 } from '@/types/media';
 import {
   getTextScale,
   getHeaderScale,
+  getButtonScale,
+  getProviderScale,
 } from '@/utils/sizing';
 import { getTodayFormatted } from '@/utils/date';
 import { SyncModal } from '@/components/SyncModal';
+import { EntityModal } from '@/components/EntityModal';
+import { router } from 'expo-router';
 
 const SCALES: ElementScale[] = ['small', 'medium', 'large', 'xlarge'];
 
@@ -116,20 +122,6 @@ export default function SettingsScreen() {
     setCustomStreamingRegion,
   } = useMedia();
 
-  const textScale = getTextScale(sizingConfig?.textSize);
-  const headerScale = getHeaderScale(sizingConfig?.headerSize);
-
-  const {
-    mode,
-    isDark,
-    preset,
-    colors,
-    customAccent,
-    setMode,
-    setPreset,
-    setCustomAccent,
-  } = useAppTheme();
-
   // Collapsible Accordion Sections State
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     appearance: false,
@@ -143,6 +135,124 @@ export default function SettingsScreen() {
     storage: false,
     about: false,
   });
+
+  const {
+    mode,
+    isDark,
+    preset,
+    colors,
+    customAccent,
+    setMode,
+    setPreset,
+    setCustomAccent,
+  } = useAppTheme();
+
+  const textScale = getTextScale(sizingConfig?.textSize);
+  const headerScale = getHeaderScale(sizingConfig?.headerSize);
+  const buttonScale = getButtonScale(sizingConfig?.buttonSize);
+  const providerScale = getProviderScale(sizingConfig?.providerSize);
+
+  // Dynamic Typography & Scaling Styles for live preview in Settings
+  const dynTypography = useMemo(
+    () => ({
+      cardTitle: { fontSize: Math.round(15.5 * headerScale) },
+      accordionSubtitle: { fontSize: Math.round(11.5 * textScale) },
+      cardDescription: { fontSize: Math.round(12.5 * textScale), lineHeight: Math.round(18 * textScale) },
+      subControlLabel: { fontSize: Math.round(11 * textScale) },
+      subControlSubtext: { fontSize: Math.round(11 * textScale) },
+      sliderTitle: { fontSize: Math.round(13 * textScale) },
+      sliderValueText: { fontSize: Math.round(11.5 * textScale) },
+      settingsOverviewText: { fontSize: Math.round(13 * textScale) },
+      toggleAllBtnText: { fontSize: Math.round(11 * buttonScale) },
+      toggleAllBtn: {
+        paddingVertical: Math.max(4, Math.round(6 * buttonScale)),
+        paddingHorizontal: Math.max(8, Math.round(12 * buttonScale)),
+      },
+      presetBtn: { paddingVertical: Math.max(6, Math.round(9 * buttonScale)) },
+      presetBtnText: { fontSize: Math.round(12 * buttonScale) },
+      modeSegmentBtn: { paddingVertical: Math.max(6, Math.round(8 * buttonScale)) },
+      modeSegmentText: { fontSize: Math.round(11.5 * buttonScale) },
+      stepBtn: { width: Math.round(38 * buttonScale), height: Math.round(38 * buttonScale) },
+      stepperBox: { minHeight: Math.round(38 * buttonScale) },
+      smallActionBtn: {
+        paddingVertical: Math.max(4, Math.round(6 * buttonScale)),
+        paddingHorizontal: Math.max(8, Math.round(12 * buttonScale)),
+      },
+      smallActionBtnText: { fontSize: Math.round(10.5 * buttonScale) },
+      providerGridLogo: {
+        width: Math.round(32 * providerScale),
+        height: Math.round(32 * providerScale),
+      },
+    }),
+    [textScale, headerScale, buttonScale, providerScale]
+  );
+
+  // Streaming Provider Catalog State
+  const [providerBrowseScope, setProviderBrowseScope] = useState<'set_region' | 'other_regions' | 'all_worldwide'>('set_region');
+  const [providerBrowsedOtherRegion, setProviderBrowsedOtherRegion] = useState<string>(() => {
+    if ((selectedRegion || 'US').toUpperCase() === 'US') return 'GB';
+    return 'US';
+  });
+  const [providerSearchQuery, setProviderSearchQuery] = useState<string>('');
+  const [fetchedProviders, setFetchedProviders] = useState<WatchProvider[]>([]);
+  const [isLoadingProviders, setIsLoadingProviders] = useState<boolean>(false);
+  const [selectedEntityForModal, setSelectedEntityForModal] = useState<EntitySelection | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!expandedSections.streaming) return;
+
+    const loadProviders = async () => {
+      setIsLoadingProviders(true);
+      try {
+        let region: string | undefined;
+        if (providerBrowseScope === 'set_region') {
+          region = selectedRegion || 'US';
+        } else if (providerBrowseScope === 'other_regions') {
+          region = providerBrowsedOtherRegion;
+        } else {
+          region = undefined; // All worldwide
+        }
+
+        const list = await TMDBService.getWatchProvidersList(apiKey || '', region);
+        if (isMounted) {
+          setFetchedProviders(list);
+        }
+      } catch {
+        if (isMounted) {
+          setFetchedProviders(
+            POPULAR_STREAMING_PROVIDERS.map((p) => ({
+              id: p.id,
+              name: p.name,
+              logoPath: p.logoPath,
+            }))
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingProviders(false);
+        }
+      }
+    };
+
+    void loadProviders();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    expandedSections.streaming,
+    providerBrowseScope,
+    providerBrowsedOtherRegion,
+    selectedRegion,
+    apiKey,
+  ]);
+
+  const filteredCatalogProviders = useMemo(() => {
+    const query = providerSearchQuery.trim().toLowerCase();
+    if (!query) return fetchedProviders;
+    return fetchedProviders.filter((p) => p.name.toLowerCase().includes(query));
+  }, [fetchedProviders, providerSearchQuery]);
 
   const [isSendingTestNotif, setIsSendingTestNotif] = useState(false);
 
@@ -435,6 +545,62 @@ export default function SettingsScreen() {
     void setSizingConfig(SIZING_PRESETS[densityPreset]);
   };
 
+  const renderSliderControlRow = (
+    key:
+      | 'textSize'
+      | 'castSize'
+      | 'tagSize'
+      | 'rowDensity'
+      | 'seasonEpisodeSize'
+      | 'posterSize'
+      | 'buttonSize'
+      | 'providerSize'
+      | 'headerSize',
+    title: string,
+    valueText: string
+  ) => {
+    const currentVal = (sizingConfig[key] || 'medium') as ElementScale;
+    const isMin = currentVal === 'small';
+    const isMax = currentVal === 'xlarge';
+
+    return (
+      <View key={key} style={styles.sliderControlRow}>
+        <View style={styles.sliderInfo}>
+          <Text style={[styles.sliderTitle, dynTypography.sliderTitle, { color: colors.text }]}>{title}</Text>
+          <Text style={[styles.sliderValueText, dynTypography.sliderValueText, { color: colors.primary }]}>
+            {valueText}
+          </Text>
+        </View>
+        <View style={[styles.stepperBox, dynTypography.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+          <Pressable
+            style={[styles.stepBtn, dynTypography.stepBtn, isMin && styles.stepBtnDisabled]}
+            onPress={() => handleStepSizing(key, -1)}
+            disabled={isMin}>
+            <Ionicons name="remove" size={Math.max(13, Math.round(16 * buttonScale))} color={colors.text} />
+          </Pressable>
+          <View style={styles.stepLevelPipContainer}>
+            {SCALES.map((scale, i) => (
+              <View
+                key={scale}
+                style={[
+                  styles.stepPip,
+                  { backgroundColor: colors.cardBorder },
+                  SCALES.indexOf(currentVal) >= i && [styles.stepPipActive, { backgroundColor: colors.primary }],
+                ]}
+              />
+            ))}
+          </View>
+          <Pressable
+            style={[styles.stepBtn, dynTypography.stepBtn, isMax && styles.stepBtnDisabled]}
+            onPress={() => handleStepSizing(key, 1)}
+            disabled={isMax}>
+            <Ionicons name="add" size={Math.max(13, Math.round(16 * buttonScale))} color={colors.text} />
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
   // Preview sizing values
   const previewTextSize =
     sizingConfig.textSize === 'small'
@@ -537,18 +703,18 @@ export default function SettingsScreen() {
       showsVerticalScrollIndicator={false}>
       {/* Top Overview Bar */}
       <View style={styles.topActionsRow}>
-        <Text style={[styles.settingsOverviewText, { color: colors.textSecondary }]}>
+        <Text style={[styles.settingsOverviewText, dynTypography.settingsOverviewText, { color: colors.textSecondary }]}>
           Preferences & Customization
         </Text>
         <Pressable
-          style={[styles.toggleAllBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+          style={[styles.toggleAllBtn, dynTypography.toggleAllBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
           onPress={toggleAllSections}>
           <Ionicons
             name={allExpanded ? 'contract-outline' : 'expand-outline'}
-            size={14}
+            size={Math.round(14 * buttonScale)}
             color={colors.primary}
           />
-          <Text style={[styles.toggleAllBtnText, { color: colors.primary }]}>
+          <Text style={[styles.toggleAllBtnText, dynTypography.toggleAllBtnText, { color: colors.primary }]}>
             {allExpanded ? 'Collapse All' : 'Expand All'}
           </Text>
         </Pressable>
@@ -562,44 +728,46 @@ export default function SettingsScreen() {
           style={styles.accordionHeader}
           onPress={() => toggleSection('appearance')}>
           <View style={styles.accordionLeft}>
-            <Ionicons name="color-palette" size={20} color={colors.primary} />
+            <Ionicons name="color-palette" size={Math.round(20 * headerScale)} color={colors.primary} />
             <View style={styles.accordionTextGroup}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Appearance & Colors</Text>
-              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+              <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>Appearance & Colors</Text>
+              <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
                 {mode === 'dark' ? 'Dark Mode' : 'Light Mode'} • {preset === 'custom' ? 'Custom Accent' : (THEME_PRESET_METAS.find((p) => p.id === preset)?.label || 'Theme')}
               </Text>
             </View>
           </View>
           <Ionicons
             name={expandedSections.appearance ? 'chevron-up' : 'chevron-down'}
-            size={18}
+            size={Math.round(18 * headerScale)}
             color={colors.textSecondary}
           />
         </Pressable>
 
         {expandedSections.appearance && (
           <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+            <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
               Switch between Light and Dark mode, choose from AMOLED and curated nature presets, or pick your own custom accent colors.
             </Text>
 
         {/* Mode Selector: Dark vs Light */}
-        <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>MODE</Text>
+        <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary }]}>MODE</Text>
         <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
           <Pressable
             style={[
               styles.modeSegmentBtn,
+              dynTypography.modeSegmentBtn,
               mode === 'dark' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
             ]}
             onPress={() => setMode('dark')}>
             <Ionicons
               name="moon"
-              size={15}
+              size={Math.round(15 * buttonScale)}
               color={mode === 'dark' ? '#ffffff' : colors.textSecondary}
             />
             <Text
               style={[
                 styles.modeSegmentText,
+                dynTypography.modeSegmentText,
                 { color: mode === 'dark' ? '#ffffff' : colors.textSecondary },
               ]}>
               Dark Mode
@@ -609,17 +777,19 @@ export default function SettingsScreen() {
           <Pressable
             style={[
               styles.modeSegmentBtn,
+              dynTypography.modeSegmentBtn,
               mode === 'light' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
             ]}
             onPress={() => setMode('light')}>
             <Ionicons
               name="sunny"
-              size={16}
+              size={Math.round(16 * buttonScale)}
               color={mode === 'light' ? '#ffffff' : colors.textSecondary}
             />
             <Text
               style={[
                 styles.modeSegmentText,
+                dynTypography.modeSegmentText,
                 { color: mode === 'light' ? '#ffffff' : colors.textSecondary },
               ]}>
               Light Mode
@@ -628,7 +798,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* Curated Presets Grid */}
-        <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+        <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
           COLOR PRESETS
         </Text>
         <View style={styles.presetsGrid}>
@@ -855,29 +1025,29 @@ export default function SettingsScreen() {
           style={styles.accordionHeader}
           onPress={() => toggleSection('sizing')}>
           <View style={styles.accordionLeft}>
-            <Ionicons name="resize" size={20} color={colors.primary} />
+            <Ionicons name="resize" size={Math.round(20 * headerScale)} color={colors.primary} />
             <View style={styles.accordionTextGroup}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Element Sizes & Density</Text>
-              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+              <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>Element Sizes & Density</Text>
+              <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
                 Preset: {sizingConfig.preset?.toUpperCase() || 'CUSTOM'} • Text: {sizingConfig.textSize.toUpperCase()}
               </Text>
             </View>
           </View>
           <Ionicons
             name={expandedSections.sizing ? 'chevron-up' : 'chevron-down'}
-            size={18}
+            size={Math.round(18 * headerScale)}
             color={colors.textSecondary}
           />
         </Pressable>
 
         {expandedSections.sizing && (
           <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+            <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
               Fine-tune element sizes without overlapping or breaking layouts. Choose a preset or adjust sliders below.
             </Text>
 
         {/* Master Preset Buttons */}
-        <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>MASTER DENSITY PRESETS</Text>
+        <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary }]}>MASTER DENSITY PRESETS</Text>
         <View style={styles.presetButtonsRow}>
           {(['compact', 'default', 'large'] as DensityPreset[]).map((p) => {
             const isSelected = sizingConfig.preset === p;
@@ -886,6 +1056,7 @@ export default function SettingsScreen() {
                 key={p}
                 style={[
                   styles.presetBtn,
+                  dynTypography.presetBtn,
                   { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
                   isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
                 ]}
@@ -893,6 +1064,7 @@ export default function SettingsScreen() {
                 <Text
                   style={[
                     styles.presetBtnText,
+                    dynTypography.presetBtnText,
                     { color: isSelected ? '#ffffff' : colors.textSecondary },
                     isSelected && styles.presetBtnTextActive,
                   ]}>
@@ -905,402 +1077,20 @@ export default function SettingsScreen() {
 
         <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder }]} />
 
-        {/* Slider 1: Synopsis & Description Text Size */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={[styles.sliderTitle, { color: colors.text }]}>Synopsis & Text Size</Text>
-            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
-              {SCALE_LABELS[sizingConfig.textSize]}
-            </Text>
-          </View>
-          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.textSize === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('textSize', -1)}
-              disabled={sizingConfig.textSize === 'small'}>
-              <Ionicons name="remove" size={16} color={colors.text} />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    { backgroundColor: colors.cardBorder },
-                    SCALES.indexOf(sizingConfig.textSize) >= i && [styles.stepPipActive, { backgroundColor: colors.primary }],
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.textSize === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('textSize', 1)}
-              disabled={sizingConfig.textSize === 'xlarge'}>
-              <Ionicons name="add" size={16} color={colors.text} />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Slider 2: Cast & Actor Cards Size */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={[styles.sliderTitle, { color: colors.text }]}>Cast Cards & Avatars</Text>
-            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
-              {SCALE_LABELS[sizingConfig.castSize]}
-            </Text>
-          </View>
-          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.castSize === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('castSize', -1)}
-              disabled={sizingConfig.castSize === 'small'}>
-              <Ionicons name="remove" size={16} color={colors.text} />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    { backgroundColor: colors.cardBorder },
-                    SCALES.indexOf(sizingConfig.castSize) >= i && [styles.stepPipActive, { backgroundColor: colors.primary }],
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.castSize === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('castSize', 1)}
-              disabled={sizingConfig.castSize === 'xlarge'}>
-              <Ionicons name="add" size={16} color={colors.text} />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Slider 3: Tags & Badge Chips Size */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={[styles.sliderTitle, { color: colors.text }]}>Tags & Badges</Text>
-            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
-              {SCALE_LABELS[sizingConfig.tagSize]}
-            </Text>
-          </View>
-          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.tagSize === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('tagSize', -1)}
-              disabled={sizingConfig.tagSize === 'small'}>
-              <Ionicons name="remove" size={16} color={colors.text} />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    { backgroundColor: colors.cardBorder },
-                    SCALES.indexOf(sizingConfig.tagSize) >= i && [styles.stepPipActive, { backgroundColor: colors.primary }],
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.tagSize === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('tagSize', 1)}
-              disabled={sizingConfig.tagSize === 'xlarge'}>
-              <Ionicons name="add" size={16} color={colors.text} />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Slider 4: Episode Rows Density */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={[styles.sliderTitle, { color: colors.text }]}>Episode Rows Padding</Text>
-            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
-              {ROW_SCALE_LABELS[sizingConfig.rowDensity]}
-            </Text>
-          </View>
-          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.rowDensity === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('rowDensity', -1)}
-              disabled={sizingConfig.rowDensity === 'small'}>
-              <Ionicons name="remove" size={16} color={colors.text} />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    { backgroundColor: colors.cardBorder },
-                    SCALES.indexOf(sizingConfig.rowDensity) >= i && [styles.stepPipActive, { backgroundColor: colors.primary }],
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                sizingConfig.rowDensity === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('rowDensity', 1)}
-              disabled={sizingConfig.rowDensity === 'xlarge'}>
-              <Ionicons name="add" size={16} color={colors.text} />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Slider 5: Season & Episode List Size (NEW) */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={[styles.sliderTitle, { color: colors.text }]}>Season & Episode List Size</Text>
-            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
-              {SCALE_LABELS[sizingConfig.seasonEpisodeSize || 'medium']}
-            </Text>
-          </View>
-          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                (sizingConfig.seasonEpisodeSize || 'medium') === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('seasonEpisodeSize', -1)}
-              disabled={(sizingConfig.seasonEpisodeSize || 'medium') === 'small'}>
-              <Ionicons name="remove" size={16} color={colors.text} />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    { backgroundColor: colors.cardBorder },
-                    SCALES.indexOf(sizingConfig.seasonEpisodeSize || 'medium') >= i && [
-                      styles.stepPipActive,
-                      { backgroundColor: colors.primary },
-                    ],
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                (sizingConfig.seasonEpisodeSize || 'medium') === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('seasonEpisodeSize', 1)}
-              disabled={(sizingConfig.seasonEpisodeSize || 'medium') === 'xlarge'}>
-              <Ionicons name="add" size={16} color={colors.text} />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Slider 6: Poster & Artwork Scale */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={[styles.sliderTitle, { color: colors.text }]}>Poster & Artwork Scale</Text>
-            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
-              {SCALE_LABELS[sizingConfig.posterSize || 'medium']}
-            </Text>
-          </View>
-          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                (sizingConfig.posterSize || 'medium') === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('posterSize', -1)}
-              disabled={(sizingConfig.posterSize || 'medium') === 'small'}>
-              <Ionicons name="remove" size={16} color={colors.text} />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    { backgroundColor: colors.cardBorder },
-                    SCALES.indexOf(sizingConfig.posterSize || 'medium') >= i && [
-                      styles.stepPipActive,
-                      { backgroundColor: colors.primary },
-                    ],
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                (sizingConfig.posterSize || 'medium') === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('posterSize', 1)}
-              disabled={(sizingConfig.posterSize || 'medium') === 'xlarge'}>
-              <Ionicons name="add" size={16} color={colors.text} />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Slider 7: Buttons & Touch Targets */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={[styles.sliderTitle, { color: colors.text }]}>Buttons & Touch Targets</Text>
-            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
-              {SCALE_LABELS[sizingConfig.buttonSize || 'medium']}
-            </Text>
-          </View>
-          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                (sizingConfig.buttonSize || 'medium') === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('buttonSize', -1)}
-              disabled={(sizingConfig.buttonSize || 'medium') === 'small'}>
-              <Ionicons name="remove" size={16} color={colors.text} />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    { backgroundColor: colors.cardBorder },
-                    SCALES.indexOf(sizingConfig.buttonSize || 'medium') >= i && [
-                      styles.stepPipActive,
-                      { backgroundColor: colors.primary },
-                    ],
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                (sizingConfig.buttonSize || 'medium') === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('buttonSize', 1)}
-              disabled={(sizingConfig.buttonSize || 'medium') === 'xlarge'}>
-              <Ionicons name="add" size={16} color={colors.text} />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Slider 8: Streaming Provider Chips */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={[styles.sliderTitle, { color: colors.text }]}>Watch Provider Chips</Text>
-            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
-              {SCALE_LABELS[sizingConfig.providerSize || 'medium']}
-            </Text>
-          </View>
-          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                (sizingConfig.providerSize || 'medium') === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('providerSize', -1)}
-              disabled={(sizingConfig.providerSize || 'medium') === 'small'}>
-              <Ionicons name="remove" size={16} color={colors.text} />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    { backgroundColor: colors.cardBorder },
-                    SCALES.indexOf(sizingConfig.providerSize || 'medium') >= i && [
-                      styles.stepPipActive,
-                      { backgroundColor: colors.primary },
-                    ],
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                (sizingConfig.providerSize || 'medium') === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('providerSize', 1)}
-              disabled={(sizingConfig.providerSize || 'medium') === 'xlarge'}>
-              <Ionicons name="add" size={16} color={colors.text} />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Slider 9: Headers & Section Titles */}
-        <View style={styles.sliderControlRow}>
-          <View style={styles.sliderInfo}>
-            <Text style={[styles.sliderTitle, { color: colors.text }]}>Headers & Section Titles</Text>
-            <Text style={[styles.sliderValueText, { color: colors.primary }]}>
-              {SCALE_LABELS[sizingConfig.headerSize || 'medium']}
-            </Text>
-          </View>
-          <View style={[styles.stepperBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                (sizingConfig.headerSize || 'medium') === 'small' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('headerSize', -1)}
-              disabled={(sizingConfig.headerSize || 'medium') === 'small'}>
-              <Ionicons name="remove" size={16} color={colors.text} />
-            </Pressable>
-            <View style={styles.stepLevelPipContainer}>
-              {SCALES.map((scale, i) => (
-                <View
-                  key={scale}
-                  style={[
-                    styles.stepPip,
-                    { backgroundColor: colors.cardBorder },
-                    SCALES.indexOf(sizingConfig.headerSize || 'medium') >= i && [
-                      styles.stepPipActive,
-                      { backgroundColor: colors.primary },
-                    ],
-                  ]}
-                />
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.stepBtn,
-                (sizingConfig.headerSize || 'medium') === 'xlarge' && styles.stepBtnDisabled,
-              ]}
-              onPress={() => handleStepSizing('headerSize', 1)}
-              disabled={(sizingConfig.headerSize || 'medium') === 'xlarge'}>
-              <Ionicons name="add" size={16} color={colors.text} />
-            </Pressable>
-          </View>
-        </View>
+        {/* Sliders 1 - 9 using dynamic live scaling */}
+        {renderSliderControlRow('textSize', 'Synopsis & Text Size', SCALE_LABELS[sizingConfig.textSize])}
+        {renderSliderControlRow('castSize', 'Cast Cards & Avatars', SCALE_LABELS[sizingConfig.castSize])}
+        {renderSliderControlRow('tagSize', 'Tags & Badges', SCALE_LABELS[sizingConfig.tagSize])}
+        {renderSliderControlRow('rowDensity', 'Episode Rows Padding', ROW_SCALE_LABELS[sizingConfig.rowDensity])}
+        {renderSliderControlRow('seasonEpisodeSize', 'Season & Episode List Size', SCALE_LABELS[sizingConfig.seasonEpisodeSize || 'medium'])}
+        {renderSliderControlRow('posterSize', 'Poster & Artwork Scale', SCALE_LABELS[sizingConfig.posterSize || 'medium'])}
+        {renderSliderControlRow('buttonSize', 'Buttons & Touch Targets', SCALE_LABELS[sizingConfig.buttonSize || 'medium'])}
+        {renderSliderControlRow('providerSize', 'Watch Provider Chips', SCALE_LABELS[sizingConfig.providerSize || 'medium'])}
+        {renderSliderControlRow('headerSize', 'Headers & Section Titles', SCALE_LABELS[sizingConfig.headerSize || 'medium'])}
 
         {/* Live Interactive Sizing Preview Box */}
         <View style={[styles.previewBox, { backgroundColor: colors.cardSelected, borderColor: colors.cardBorder }]}>
-          <Text style={[styles.previewBoxTitle, { color: colors.primary }]}>SIZING LIVE PREVIEW</Text>
+          <Text style={[styles.previewBoxTitle, { color: colors.primary, fontSize: Math.round(11 * headerScale) }]}>SIZING LIVE PREVIEW</Text>
 
           {/* Sample Tag Pill */}
           <View style={styles.previewTagRow}>
@@ -1639,90 +1429,267 @@ export default function SettingsScreen() {
 
             <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder }]} />
 
-            {/* Subscriptions Grid */}
+            {/* Scope Tabs */}
+            <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary }]}>
+              CATALOG SCOPE & REGION
+            </Text>
+            <View style={styles.providerScopeTabsRow}>
+              <Pressable
+                style={[
+                  styles.providerScopeTab,
+                  { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                  providerBrowseScope === 'set_region' && { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setProviderBrowseScope('set_region');
+                }}>
+                <Ionicons
+                  name="location"
+                  size={12 * textScale}
+                  color={providerBrowseScope === 'set_region' ? colors.primary : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.providerScopeTabText,
+                    {
+                      color: providerBrowseScope === 'set_region' ? colors.primary : colors.textSecondary,
+                      fontSize: 11 * textScale,
+                    },
+                  ]}>
+                  Set Region ({selectedRegion})
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.providerScopeTab,
+                  { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                  providerBrowseScope === 'other_regions' && { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setProviderBrowseScope('other_regions');
+                }}>
+                <Ionicons
+                  name="flag-outline"
+                  size={12 * textScale}
+                  color={providerBrowseScope === 'other_regions' ? colors.primary : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.providerScopeTabText,
+                    {
+                      color: providerBrowseScope === 'other_regions' ? colors.primary : colors.textSecondary,
+                      fontSize: 11 * textScale,
+                    },
+                  ]}>
+                  Other Regions ({providerBrowsedOtherRegion})
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.providerScopeTab,
+                  { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                  providerBrowseScope === 'all_worldwide' && { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setProviderBrowseScope('all_worldwide');
+                }}>
+                <Ionicons
+                  name="globe-outline"
+                  size={12 * textScale}
+                  color={providerBrowseScope === 'all_worldwide' ? colors.primary : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.providerScopeTabText,
+                    {
+                      color: providerBrowseScope === 'all_worldwide' ? colors.primary : colors.textSecondary,
+                      fontSize: 11 * textScale,
+                    },
+                  ]}>
+                  All Worldwide
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Other Region Selector Chips if in other_regions mode */}
+            {providerBrowseScope === 'other_regions' && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={[styles.customRegionLabel, { color: colors.textSecondary, fontSize: 11 * textScale, marginBottom: 6 }]}>
+                  SELECT REGION TO BROWSE SERVICES:
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.regionPillsScroll}>
+                  {POPULAR_REGIONS.map((r) => {
+                    const isSelected = providerBrowsedOtherRegion === r.code;
+                    return (
+                      <Pressable
+                        key={`browse-other-${r.code}`}
+                        style={[
+                          styles.regionChip,
+                          {
+                            backgroundColor: isSelected ? colors.primaryBg : colors.inputBg,
+                            borderColor: isSelected ? colors.primary : colors.cardBorder,
+                          },
+                        ]}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          setProviderBrowsedOtherRegion(r.code);
+                        }}>
+                        <Text style={[styles.regionChipCode, { color: isSelected ? colors.primary : colors.text, fontSize: 12 * textScale }]}>
+                          {r.code}
+                        </Text>
+                        <Text style={[styles.regionChipName, { color: colors.textSecondary, fontSize: 10 * textScale }]}>
+                          {r.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Search Filter Bar */}
+            <View style={[styles.providerSearchBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+              <Ionicons name="search" size={14 * textScale} color={colors.textSecondary} />
+              <TextInput
+                style={[styles.providerSearchInput, { color: colors.text, fontSize: 12 * textScale }]}
+                placeholder="Filter providers by name..."
+                placeholderTextColor={colors.textMuted}
+                value={providerSearchQuery}
+                onChangeText={setProviderSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {providerSearchQuery.length > 0 && (
+                <Pressable onPress={() => setProviderSearchQuery('')} style={{ padding: 4 }}>
+                  <Ionicons name="close-circle" size={16 * textScale} color={colors.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+
+            {/* Subscriptions Header with Select All / Select None */}
             <View style={styles.subSectionHeaderRow}>
-              <View>
-                <Text style={[styles.subControlLabel, { color: colors.textSecondary, fontSize: 11 * textScale, marginBottom: 2 }]}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginBottom: 2 }]}>
                   MY SUBSCRIBED SERVICES ({mySubscribedProviders.length})
                 </Text>
-                <Text style={[styles.subControlSubtext, { color: colors.textMuted, fontSize: 11 * textScale }]}>
-                  Tap to toggle services you currently have.
+                <Text style={[styles.subControlSubtext, dynTypography.subControlSubtext, { color: colors.textMuted }]}>
+                  Showing {filteredCatalogProviders.length} {providerBrowseScope === 'all_worldwide' ? 'worldwide' : `in ${providerBrowseScope === 'set_region' ? selectedRegion : providerBrowsedOtherRegion}`}
                 </Text>
               </View>
               <View style={styles.quickSelectActions}>
                 <Pressable
-                  style={[styles.smallActionBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+                  style={[styles.smallActionBtn, dynTypography.smallActionBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
                   onPress={() => {
                     triggerHaptic('selection');
-                    const allIds = POPULAR_STREAMING_PROVIDERS.map((p) => p.id);
-                    void setMySubscribedProviders(allIds);
+                    const targetIds = filteredCatalogProviders.map((p) => p.id);
+                    const combined = new Set([...mySubscribedProviders, ...targetIds]);
+                    void setMySubscribedProviders(Array.from(combined));
                   }}>
-                  <Text style={[styles.smallActionBtnText, { color: colors.primary, fontSize: 10 * textScale }]}>All</Text>
+                  <Text style={[styles.smallActionBtnText, dynTypography.smallActionBtnText, { color: colors.primary }]}>Select All</Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.smallActionBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+                  style={[styles.smallActionBtn, dynTypography.smallActionBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
                   onPress={() => {
                     triggerHaptic('selection');
-                    void setMySubscribedProviders([]);
+                    const targetIds = new Set(filteredCatalogProviders.map((p) => p.id));
+                    void setMySubscribedProviders(mySubscribedProviders.filter((id) => !targetIds.has(id)));
                   }}>
-                  <Text style={[styles.smallActionBtnText, { color: colors.textSecondary, fontSize: 10 * textScale }]}>None</Text>
+                  <Text style={[styles.smallActionBtnText, dynTypography.smallActionBtnText, { color: colors.textSecondary }]}>Select None</Text>
                 </Pressable>
               </View>
             </View>
 
-            <View style={styles.providersGrid}>
-              {POPULAR_STREAMING_PROVIDERS.map((prov) => {
-                const isSubscribed = mySubscribedProviders.includes(prov.id);
-                const logoUrl = TMDBService.getImageUrl(prov.logoPath, 'w92');
+            {/* Provider Grid in Scrollable Container */}
+            {isLoadingProviders ? (
+              <View style={{ padding: 24, alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={{ color: colors.textSecondary, fontSize: 12 * textScale }}>Loading TMDB provider catalog...</Text>
+              </View>
+            ) : filteredCatalogProviders.length === 0 ? (
+              <View style={{ padding: 20, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 12 * textScale, textAlign: 'center' }}>
+                  No providers found matching &ldquo;{providerSearchQuery}&rdquo;
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                style={{ maxHeight: 420 }}
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
+                contentContainerStyle={{ paddingVertical: 4 }}>
+                <View style={styles.providersGrid}>
+                  {filteredCatalogProviders.map((prov) => {
+                    const isSubscribed = mySubscribedProviders.includes(prov.id);
+                    const logoUrl = TMDBService.getImageUrl(prov.logoPath, 'w92');
 
-                return (
-                  <Pressable
-                    key={`my-prov-${prov.id}`}
-                    style={[
-                      styles.providerSelectCard,
-                      {
-                        backgroundColor: isSubscribed ? colors.primaryBg : colors.inputBg,
-                        borderColor: isSubscribed ? colors.primary : colors.cardBorder,
-                      },
-                    ]}
-                    onPress={() => {
-                      triggerHaptic('selection');
-                      void toggleSubscribedProvider(prov.id);
-                    }}>
-                    <View style={styles.providerCardHeader}>
-                      {logoUrl ? (
-                        <Image source={{ uri: logoUrl }} style={styles.providerGridLogo} contentFit="cover" />
-                      ) : (
-                        <View style={[styles.providerGridLogo, { backgroundColor: colors.cardBorder, alignItems: 'center', justifyContent: 'center' }]}>
-                          <Ionicons name="tv-outline" size={16} color={colors.textSecondary} />
-                        </View>
-                      )}
-                      <View
+                    return (
+                      <Pressable
+                        key={`my-prov-${prov.id}`}
                         style={[
-                          styles.providerCheckbox,
+                          styles.providerSelectCard,
                           {
-                            backgroundColor: isSubscribed ? colors.primary : 'transparent',
+                            backgroundColor: isSubscribed ? colors.primaryBg : colors.inputBg,
                             borderColor: isSubscribed ? colors.primary : colors.cardBorder,
                           },
-                        ]}>
-                        {isSubscribed && <Ionicons name="checkmark" size={11} color="#ffffff" />}
-                      </View>
-                    </View>
-                    <Text
-                      style={[
-                        styles.providerGridName,
-                        {
-                          color: isSubscribed ? colors.primary : colors.text,
-                          fontSize: 11 * textScale,
-                        },
-                      ]}
-                      numberOfLines={1}>
-                      {prov.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                        ]}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          void toggleSubscribedProvider(prov.id);
+                        }}
+                        onLongPress={() => {
+                          triggerHaptic('impact');
+                          setSelectedEntityForModal({
+                            type: 'provider',
+                            id: prov.id,
+                            name: prov.name,
+                            profilePath: prov.logoPath,
+                          });
+                        }}>
+                        <View style={styles.providerCardHeader}>
+                          {logoUrl ? (
+                            <Image source={{ uri: logoUrl }} style={[styles.providerGridLogo, dynTypography.providerGridLogo]} contentFit="cover" />
+                          ) : (
+                            <View style={[styles.providerGridLogo, dynTypography.providerGridLogo, { backgroundColor: colors.cardBorder, alignItems: 'center', justifyContent: 'center' }]}>
+                              <Ionicons name="tv-outline" size={Math.round(16 * providerScale)} color={colors.textSecondary} />
+                            </View>
+                          )}
+                          <View
+                            style={[
+                              styles.providerCheckbox,
+                              {
+                                backgroundColor: isSubscribed ? colors.primary : 'transparent',
+                                borderColor: isSubscribed ? colors.primary : colors.cardBorder,
+                              },
+                            ]}>
+                            {isSubscribed && <Ionicons name="checkmark" size={11} color="#ffffff" />}
+                          </View>
+                        </View>
+                        <Text
+                          style={[
+                            styles.providerGridName,
+                            {
+                              color: isSubscribed ? colors.primary : colors.text,
+                              fontSize: Math.max(10, Math.round(11 * textScale)),
+                            },
+                          ]}
+                          numberOfLines={2}>
+                          {prov.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            )}
+
+            <Text style={[styles.providerHoldHint, { color: colors.textMuted, fontSize: 10 * textScale }]}>
+              Tap service card to checkmark subscription • Hold down to inspect service details & catalog
+            </Text>
           </View>
         )}
       </View>
@@ -1735,28 +1702,28 @@ export default function SettingsScreen() {
           style={styles.accordionHeader}
           onPress={() => toggleSection('haptics')}>
           <View style={styles.accordionLeft}>
-            <Ionicons name="hardware-chip-outline" size={20} color={colors.primary} />
+            <Ionicons name="hardware-chip-outline" size={Math.round(20 * headerScale)} color={colors.primary} />
             <View style={styles.accordionTextGroup}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Haptic Feedback</Text>
-              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+              <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>Haptic Feedback</Text>
+              <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
                 Intensity: {hapticIntensity === 'off' ? 'Off' : `${hapticIntensity.toUpperCase()} (${hapticIntensity === 'light' ? '•' : hapticIntensity === 'medium' ? '••' : '•••'})`}
               </Text>
             </View>
           </View>
           <Ionicons
             name={expandedSections.haptics ? 'chevron-up' : 'chevron-down'}
-            size={18}
+            size={Math.round(18 * headerScale)}
             color={colors.textSecondary}
           />
         </Pressable>
 
         {expandedSections.haptics && (
           <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+            <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
               Control tactile vibrations for button presses, status updates, episode checkmarks, and rewatch steppers. Tap any level to test.
             </Text>
 
-            <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>FEEDBACK INTENSITY</Text>
+            <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary }]}>FEEDBACK INTENSITY</Text>
             <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
               {(
                 [
@@ -1772,6 +1739,7 @@ export default function SettingsScreen() {
                     key={opt.id}
                     style={[
                       styles.modeSegmentBtn,
+                      dynTypography.modeSegmentBtn,
                       isSelected && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
                     ]}
                     onPress={() => {
@@ -1780,7 +1748,7 @@ export default function SettingsScreen() {
                     {opt.dots === 0 ? (
                       <Ionicons
                         name="close-circle-outline"
-                        size={14}
+                        size={Math.round(14 * buttonScale)}
                         color={isSelected ? '#ffffff' : colors.textSecondary}
                       />
                     ) : (
@@ -1799,6 +1767,7 @@ export default function SettingsScreen() {
                     <Text
                       style={[
                         styles.modeSegmentText,
+                        dynTypography.modeSegmentText,
                         { color: isSelected ? '#ffffff' : colors.textSecondary },
                       ]}>
                       {opt.label}
@@ -1809,8 +1778,8 @@ export default function SettingsScreen() {
             </View>
 
             <View style={[styles.hapticHintRow, { backgroundColor: colors.cardSelected, borderColor: colors.cardBorder }]}>
-              <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
-              <Text style={[styles.hapticHintText, { color: colors.textSecondary }]}>
+              <Ionicons name="information-circle-outline" size={Math.round(16 * textScale)} color={colors.primary} />
+              <Text style={[styles.hapticHintText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
                 {hapticIntensity === 'off'
                   ? 'Tactile feedback is completely disabled.'
                   : hapticIntensity === 'light'
@@ -1832,24 +1801,24 @@ export default function SettingsScreen() {
           style={styles.accordionHeader}
           onPress={() => toggleSection('dates')}>
           <View style={styles.accordionLeft}>
-            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+            <Ionicons name="calendar-outline" size={Math.round(20 * headerScale)} color={colors.primary} />
             <View style={styles.accordionTextGroup}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Date & Time Format</Text>
-              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+              <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>Date & Time Format</Text>
+              <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
                 {dateFormat} • {timeFormat === '24h' ? '24-Hour (21:00)' : '12-Hour (09:00 PM)'}
               </Text>
             </View>
           </View>
           <Ionicons
             name={expandedSections.dates ? 'chevron-up' : 'chevron-down'}
-            size={18}
+            size={Math.round(18 * headerScale)}
             color={colors.textSecondary}
           />
         </Pressable>
 
         {expandedSections.dates && (
           <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+            <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
               Choose your preferred format for dates displayed across BingeLog (started dates, completion dates, episode air dates, and timeline logs).
             </Text>
 
@@ -1873,14 +1842,14 @@ export default function SettingsScreen() {
                     }}>
                     <View style={styles.dateFormatTextContainer}>
                       <View style={styles.dateFormatTitleRow}>
-                        <Text style={[styles.dateFormatName, { color: colors.text }]}>{opt.label}</Text>
+                        <Text style={[styles.dateFormatName, { color: colors.text, fontSize: 13.5 * textScale }]}>{opt.label}</Text>
                         <View style={[styles.dateFormatBadge, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
-                          <Text style={[styles.dateFormatBadgeText, { color: colors.primary }]}>
+                          <Text style={[styles.dateFormatBadgeText, { color: colors.primary, fontSize: 10.5 * textScale }]}>
                             {opt.description}
                           </Text>
                         </View>
                       </View>
-                      <Text style={[styles.dateFormatSample, { color: colors.textSecondary }]}>
+                      <Text style={[styles.dateFormatSample, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
                         Today: <Text style={{ color: colors.primary, fontWeight: '700' }}>{liveSample}</Text>
                       </Text>
                     </View>
@@ -1901,16 +1870,17 @@ export default function SettingsScreen() {
             </View>
 
             {/* Time / Clock Display Format Selector */}
-            <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 18 }]}>
+            <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 18 }]}>
               TIME DISPLAY FORMAT
             </Text>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+            <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
               Select 24-hour clock (e.g. 21:00) or 12-hour AM/PM format (e.g. 09:00 PM) for notification schedules and release countdowns.
             </Text>
             <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
               <Pressable
                 style={[
                   styles.modeSegmentBtn,
+                  dynTypography.modeSegmentBtn,
                   timeFormat === '24h' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
                 ]}
                 onPress={() => {
@@ -1920,6 +1890,7 @@ export default function SettingsScreen() {
                 <Text
                   style={[
                     styles.modeSegmentText,
+                    dynTypography.modeSegmentText,
                     { color: timeFormat === '24h' ? '#ffffff' : colors.textSecondary },
                   ]}>
                   24-Hour (21:00)
@@ -1929,6 +1900,7 @@ export default function SettingsScreen() {
               <Pressable
                 style={[
                   styles.modeSegmentBtn,
+                  dynTypography.modeSegmentBtn,
                   timeFormat === '12h' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
                 ]}
                 onPress={() => {
@@ -1938,6 +1910,7 @@ export default function SettingsScreen() {
                 <Text
                   style={[
                     styles.modeSegmentText,
+                    dynTypography.modeSegmentText,
                     { color: timeFormat === '12h' ? '#ffffff' : colors.textSecondary },
                   ]}>
                   12-Hour (09:00 PM)
@@ -1956,17 +1929,17 @@ export default function SettingsScreen() {
           style={styles.accordionHeader}
           onPress={() => toggleSection('regional')}>
           <View style={styles.accordionLeft}>
-            <Ionicons name="globe-outline" size={20} color={colors.primary} />
+            <Ionicons name="globe-outline" size={Math.round(20 * headerScale)} color={colors.primary} />
             <View style={styles.accordionTextGroup}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Region & Timezone</Text>
-              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+              <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>Region & Timezone</Text>
+              <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
                 Region: {selectedRegion} ({regionMode}) | TZ: {selectedTimezone.split('/').pop()?.replace(/_/g, ' ') || selectedTimezone}
               </Text>
             </View>
           </View>
           <Ionicons
             name={expandedSections.regional ? 'chevron-up' : 'chevron-down'}
-            size={18}
+            size={Math.round(18 * headerScale)}
             color={colors.textSecondary}
           />
         </Pressable>
@@ -1976,8 +1949,8 @@ export default function SettingsScreen() {
             {/* Upcoming Release Badges & Reminders Toggle */}
             <View style={styles.toggleRow}>
               <View style={styles.toggleTextContainer}>
-                <Text style={[styles.toggleLabel, { color: colors.text }]}>Release Countdowns & Badges</Text>
-                <Text style={[styles.toggleDescription, { color: colors.textSecondary }]}>
+                <Text style={[styles.toggleLabel, { color: colors.text, fontSize: 13.5 * textScale }]}>Release Countdowns & Badges</Text>
+                <Text style={[styles.toggleDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
                   Display countdown indicators (e.g. &ldquo;Today&rdquo;, &ldquo;Tomorrow&rdquo;, &ldquo;In 4 days&rdquo;) on unreleased movies and upcoming TV episodes across your watchlist.
                 </Text>
               </View>
@@ -1993,16 +1966,17 @@ export default function SettingsScreen() {
             </View>
 
             {/* Region Mode Toggle */}
-            <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+            <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
               RELEASE REGION (MOVIES)
             </Text>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+            <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
               Determines theatrical and digital premiere dates for movies so release countdowns match your location.
             </Text>
             <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
               <Pressable
                 style={[
                   styles.modeSegmentBtn,
+                  dynTypography.modeSegmentBtn,
                   regionMode === 'auto' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
                 ]}
                 onPress={() => {
@@ -2011,12 +1985,13 @@ export default function SettingsScreen() {
                 }}>
                 <Ionicons
                   name="locate-outline"
-                  size={15}
+                  size={Math.round(15 * buttonScale)}
                   color={regionMode === 'auto' ? '#ffffff' : colors.textSecondary}
                 />
                 <Text
                   style={[
                     styles.modeSegmentText,
+                    dynTypography.modeSegmentText,
                     { color: regionMode === 'auto' ? '#ffffff' : colors.textSecondary },
                   ]}>
                   Auto (System)
@@ -2026,6 +2001,7 @@ export default function SettingsScreen() {
               <Pressable
                 style={[
                   styles.modeSegmentBtn,
+                  dynTypography.modeSegmentBtn,
                   regionMode === 'manual' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
                 ]}
                 onPress={() => {
@@ -2034,12 +2010,13 @@ export default function SettingsScreen() {
                 }}>
                 <Ionicons
                   name="options-outline"
-                  size={15}
+                  size={Math.round(15 * buttonScale)}
                   color={regionMode === 'manual' ? '#ffffff' : colors.textSecondary}
                 />
                 <Text
                   style={[
                     styles.modeSegmentText,
+                    dynTypography.modeSegmentText,
                     { color: regionMode === 'manual' ? '#ffffff' : colors.textSecondary },
                   ]}>
                   Manual Selection
@@ -2050,7 +2027,7 @@ export default function SettingsScreen() {
             {/* Popular Regions Selector */}
             {regionMode === 'manual' && (
               <View style={{ marginTop: 12 }}>
-                <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+                <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
                   Selected: <Text style={{ color: colors.primary, fontWeight: '700' }}>{selectedRegion}</Text> - {POPULAR_REGIONS.find((r) => r.code === selectedRegion)?.name || 'Custom'}
                 </Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
@@ -2073,19 +2050,19 @@ export default function SettingsScreen() {
                         <Text
                           style={[
                             styles.regionChipCode,
-                            { color: isSelected ? colors.primary : colors.text },
+                            { color: isSelected ? colors.primary : colors.text, fontSize: 12 * textScale },
                           ]}>
                           {reg.code}
                         </Text>
                         <Text
                           style={[
                             styles.regionChipName,
-                            { color: isSelected ? colors.primary : colors.textSecondary },
+                            { color: isSelected ? colors.primary : colors.textSecondary, fontSize: 10 * textScale },
                           ]}>
                           {reg.name}
                         </Text>
                         {isSelected && (
-                          <Ionicons name="checkmark-circle" size={14} color={colors.primary} />
+                          <Ionicons name="checkmark-circle" size={Math.round(14 * textScale)} color={colors.primary} />
                         )}
                       </Pressable>
                     );
@@ -2095,16 +2072,17 @@ export default function SettingsScreen() {
             )}
 
             {/* Timezone Mode Toggle */}
-            <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 20 }]}>
+            <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 20 }]}>
               BROADCAST TIMEZONE (EPISODES & COUNTDOWNS)
             </Text>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+            <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
               Adjusts episode broadcast dates and today/tomorrow thresholds to your local clock.
             </Text>
             <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
               <Pressable
                 style={[
                   styles.modeSegmentBtn,
+                  dynTypography.modeSegmentBtn,
                   timezoneMode === 'auto' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
                 ]}
                 onPress={() => {
@@ -2113,12 +2091,13 @@ export default function SettingsScreen() {
                 }}>
                 <Ionicons
                   name="time-outline"
-                  size={15}
+                  size={Math.round(15 * buttonScale)}
                   color={timezoneMode === 'auto' ? '#ffffff' : colors.textSecondary}
                 />
                 <Text
                   style={[
                     styles.modeSegmentText,
+                    dynTypography.modeSegmentText,
                     { color: timezoneMode === 'auto' ? '#ffffff' : colors.textSecondary },
                   ]}>
                   Auto (System)
@@ -2128,6 +2107,7 @@ export default function SettingsScreen() {
               <Pressable
                 style={[
                   styles.modeSegmentBtn,
+                  dynTypography.modeSegmentBtn,
                   timezoneMode === 'manual' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
                 ]}
                 onPress={() => {
@@ -2136,12 +2116,13 @@ export default function SettingsScreen() {
                 }}>
                 <Ionicons
                   name="options-outline"
-                  size={15}
+                  size={Math.round(15 * buttonScale)}
                   color={timezoneMode === 'manual' ? '#ffffff' : colors.textSecondary}
                 />
                 <Text
                   style={[
                     styles.modeSegmentText,
+                    dynTypography.modeSegmentText,
                     { color: timezoneMode === 'manual' ? '#ffffff' : colors.textSecondary },
                   ]}>
                   Manual Selection
@@ -2152,7 +2133,7 @@ export default function SettingsScreen() {
             {/* Timezones Selector */}
             {timezoneMode === 'manual' && (
               <View style={{ marginTop: 12 }}>
-                <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+                <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
                   Active Timezone: <Text style={{ color: colors.primary, fontWeight: '700' }}>{selectedTimezone}</Text>
                 </Text>
                 <View style={{ gap: 6 }}>
@@ -2173,10 +2154,10 @@ export default function SettingsScreen() {
                           void setSelectedTimezone(tz.id);
                         }}>
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.tzLabel, { color: isSelected ? colors.primary : colors.text }]}>
+                          <Text style={[styles.tzLabel, { color: isSelected ? colors.primary : colors.text, fontSize: 13 * textScale }]}>
                             {tz.label}
                           </Text>
-                          <Text style={[styles.tzId, { color: colors.textSecondary }]}>
+                          <Text style={[styles.tzId, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
                             {tz.id}
                           </Text>
                         </View>
@@ -2208,10 +2189,10 @@ export default function SettingsScreen() {
           style={styles.accordionHeader}
           onPress={() => toggleSection('notifications')}>
           <View style={styles.accordionLeft}>
-            <Ionicons name="notifications-outline" size={20} color={colors.primary} />
+            <Ionicons name="notifications-outline" size={Math.round(20 * headerScale)} color={colors.primary} />
             <View style={styles.accordionTextGroup}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Device Notifications & Alerts</Text>
-              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+              <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>Device Notifications & Alerts</Text>
+              <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
                 {deviceNotificationsEnabled
                   ? `Active • ${scheduledNotificationsCount} ${scheduledNotificationsCount === 1 ? 'alert' : 'alerts'} scheduled`
                   : 'Disabled'}
@@ -2220,22 +2201,22 @@ export default function SettingsScreen() {
           </View>
           <Ionicons
             name={expandedSections.notifications ? 'chevron-up' : 'chevron-down'}
-            size={18}
+            size={Math.round(18 * headerScale)}
             color={colors.textSecondary}
           />
         </Pressable>
 
         {expandedSections.notifications && (
           <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+            <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
               Receive local device alerts on release days for unreleased movies and broadcast air days for upcoming TV episodes in your watchlist.
             </Text>
 
             {/* Master Toggle */}
             <View style={styles.toggleRow}>
               <View style={styles.toggleTextContainer}>
-                <Text style={[styles.toggleLabel, { color: colors.text }]}>Device Release Alerts</Text>
-                <Text style={[styles.toggleDescription, { color: colors.textSecondary }]}>
+                <Text style={[styles.toggleLabel, { color: colors.text, fontSize: 13.5 * textScale }]}>Device Release Alerts</Text>
+                <Text style={[styles.toggleDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
                   Schedule automatic offline notifications on your device when tracked titles premiere or air.
                 </Text>
               </View>
@@ -2257,10 +2238,10 @@ export default function SettingsScreen() {
                   <View style={[styles.notifPermBanner, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
                     <Ionicons name="checkmark-circle-outline" size={20} color="#22c55e" />
                     <View style={styles.notifPermTextWrap}>
-                      <Text style={[styles.notifPermTitle, { color: colors.text }]}>
+                      <Text style={[styles.notifPermTitle, { color: colors.text, fontSize: 13 * textScale }]}>
                         Notification Permissions Active
                       </Text>
-                      <Text style={[styles.notifPermDesc, { color: colors.textSecondary }]}>
+                      <Text style={[styles.notifPermDesc, { color: colors.textSecondary, fontSize: 11.5 * textScale }]}>
                         BingeLog is authorized to show release reminders on this device.
                       </Text>
                     </View>
@@ -2269,20 +2250,20 @@ export default function SettingsScreen() {
                   <View style={[styles.notifPermBanner, { backgroundColor: 'rgba(245, 158, 11, 0.1)', borderColor: '#f59e0b' }]}>
                     <Ionicons name="warning-outline" size={20} color="#f59e0b" />
                     <View style={styles.notifPermTextWrap}>
-                      <Text style={[styles.notifPermTitle, { color: colors.text }]}>
+                      <Text style={[styles.notifPermTitle, { color: colors.text, fontSize: 13 * textScale }]}>
                         Notification Permission Needed
                       </Text>
-                      <Text style={[styles.notifPermDesc, { color: colors.textSecondary }]}>
+                      <Text style={[styles.notifPermDesc, { color: colors.textSecondary, fontSize: 11.5 * textScale }]}>
                         Your device has not authorized alerts for BingeLog yet.
                       </Text>
                     </View>
                     <Pressable
-                      style={[styles.notifPermBtn, { backgroundColor: colors.primary }]}
+                      style={[styles.notifPermBtn, dynTypography.smallActionBtn, { backgroundColor: colors.primary }]}
                       onPress={() => {
                         triggerHaptic('selection');
                         void requestNotificationPermission();
                       }}>
-                      <Text style={styles.notifPermBtnText}>Authorize</Text>
+                      <Text style={[styles.notifPermBtnText, dynTypography.smallActionBtnText]}>Authorize</Text>
                     </Pressable>
                   </View>
                 )}
@@ -2291,35 +2272,36 @@ export default function SettingsScreen() {
                 <View style={[styles.notifSummaryCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, marginTop: 12 }]}>
                   <View style={styles.notifSummaryHeader}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Ionicons name="calendar-outline" size={16} color={colors.primary} />
-                      <Text style={[styles.notifSummaryTitle, { color: colors.text }]}>
+                      <Ionicons name="calendar-outline" size={Math.round(16 * textScale)} color={colors.primary} />
+                      <Text style={[styles.notifSummaryTitle, { color: colors.text, fontSize: 13 * textScale }]}>
                         {scheduledNotificationsCount} {scheduledNotificationsCount === 1 ? 'Alert' : 'Alerts'} Scheduled
                       </Text>
                     </View>
                     <Pressable
-                      style={[styles.refreshRemindersBtn, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
+                      style={[styles.refreshRemindersBtn, dynTypography.smallActionBtn, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}
                       onPress={() => {
                         triggerHaptic('selection');
                         void refreshScheduledNotifications().then(() => {
                           triggerHaptic('success');
                         });
                       }}>
-                      <Ionicons name="sync-outline" size={13} color={colors.primary} />
-                      <Text style={[styles.refreshRemindersBtnText, { color: colors.primary }]}>Sync</Text>
+                      <Ionicons name="sync-outline" size={Math.round(13 * buttonScale)} color={colors.primary} />
+                      <Text style={[styles.refreshRemindersBtnText, dynTypography.smallActionBtnText, { color: colors.primary }]}>Sync</Text>
                     </Pressable>
                   </View>
-                  <Text style={[styles.notifSummaryDesc, { color: colors.textSecondary }]}>
+                  <Text style={[styles.notifSummaryDesc, dynTypography.cardDescription, { color: colors.textSecondary }]}>
                     Alerts are configured individually per title or episode. Tap any upcoming media in details or an unreleased episode in its detail modal to set or manage its alert timing.
                   </Text>
                 </View>
 
                 {/* Test Notification Button */}
-                <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+                <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
                   VERIFICATION & TESTING
                 </Text>
                 <Pressable
                   style={[
                     styles.testNotifBtn,
+                    dynTypography.presetBtn,
                     { backgroundColor: colors.cardSelected, borderColor: colors.primary },
                   ]}
                   onPress={() => handleSendTestNotification(10)}
@@ -2328,14 +2310,14 @@ export default function SettingsScreen() {
                     <ActivityIndicator size="small" color={colors.primary} />
                   ) : (
                     <>
-                      <Ionicons name="paper-plane-outline" size={16} color={colors.primary} />
-                      <Text style={[styles.testNotifBtnText, { color: colors.primary }]}>
+                      <Ionicons name="paper-plane-outline" size={Math.round(16 * buttonScale)} color={colors.primary} />
+                      <Text style={[styles.testNotifBtnText, dynTypography.presetBtnText, { color: colors.primary }]}>
                         Send Test Notification (10s Delay)
                       </Text>
                     </>
                   )}
                 </Pressable>
-                <Text style={[styles.cardDescription, { color: colors.textMuted, marginTop: 6 }]}>
+                <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textMuted, marginTop: 6 }]}>
                   Schedules a test alert 10 seconds from now. Tap this button and immediately lock your phone or switch to another app to verify background delivery, lock screen banners, and sound while BingeLog is closed.
                 </Text>
               </>
@@ -2352,30 +2334,30 @@ export default function SettingsScreen() {
           style={styles.accordionHeader}
           onPress={() => toggleSection('api')}>
           <View style={styles.accordionLeft}>
-            <Ionicons name="key" size={20} color={colors.primary} />
+            <Ionicons name="key" size={Math.round(20 * headerScale)} color={colors.primary} />
             <View style={styles.accordionTextGroup}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>TMDB API Configuration</Text>
-              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+              <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>TMDB API Configuration</Text>
+              <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
                 Status: {apiKey ? 'Configured & Active' : 'API Key Missing'}
               </Text>
             </View>
           </View>
           <Ionicons
             name={expandedSections.api ? 'chevron-up' : 'chevron-down'}
-            size={18}
+            size={Math.round(18 * headerScale)}
             color={colors.textSecondary}
           />
         </Pressable>
 
         {expandedSections.api && (
           <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+            <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
               Enter your TMDB API Key (v3) or API Read Access Token (v4). It is saved locally on your device and never shared.
             </Text>
 
             <View style={[styles.inputContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
               <TextInput
-                style={[styles.input, { color: colors.text }]}
+                style={[styles.input, { color: colors.text, fontSize: 13 * textScale }]}
                 placeholder="Paste your TMDB key or token here..."
                 placeholderTextColor={colors.textMuted}
                 value={inputKey}
@@ -2392,7 +2374,7 @@ export default function SettingsScreen() {
                 onPress={() => setShowKey(!showKey)}>
                 <Ionicons
                   name={showKey ? 'eye-off-outline' : 'eye-outline'}
-                  size={18}
+                  size={Math.round(18 * buttonScale)}
                   color={colors.textSecondary}
                 />
               </Pressable>
@@ -2406,12 +2388,13 @@ export default function SettingsScreen() {
                 ]}>
                 <Ionicons
                   name={testResult.valid ? 'checkmark-circle' : 'alert-circle'}
-                  size={16}
+                  size={Math.round(16 * textScale)}
                   color={testResult.valid ? '#22c55e' : '#ef4444'}
                 />
                 <Text
                   style={[
                     styles.testResultText,
+                    { fontSize: 12 * textScale },
                     testResult.valid ? styles.testResultSuccessText : styles.testResultErrorText,
                   ]}>
                   {testResult.message}
@@ -2421,36 +2404,36 @@ export default function SettingsScreen() {
 
             <View style={styles.buttonRow}>
               <Pressable
-                style={[styles.saveBtn, { backgroundColor: colors.primary }, isTesting && styles.btnDisabled]}
+                style={[styles.saveBtn, dynTypography.presetBtn, { backgroundColor: colors.primary }, isTesting && styles.btnDisabled]}
                 onPress={handleSaveKey}
                 disabled={isTesting}>
                 {isTesting ? (
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-sharp" size={16} color="#ffffff" />
-                    <Text style={styles.saveBtnText}>Verify & Save Key</Text>
+                    <Ionicons name="checkmark-sharp" size={Math.round(16 * buttonScale)} color="#ffffff" />
+                    <Text style={[styles.saveBtnText, dynTypography.presetBtnText]}>Verify & Save Key</Text>
                   </>
                 )}
               </Pressable>
 
               {apiKey && (
                 <Pressable
-                  style={styles.removeBtn}
+                  style={[styles.removeBtn, dynTypography.presetBtn]}
                   onPress={handleRemoveKey}>
-                  <Ionicons name="trash-outline" size={16} color="#ef4444" />
-                  <Text style={styles.removeBtnText}>Remove</Text>
+                  <Ionicons name="trash-outline" size={Math.round(16 * buttonScale)} color="#ef4444" />
+                  <Text style={[styles.removeBtnText, dynTypography.presetBtnText]}>Remove</Text>
                 </Pressable>
               )}
             </View>
 
             {/* Guide: How to get TMDB Key */}
             <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
-            <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>HOW TO GET A FREE KEY</Text>
+            <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary }]}>HOW TO GET A FREE KEY</Text>
             <View style={styles.stepList}>
               <View style={styles.stepItem}>
                 <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>1</Text>
-                <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+                <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
                   Go to{' '}
                   <Text
                     style={[styles.bold, { color: colors.primary, textDecorationLine: 'underline' }]}
@@ -2463,7 +2446,7 @@ export default function SettingsScreen() {
 
               <View style={styles.stepItem}>
                 <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>2</Text>
-                <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+                <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
                   Click your avatar in the top-right corner → <Text style={[styles.bold, { color: colors.text }]}>Settings</Text> →{' '}
                   <Text style={[styles.bold, { color: colors.text }]}>API</Text>.
                 </Text>
@@ -2471,14 +2454,14 @@ export default function SettingsScreen() {
 
               <View style={styles.stepItem}>
                 <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>3</Text>
-                <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+                <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
                   Click <Text style={[styles.bold, { color: colors.text }]}>Create</Text> (choose Developer) and accept the terms.
                 </Text>
               </View>
 
               <View style={styles.stepItem}>
                 <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>4</Text>
-                <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+                <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
                   Copy your <Text style={[styles.bold, { color: colors.text }]}>API Key (v3)</Text> or <Text style={[styles.bold, { color: colors.text }]}>API Read Access Token</Text> and paste it above.
                 </Text>
               </View>
@@ -2493,10 +2476,10 @@ export default function SettingsScreen() {
           style={styles.accordionHeader}
           onPress={() => toggleSection('storage')}>
           <View style={styles.accordionLeft}>
-            <Ionicons name="server" size={20} color={colors.primary} />
+            <Ionicons name="server" size={Math.round(20 * headerScale)} color={colors.primary} />
             <View style={styles.accordionTextGroup}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Storage & Data Management</Text>
-              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
+              <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>Storage & Data Management</Text>
+              <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
                 {storageMetrics ? `${formatBytes(storageMetrics.totalAppStorageBytes)} • ${trackedItems.length} items` : `${trackedItems.length} items`}
               </Text>
             </View>
@@ -2512,12 +2495,12 @@ export default function SettingsScreen() {
               {isLoadingStorageMetrics ? (
                 <ActivityIndicator size="small" color={colors.primary} />
               ) : (
-                <Ionicons name="refresh-outline" size={16} color={colors.primary} />
+                <Ionicons name="refresh-outline" size={Math.round(16 * buttonScale)} color={colors.primary} />
               )}
             </Pressable>
             <Ionicons
               name={expandedSections.storage ? 'chevron-up' : 'chevron-down'}
-              size={18}
+              size={Math.round(18 * headerScale)}
               color={colors.textSecondary}
             />
           </View>
@@ -2525,207 +2508,211 @@ export default function SettingsScreen() {
 
         {expandedSections.storage && (
           <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
-            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+            <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
               Inspect internal device capacity, local tracking database usage, and cached media assets.
             </Text>
 
-        {/* Device Internal Storage Gauge */}
-        <View style={[styles.deviceStorageBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-          <View style={styles.deviceStorageHeader}>
-            <View style={styles.deviceStorageLabelRow}>
-              <Ionicons name="phone-portrait-outline" size={16} color={colors.primary} />
-              <Text style={[styles.deviceStorageTitle, { color: colors.text }]}>Internal Storage</Text>
-            </View>
-            <Text style={[styles.deviceStoragePercent, { color: colors.textSecondary }]}>
-              {storageMetrics?.deviceTotalBytes ? `${storageMetrics.deviceUsedPercent}% used` : 'Calculating...'}
-            </Text>
-          </View>
+            {/* Device Internal Storage Gauge */}
+            <View style={[styles.deviceStorageBox, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+              <View style={styles.deviceStorageHeader}>
+                <View style={styles.deviceStorageLabelRow}>
+                  <Ionicons name="phone-portrait-outline" size={Math.round(16 * textScale)} color={colors.primary} />
+                  <Text style={[styles.deviceStorageTitle, { color: colors.text, fontSize: 13 * textScale }]}>Internal Storage</Text>
+                </View>
+                <Text style={[styles.deviceStoragePercent, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                  {storageMetrics?.deviceTotalBytes ? `${storageMetrics.deviceUsedPercent}% used` : 'Calculating...'}
+                </Text>
+              </View>
 
-          {/* Progress Bar */}
-          <View style={[styles.storageBarTrack, { backgroundColor: colors.cardBorder }]}>
-            <View
+              {/* Progress Bar */}
+              <View style={[styles.storageBarTrack, { backgroundColor: colors.cardBorder }]}>
+                <View
+                  style={[
+                    styles.storageBarFill,
+                    {
+                      backgroundColor: colors.primary,
+                      width: `${Math.min(100, Math.max(2, storageMetrics?.deviceUsedPercent || 0))}%`,
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.deviceStorageFooter}>
+                <Text style={[styles.deviceStorageFootText, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
+                  {storageMetrics?.deviceTotalBytes
+                    ? `${formatBytes(storageMetrics.deviceUsedBytes)} used of ${formatBytes(storageMetrics.deviceTotalBytes)}`
+                    : 'Reading device storage...'}
+                </Text>
+                <Text style={[styles.deviceStorageFootText, { color: colors.primary, fontWeight: '700', fontSize: 11 * textScale }]}>
+                  {storageMetrics?.deviceFreeBytes
+                    ? `${formatBytes(storageMetrics.deviceFreeBytes)} free`
+                    : ''}
+                </Text>
+              </View>
+            </View>
+
+            {/* BingeLog Data Breakdown */}
+            <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 14 }]}>
+              BINGELOG STORAGE BREAKDOWN
+            </Text>
+
+            <View style={[styles.breakdownContainer, { borderColor: colors.cardBorder }]}>
+              {/* Saved Media Library */}
+              <View style={[styles.breakdownRow, { borderBottomColor: colors.cardBorder }]}>
+                <View style={styles.breakdownIconWrap}>
+                  <Ionicons name="film-outline" size={Math.round(18 * textScale)} color={colors.primary} />
+                </View>
+                <View style={styles.breakdownTextWrap}>
+                  <Text style={[styles.breakdownTitle, { color: colors.text, fontSize: 13 * textScale }]}>Tracked Library</Text>
+                  <Text style={[styles.breakdownSubtitle, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
+                    {trackedItems.length} {trackedItems.length === 1 ? 'item' : 'items'} saved with watch progress
+                  </Text>
+                </View>
+                <Text style={[styles.breakdownSize, { color: colors.text, fontSize: 12 * textScale }]}>
+                  {formatBytes(storageMetrics?.librarySizeBytes || 0)}
+                </Text>
+              </View>
+
+              {/* Preferences & Config */}
+              <View style={[styles.breakdownRow, { borderBottomColor: colors.cardBorder }]}>
+                <View style={styles.breakdownIconWrap}>
+                  <Ionicons name="options-outline" size={Math.round(18 * textScale)} color={colors.primary} />
+                </View>
+                <View style={styles.breakdownTextWrap}>
+                  <Text style={[styles.breakdownTitle, { color: colors.text, fontSize: 13 * textScale }]}>Settings & Themes</Text>
+                  <Text style={[styles.breakdownSubtitle, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
+                    UI scales, display toggles, custom theme
+                  </Text>
+                </View>
+                <Text style={[styles.breakdownSize, { color: colors.text, fontSize: 12 * textScale }]}>
+                  {formatBytes(storageMetrics?.configSizeBytes || 0)}
+                </Text>
+              </View>
+
+              {/* Image & Poster Cache */}
+              <View style={styles.breakdownRow}>
+                <View style={styles.breakdownIconWrap}>
+                  <Ionicons name="image-outline" size={Math.round(18 * textScale)} color={colors.primary} />
+                </View>
+                <View style={styles.breakdownTextWrap}>
+                  <Text style={[styles.breakdownTitle, { color: colors.text, fontSize: 13 * textScale }]}>Image & Poster Cache</Text>
+                  <Text style={[styles.breakdownSubtitle, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
+                    Downloaded posters, backdrops, actor photos
+                  </Text>
+                </View>
+                <Text style={[styles.breakdownSize, { color: colors.text, fontSize: 12 * textScale }]}>
+                  {formatBytes(storageMetrics?.imageCacheSizeBytes || 0)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Clear Image Cache Button */}
+            <Pressable
               style={[
-                styles.storageBarFill,
-                {
-                  backgroundColor: colors.primary,
-                  width: `${Math.min(100, Math.max(2, storageMetrics?.deviceUsedPercent || 0))}%`,
-                },
+                styles.clearCacheBtn,
+                dynTypography.presetBtn,
+                { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                isClearingCache && styles.btnDisabled,
               ]}
-            />
-          </View>
-
-          <View style={styles.deviceStorageFooter}>
-            <Text style={[styles.deviceStorageFootText, { color: colors.textSecondary }]}>
-              {storageMetrics?.deviceTotalBytes
-                ? `${formatBytes(storageMetrics.deviceUsedBytes)} used of ${formatBytes(storageMetrics.deviceTotalBytes)}`
-                : 'Reading device storage...'}
-            </Text>
-            <Text style={[styles.deviceStorageFootText, { color: colors.primary, fontWeight: '700' }]}>
-              {storageMetrics?.deviceFreeBytes
-                ? `${formatBytes(storageMetrics.deviceFreeBytes)} free`
-                : ''}
-            </Text>
-          </View>
-        </View>
-
-        {/* BingeLog Data Breakdown */}
-        <Text style={[styles.subControlLabel, { color: colors.textSecondary, marginTop: 14 }]}>
-          BINGELOG STORAGE BREAKDOWN
-        </Text>
-
-        <View style={[styles.breakdownContainer, { borderColor: colors.cardBorder }]}>
-          {/* Saved Media Library */}
-          <View style={[styles.breakdownRow, { borderBottomColor: colors.cardBorder }]}>
-            <View style={styles.breakdownIconWrap}>
-              <Ionicons name="film-outline" size={18} color={colors.primary} />
-            </View>
-            <View style={styles.breakdownTextWrap}>
-              <Text style={[styles.breakdownTitle, { color: colors.text }]}>Tracked Library</Text>
-              <Text style={[styles.breakdownSubtitle, { color: colors.textSecondary }]}>
-                {trackedItems.length} {trackedItems.length === 1 ? 'item' : 'items'} saved with watch progress
+              onPress={handleClearImageCache}
+              disabled={isClearingCache}>
+              {isClearingCache ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Ionicons name="brush-outline" size={Math.round(16 * buttonScale)} color={colors.primary} />
+              )}
+              <Text style={[styles.clearCacheBtnText, dynTypography.presetBtnText, { color: colors.primary }]}>
+                Clear Image Cache
               </Text>
-            </View>
-            <Text style={[styles.breakdownSize, { color: colors.text }]}>
-              {formatBytes(storageMetrics?.librarySizeBytes || 0)}
+            </Pressable>
+
+            <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
+
+            {/* Device-to-Device Sync */}
+            <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary }]}>
+              DEVICE SYNC & TRANSFER
             </Text>
-          </View>
-
-          {/* Preferences & Config */}
-          <View style={[styles.breakdownRow, { borderBottomColor: colors.cardBorder }]}>
-            <View style={styles.breakdownIconWrap}>
-              <Ionicons name="options-outline" size={18} color={colors.primary} />
-            </View>
-            <View style={styles.breakdownTextWrap}>
-              <Text style={[styles.breakdownTitle, { color: colors.text }]}>Settings & Themes</Text>
-              <Text style={[styles.breakdownSubtitle, { color: colors.textSecondary }]}>
-                UI scales, display toggles, custom theme
-              </Text>
-            </View>
-            <Text style={[styles.breakdownSize, { color: colors.text }]}>
-              {formatBytes(storageMetrics?.configSizeBytes || 0)}
+            <Text style={[styles.backupDesc, dynTypography.cardDescription, { color: colors.textSecondary }]}>
+              Sync your watchlist directly with your tablet or phone using Instant Relay (6-digit PIN) or Air-Gapped Offline QR.
             </Text>
-          </View>
 
-          {/* Image & Poster Cache */}
-          <View style={styles.breakdownRow}>
-            <View style={styles.breakdownIconWrap}>
-              <Ionicons name="image-outline" size={18} color={colors.primary} />
-            </View>
-            <View style={styles.breakdownTextWrap}>
-              <Text style={[styles.breakdownTitle, { color: colors.text }]}>Image & Poster Cache</Text>
-              <Text style={[styles.breakdownSubtitle, { color: colors.textSecondary }]}>
-                Downloaded posters, backdrops, actor photos
-              </Text>
-            </View>
-            <Text style={[styles.breakdownSize, { color: colors.text }]}>
-              {formatBytes(storageMetrics?.imageCacheSizeBytes || 0)}
+            <Pressable
+              style={[styles.syncDeviceBtn, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setShowSyncModal(true);
+              }}>
+              <Ionicons name="sync-circle" size={Math.round(24 * buttonScale)} color={colors.primary} />
+              <View style={styles.syncDeviceBtnTextWrap}>
+                <Text style={[styles.syncDeviceBtnTitle, { color: colors.primary, fontSize: 14 * textScale }]}>Sync with Nearby Device</Text>
+                <Text style={[styles.syncDeviceBtnSub, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
+                  Instant 6-digit relay • Offline camera QR
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={Math.round(16 * textScale)} color={colors.primary} />
+            </Pressable>
+
+            <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
+
+            {/* Backup & Restore Section */}
+            <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary }]}>
+              BACKUP & RESTORE
             </Text>
-          </View>
-        </View>
-
-        {/* Clear Image Cache Button */}
-        <Pressable
-          style={[
-            styles.clearCacheBtn,
-            { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-            isClearingCache && styles.btnDisabled,
-          ]}
-          onPress={handleClearImageCache}
-          disabled={isClearingCache}>
-          {isClearingCache ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Ionicons name="brush-outline" size={16} color={colors.primary} />
-          )}
-          <Text style={[styles.clearCacheBtnText, { color: colors.primary }]}>
-            Clear Image Cache
-          </Text>
-        </Pressable>
-
-        <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
-
-        {/* Device-to-Device Sync */}
-        <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>
-          DEVICE SYNC & TRANSFER
-        </Text>
-        <Text style={[styles.backupDesc, { color: colors.textSecondary }]}>
-          Sync your watchlist directly with your tablet or phone using Instant Relay (6-digit PIN) or Air-Gapped Offline QR.
-        </Text>
-
-        <Pressable
-          style={[styles.syncDeviceBtn, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}
-          onPress={() => {
-            triggerHaptic('selection');
-            setShowSyncModal(true);
-          }}>
-          <Ionicons name="sync-circle" size={24} color={colors.primary} />
-          <View style={styles.syncDeviceBtnTextWrap}>
-            <Text style={[styles.syncDeviceBtnTitle, { color: colors.primary }]}>Sync with Nearby Device</Text>
-            <Text style={[styles.syncDeviceBtnSub, { color: colors.textSecondary }]}>
-              Instant 6-digit relay • Offline camera QR
+            <Text style={[styles.backupDesc, dynTypography.cardDescription, { color: colors.textSecondary }]}>
+              Export your watchlist, ratings, reviews, and progress to an offline JSON file, or restore from a previous backup.
             </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-        </Pressable>
 
-        <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
+            <View style={styles.backupButtonsRow}>
+              <Pressable
+                style={[
+                  styles.backupBtn,
+                  dynTypography.presetBtn,
+                  { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                  (isExporting || trackedItems.length === 0) && styles.btnDisabled,
+                ]}
+                onPress={handleExportBackup}
+                disabled={isExporting || trackedItems.length === 0}>
+                {isExporting ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons name="share-outline" size={Math.round(16 * buttonScale)} color={colors.primary} />
+                )}
+                <Text style={[styles.backupBtnText, dynTypography.presetBtnText, { color: colors.primary }]}>Export Backup</Text>
+              </Pressable>
 
-        {/* Backup & Restore Section */}
-        <Text style={[styles.subControlLabel, { color: colors.textSecondary }]}>
-          BACKUP & RESTORE
-        </Text>
-        <Text style={[styles.backupDesc, { color: colors.textSecondary }]}>
-          Export your watchlist, ratings, reviews, and progress to an offline JSON file, or restore from a previous backup.
-        </Text>
+              <Pressable
+                style={[
+                  styles.backupBtn,
+                  dynTypography.presetBtn,
+                  { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                  isImporting && styles.btnDisabled,
+                ]}
+                onPress={handleImportBackup}
+                disabled={isImporting}>
+                {isImporting ? (
+                  <ActivityIndicator size="small" color={colors.text} />
+                ) : (
+                  <Ionicons name="folder-open-outline" size={Math.round(16 * buttonScale)} color={colors.text} />
+                )}
+                <Text style={[styles.backupBtnText, dynTypography.presetBtnText, { color: colors.text }]}>Import Backup</Text>
+              </Pressable>
+            </View>
 
-        <View style={styles.backupButtonsRow}>
-          <Pressable
-            style={[
-              styles.backupBtn,
-              { backgroundColor: colors.primaryBg, borderColor: colors.primary },
-              (isExporting || trackedItems.length === 0) && styles.btnDisabled,
-            ]}
-            onPress={handleExportBackup}
-            disabled={isExporting || trackedItems.length === 0}>
-            {isExporting ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Ionicons name="share-outline" size={16} color={colors.primary} />
-            )}
-            <Text style={[styles.backupBtnText, { color: colors.primary }]}>Export Backup</Text>
-          </Pressable>
+            <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
 
-          <Pressable
-            style={[
-              styles.backupBtn,
-              { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-              isImporting && styles.btnDisabled,
-            ]}
-            onPress={handleImportBackup}
-            disabled={isImporting}>
-            {isImporting ? (
-              <ActivityIndicator size="small" color={colors.text} />
-            ) : (
-              <Ionicons name="folder-open-outline" size={16} color={colors.text} />
-            )}
-            <Text style={[styles.backupBtnText, { color: colors.text }]}>Import Backup</Text>
-          </Pressable>
-        </View>
-
-        <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
-
-        {/* Danger Zone: Clear All Tracked Data */}
-        <Text style={[styles.subControlLabel, { color: '#ef4444' }]}>DANGER ZONE</Text>
-        <Pressable
-          style={[
-            styles.clearBtn,
-            trackedItems.length === 0 && styles.btnDisabled,
-          ]}
-          onPress={handleClearAllData}
-          disabled={trackedItems.length === 0}>
-          <Ionicons name="trash-outline" size={16} color="#ef4444" />
-          <Text style={styles.clearBtnText}>Clear All Tracked Data</Text>
-        </Pressable>
+            {/* Danger Zone: Clear All Tracked Data */}
+            <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: '#ef4444' }]}>DANGER ZONE</Text>
+            <Pressable
+              style={[
+                styles.clearBtn,
+                dynTypography.presetBtn,
+                trackedItems.length === 0 && styles.btnDisabled,
+              ]}
+              onPress={handleClearAllData}
+              disabled={trackedItems.length === 0}>
+              <Ionicons name="trash-outline" size={Math.round(16 * buttonScale)} color="#ef4444" />
+              <Text style={[styles.clearBtnText, dynTypography.presetBtnText]}>Clear All Tracked Data</Text>
+            </Pressable>
           </View>
         )}
       </View>
@@ -2740,9 +2727,9 @@ export default function SettingsScreen() {
           <View style={styles.accordionLeft}>
             <Ionicons name="information-circle-outline" size={20} color={colors.primary} />
             <View style={styles.accordionTextGroup}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
-              <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.16.0 • TMDB & MAL Attributions
+              <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
+              <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
+                Version 0.16.1 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2850,8 +2837,8 @@ export default function SettingsScreen() {
               </Text>
             </Pressable>
 
-            <Text selectable style={[styles.infoVersion, { color: colors.primary }]}>
-              Version 0.16.0 • Build 24 • Expo SDK 57
+            <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
+              Version 0.16.1 • Build 25 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -2863,6 +2850,24 @@ export default function SettingsScreen() {
         onClose={() => setShowSyncModal(false)}
         onSyncComplete={() => {
           void getStorageMetrics(trackedItems.length).then((metrics) => setStorageMetrics(metrics));
+        }}
+      />
+
+      {/* Provider Details Sheet */}
+      <EntityModal
+        visible={!!selectedEntityForModal}
+        entity={selectedEntityForModal}
+        onClose={() => setSelectedEntityForModal(null)}
+        onFilterInDiscover={(filter) => {
+          setSelectedEntityForModal(null);
+          router.push({
+            pathname: '/(tabs)/discover',
+            params: {
+              filterType: filter.type,
+              filterId: String(filter.id),
+              filterName: filter.name,
+            },
+          });
         }}
       />
     </ScrollView>
@@ -4256,6 +4261,43 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     textDecorationLine: 'underline',
+  },
+  providerScopeTabsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 10,
+    flexWrap: 'wrap',
+  },
+  providerScopeTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  providerScopeTabText: {
+    fontWeight: '700',
+  },
+  providerSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  providerSearchInput: {
+    flex: 1,
+    padding: 0,
+  },
+  providerHoldHint: {
+    textAlign: 'center',
+    marginTop: 10,
+    fontStyle: 'italic',
   },
 });
 

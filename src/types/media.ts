@@ -98,6 +98,7 @@ export interface WatchProvider {
   name: string;
   logoPath: string | null;
   displayPriority?: number;
+  displayPriorities?: Record<string, number>;
 }
 
 export interface RegionalWatchProviders {

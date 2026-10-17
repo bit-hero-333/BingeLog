@@ -117,7 +117,12 @@ function TrackModalFormContent({
   }, [streamingRegionStrategy, customStreamingRegion, selectedRegion]);
 
   const [activeStreamRegion, setActiveStreamRegion] = useState<string>(initialStreamRegion);
-  const [showWorldwideView, setShowWorldwideView] = useState<boolean>(streamingRegionStrategy === 'worldwide');
+  const [streamViewMode, setStreamViewMode] = useState<'region' | 'subscribed' | 'worldwide'>(() => {
+    if (streamingDisplayStrategy === 'subscribed') return 'subscribed';
+    if (streamingRegionStrategy === 'worldwide') return 'worldwide';
+    return 'region';
+  });
+  const [worldwideFilterCountry, setWorldwideFilterCountry] = useState<string>('ALL');
   const [showRegionPickerModal, setShowRegionPickerModal] = useState<boolean>(false);
 
   const [showReminderModal, setShowReminderModal] = useState(false);
@@ -1274,26 +1279,90 @@ function TrackModalFormContent({
       );
     }
 
+    // Build Worldwide Aggregated Map
+    interface WorldwideProviderItem {
+      id: number;
+      name: string;
+      logoPath: string | null;
+      regions: string[];
+      types: Set<string>;
+    }
+
+    const worldwideMap = new Map<number, WorldwideProviderItem>();
+    availableCountryCodes.forEach((cCode) => {
+      const reg = allProviders[cCode];
+      if (!reg) return;
+
+      const addCategory = (list: WatchProvider[] | undefined, cat: string) => {
+        (list || []).forEach((p) => {
+          if (!worldwideMap.has(p.id)) {
+            worldwideMap.set(p.id, {
+              id: p.id,
+              name: p.name,
+              logoPath: p.logoPath,
+              regions: [cCode],
+              types: new Set([cat]),
+            });
+          } else {
+            const entry = worldwideMap.get(p.id)!;
+            if (!entry.regions.includes(cCode)) {
+              entry.regions.push(cCode);
+            }
+            if (!entry.logoPath && p.logoPath) {
+              entry.logoPath = p.logoPath;
+            }
+            entry.types.add(cat);
+          }
+        });
+      };
+
+      addCategory(reg.flatrate, 'Stream');
+      addCategory(reg.free, 'Free');
+      addCategory(reg.ads, 'Ads');
+      addCategory(reg.rent, 'Rent');
+      addCategory(reg.buy, 'Buy');
+    });
+
+    const allWorldwideItems = Array.from(worldwideMap.values());
+
+    // Current Regional Data
     const currentRegData = allProviders[activeStreamRegion];
     const flatrateList = currentRegData?.flatrate || [];
     const freeList = [...(currentRegData?.free || []), ...(currentRegData?.ads || [])];
     const rentList = currentRegData?.rent || [];
     const buyList = currentRegData?.buy || [];
 
-    const filterProviders = (list: WatchProvider[]) => {
-      if (streamingDisplayStrategy === 'subscribed') {
-        return list.filter((p) => mySubscribedProviders.includes(p.id));
-      }
-      return list;
-    };
+    const filterSubscribed = (list: WatchProvider[]) =>
+      list.filter((p) => mySubscribedProviders.includes(p.id));
 
-    const displayFlatrate = filterProviders(flatrateList);
-    const displayFree = filterProviders(freeList);
-    const displayRent = filterProviders(rentList);
-    const displayBuy = filterProviders(buyList);
+    const displayFlatrate = streamViewMode === 'subscribed' ? filterSubscribed(flatrateList) : flatrateList;
+    const displayFree = streamViewMode === 'subscribed' ? filterSubscribed(freeList) : freeList;
+    const displayRent = streamViewMode === 'subscribed' ? filterSubscribed(rentList) : rentList;
+    const displayBuy = streamViewMode === 'subscribed' ? filterSubscribed(buyList) : buyList;
 
-    const totalVisibleCount =
+    const totalVisibleInRegion =
       displayFlatrate.length + displayFree.length + displayRent.length + displayBuy.length;
+
+    // Filtered Worldwide Items
+    let displayedWorldwideItems = allWorldwideItems;
+    if (worldwideFilterCountry !== 'ALL') {
+      displayedWorldwideItems = displayedWorldwideItems.filter((item) =>
+        item.regions.includes(worldwideFilterCountry)
+      );
+    }
+    if (streamViewMode === 'subscribed') {
+      displayedWorldwideItems = displayedWorldwideItems.filter((item) =>
+        mySubscribedProviders.includes(item.id)
+      );
+    }
+
+    displayedWorldwideItems.sort((a, b) => {
+      const subA = mySubscribedProviders.includes(a.id) ? 1 : 0;
+      const subB = mySubscribedProviders.includes(b.id) ? 1 : 0;
+      if (subA !== subB) return subB - subA;
+      if (b.regions.length !== a.regions.length) return b.regions.length - a.regions.length;
+      return a.name.localeCompare(b.name);
+    });
 
     const renderProviderChip = (p: WatchProvider) => {
       const isSubscribed = mySubscribedProviders.includes(p.id);
@@ -1348,6 +1417,67 @@ function TrackModalFormContent({
       );
     };
 
+    const renderWorldwideProviderChip = (item: WorldwideProviderItem) => {
+      const isSubscribed = mySubscribedProviders.includes(item.id);
+      const chipLogoSize = Math.round(26 * providerScale);
+      const regionsLabel =
+        item.regions.length <= 4
+          ? `(${item.regions.join(', ')})`
+          : `(${item.regions.slice(0, 3).join(', ')} +${item.regions.length - 3})`;
+
+      return (
+        <Pressable
+          key={`world-item-${item.id}`}
+          style={({ pressed }) => [
+            styles.providerChip,
+            {
+              backgroundColor: isSubscribed ? colors.primaryBg : colors.inputBg,
+              borderColor: isSubscribed ? colors.primary : colors.cardBorder,
+              paddingVertical: Math.max(4, Math.round(6 * providerScale)),
+              paddingHorizontal: Math.max(6, Math.round(8 * providerScale)),
+            },
+            pressed && { opacity: 0.75 },
+          ]}
+          onPress={() => {
+            triggerHaptic('selection');
+            setSelectedEntity({
+              type: 'provider',
+              id: item.id,
+              name: item.name,
+              profilePath: item.logoPath,
+            });
+          }}>
+          <Image
+            source={{ uri: TMDBService.getImageUrl(item.logoPath, 'w92') || '' }}
+            style={[styles.providerLogo, { width: chipLogoSize, height: chipLogoSize }]}
+            contentFit="cover"
+          />
+          <View style={styles.providerChipTextCol}>
+            <Text
+              style={[
+                styles.providerNameText,
+                {
+                  color: isSubscribed ? colors.primary : colors.text,
+                  fontSize: Math.max(10, Math.round(11 * textScale)),
+                },
+              ]}
+              numberOfLines={1}>
+              {item.name} <Text style={{ color: colors.textMuted, fontSize: Math.max(9, Math.round(9.5 * textScale)), fontWeight: '500' }}>{regionsLabel}</Text>
+            </Text>
+            {isSubscribed ? (
+              <Text style={[styles.subscribedBadgeText, { color: colors.primary, fontSize: Math.max(8, Math.round(9 * textScale)) }]}>
+                Subscribed
+              </Text>
+            ) : (
+              <Text style={[styles.subscribedBadgeText, { color: colors.textMuted, fontSize: Math.max(8, Math.round(8.5 * textScale)) }]}>
+                {Array.from(item.types).join(' • ')}
+              </Text>
+            )}
+          </View>
+        </Pressable>
+      );
+    };
+
     return (
       <View style={[styles.streamingSection, { borderTopColor: colors.divider }]}>
         <View style={styles.subSectionHeaderRow}>
@@ -1359,112 +1489,285 @@ function TrackModalFormContent({
           </View>
 
           <View style={styles.streamingControlsRow}>
+            {/* 1. Region Mode */}
             <Pressable
               style={[
                 styles.streamControlPill,
-                showWorldwideView
-                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                streamViewMode === 'region'
+                  ? { backgroundColor: colors.primaryBg, borderColor: colors.primary }
                   : { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
               ]}
               onPress={() => {
                 triggerHaptic('selection');
-                setShowWorldwideView(!showWorldwideView);
+                setStreamViewMode('region');
+              }}>
+              <Text
+                style={[
+                  styles.streamControlPillText,
+                  {
+                    color: streamViewMode === 'region' ? colors.primary : colors.textSecondary,
+                    fontSize: 10 * textScale,
+                  },
+                ]}>
+                Region ({activeStreamRegion})
+              </Text>
+            </Pressable>
+
+            {/* Region picker dropdown opener */}
+            {streamViewMode === 'region' && (
+              <Pressable
+                style={[styles.streamControlPill, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setShowRegionPickerModal(true);
+                }}>
+                <Ionicons name="earth" size={11 * textScale} color={colors.primary} />
+                <Ionicons name="chevron-down" size={10 * textScale} color={colors.primary} />
+              </Pressable>
+            )}
+
+            {/* 2. Subscribed Only Mode */}
+            <Pressable
+              style={[
+                styles.streamControlPill,
+                streamViewMode === 'subscribed'
+                  ? { backgroundColor: colors.primaryBg, borderColor: colors.primary }
+                  : { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+              ]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setStreamViewMode('subscribed');
               }}>
               <Ionicons
-                name="globe-outline"
+                name="checkmark-circle-outline"
                 size={11 * textScale}
-                color={showWorldwideView ? '#ffffff' : colors.textSecondary}
+                color={streamViewMode === 'subscribed' ? colors.primary : colors.textSecondary}
               />
               <Text
                 style={[
                   styles.streamControlPillText,
                   {
-                    color: showWorldwideView ? '#ffffff' : colors.textSecondary,
+                    color: streamViewMode === 'subscribed' ? colors.primary : colors.textSecondary,
+                    fontSize: 10 * textScale,
+                  },
+                ]}>
+                Subscribed
+              </Text>
+            </Pressable>
+
+            {/* 3. Worldwide Mode */}
+            <Pressable
+              style={[
+                styles.streamControlPill,
+                streamViewMode === 'worldwide'
+                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                  : { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+              ]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setStreamViewMode('worldwide');
+              }}>
+              <Ionicons
+                name="globe-outline"
+                size={11 * textScale}
+                color={streamViewMode === 'worldwide' ? '#ffffff' : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.streamControlPillText,
+                  {
+                    color: streamViewMode === 'worldwide' ? '#ffffff' : colors.textSecondary,
                     fontSize: 10 * textScale,
                   },
                 ]}>
                 Worldwide
               </Text>
             </Pressable>
-
-            {!showWorldwideView && (
-              <Pressable
-                style={[
-                  styles.streamControlPill,
-                  { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-                ]}
-                onPress={() => {
-                  triggerHaptic('selection');
-                  setShowRegionPickerModal(true);
-                }}>
-                <Text style={[styles.streamControlPillText, { color: colors.primary, fontSize: 10 * textScale }]}>
-                  {activeStreamRegion}
-                </Text>
-                <Ionicons name="chevron-down" size={10 * textScale} color={colors.primary} />
-              </Pressable>
-            )}
           </View>
         </View>
 
-        {showWorldwideView ? (
+        {/* View Mode 1: Worldwide Aggregation */}
+        {streamViewMode === 'worldwide' && (
           <View style={styles.worldwideContainer}>
             <Text style={[styles.worldwideHintText, { color: colors.textMuted, fontSize: 11 * textScale }]}>
-              Available across {availableCountryCodes.length} countries. Tap a country to view providers:
+              Available across {availableCountryCodes.length} countries. Filter by country or tap any service:
             </Text>
+
+            {/* Country Filter Chips */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.worldwideScroll}>
+              <Pressable
+                style={[
+                  styles.worldwideCountryChip,
+                  {
+                    backgroundColor: worldwideFilterCountry === 'ALL' ? colors.primaryBg : colors.inputBg,
+                    borderColor: worldwideFilterCountry === 'ALL' ? colors.primary : colors.cardBorder,
+                  },
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setWorldwideFilterCountry('ALL');
+                }}>
+                <Text
+                  style={[
+                    styles.countryCodeText,
+                    { color: worldwideFilterCountry === 'ALL' ? colors.primary : colors.text, fontSize: 11 * textScale },
+                  ]}>
+                  ALL ({allWorldwideItems.length})
+                </Text>
+              </Pressable>
+
               {availableCountryCodes.map((code) => {
                 const reg = allProviders[code];
                 const count =
                   (reg?.flatrate?.length || 0) + (reg?.free?.length || 0) + (reg?.rent?.length || 0) + (reg?.buy?.length || 0);
-                const isCurrent = code === activeStreamRegion;
+                const isSelected = code === worldwideFilterCountry;
 
                 return (
                   <Pressable
-                    key={`world-${code}`}
+                    key={`world-filt-${code}`}
                     style={[
                       styles.worldwideCountryChip,
                       {
-                        backgroundColor: isCurrent ? colors.primaryBg : colors.inputBg,
-                        borderColor: isCurrent ? colors.primary : colors.cardBorder,
+                        backgroundColor: isSelected ? colors.primaryBg : colors.inputBg,
+                        borderColor: isSelected ? colors.primary : colors.cardBorder,
                       },
                     ]}
                     onPress={() => {
                       triggerHaptic('selection');
-                      setActiveStreamRegion(code);
-                      setShowWorldwideView(false);
+                      setWorldwideFilterCountry(isSelected ? 'ALL' : code);
                     }}>
-                    <Text style={[styles.countryCodeText, { color: isCurrent ? colors.primary : colors.text, fontSize: 11 * textScale }]}>
+                    <Text style={[styles.countryCodeText, { color: isSelected ? colors.primary : colors.text, fontSize: 11 * textScale }]}>
                       {code}
                     </Text>
                     <Text style={[styles.countryCountText, { color: colors.textMuted, fontSize: 9 * textScale }]}>
-                      {count} src
+                      {count}
                     </Text>
                   </Pressable>
                 );
               })}
             </ScrollView>
+
+            {displayedWorldwideItems.length === 0 ? (
+              <View style={[styles.emptyProvidersNotice, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, marginTop: 8 }]}>
+                <Text style={[styles.emptyNoticeText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                  No streaming providers found for the selected country filter.
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.providerChipsWrap, { marginTop: 10 }]}>
+                {displayedWorldwideItems.map(renderWorldwideProviderChip)}
+              </View>
+            )}
+
+            <Text style={[styles.tmdbAttribution, { color: colors.textMuted, fontSize: 9 * textScale }]}>
+              Watch data provided by JustWatch via TMDB. Country codes in parentheses. Tap any service to search titles.
+            </Text>
           </View>
-        ) : (
+        )}
+
+        {/* View Mode 2: Subscribed Only */}
+        {streamViewMode === 'subscribed' && (
           <View style={styles.regionalProvidersContainer}>
-            {totalVisibleCount === 0 ? (
+            {totalVisibleInRegion > 0 ? (
+              <>
+                {displayFlatrate.length > 0 && (
+                  <View style={styles.providerCategoryGroup}>
+                    <Text style={[styles.providerCategoryLabel, { color: colors.textMuted, fontSize: 10 * textScale }]}>
+                      STREAM ({activeStreamRegion})
+                    </Text>
+                    <View style={styles.providerChipsWrap}>
+                      {displayFlatrate.map(renderProviderChip)}
+                    </View>
+                  </View>
+                )}
+
+                {displayFree.length > 0 && (
+                  <View style={styles.providerCategoryGroup}>
+                    <Text style={[styles.providerCategoryLabel, { color: colors.textMuted, fontSize: 10 * textScale }]}>
+                      FREE / ADS ({activeStreamRegion})
+                    </Text>
+                    <View style={styles.providerChipsWrap}>
+                      {displayFree.map(renderProviderChip)}
+                    </View>
+                  </View>
+                )}
+
+                {displayRent.length > 0 && (
+                  <View style={styles.providerCategoryGroup}>
+                    <Text style={[styles.providerCategoryLabel, { color: colors.textMuted, fontSize: 10 * textScale }]}>
+                      RENT ({activeStreamRegion})
+                    </Text>
+                    <View style={styles.providerChipsWrap}>
+                      {displayRent.map(renderProviderChip)}
+                    </View>
+                  </View>
+                )}
+
+                {displayBuy.length > 0 && (
+                  <View style={styles.providerCategoryGroup}>
+                    <Text style={[styles.providerCategoryLabel, { color: colors.textMuted, fontSize: 10 * textScale }]}>
+                      BUY ({activeStreamRegion})
+                    </Text>
+                    <View style={styles.providerChipsWrap}>
+                      {displayBuy.map(renderProviderChip)}
+                    </View>
+                  </View>
+                )}
+              </>
+            ) : (
               <View style={[styles.emptyProvidersNotice, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
                 <Text style={[styles.emptyNoticeText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
-                  {streamingDisplayStrategy === 'subscribed'
-                    ? `None of your subscribed services stream this in ${activeStreamRegion}.`
-                    : `No streaming options reported for ${activeStreamRegion}.`}
+                  None of your subscribed services stream this in {activeStreamRegion}.
                 </Text>
-                {streamingDisplayStrategy === 'subscribed' && (
+
+                {displayedWorldwideItems.length > 0 ? (
+                  <View style={{ width: '100%', marginTop: 6 }}>
+                    <Text style={[styles.providerCategoryLabel, { color: colors.primary, fontSize: 10 * textScale, textAlign: 'center' }]}>
+                      AVAILABLE ON YOUR SUBSCRIPTIONS IN OTHER REGIONS:
+                    </Text>
+                    <View style={[styles.providerChipsWrap, { justifyContent: 'center', marginTop: 6 }]}>
+                      {displayedWorldwideItems.map(renderWorldwideProviderChip)}
+                    </View>
+                  </View>
+                ) : (
                   <Pressable
                     style={[styles.emptyNoticeActionBtn, { borderColor: colors.primary }]}
                     onPress={() => {
                       triggerHaptic('selection');
-                      setShowWorldwideView(true);
+                      setStreamViewMode('worldwide');
                     }}>
                     <Text style={[styles.emptyNoticeActionText, { color: colors.primary, fontSize: 11 * textScale }]}>
-                      Explore Other Countries
+                      Explore All Worldwide Providers
                     </Text>
                   </Pressable>
                 )}
+              </View>
+            )}
+
+            <Text style={[styles.tmdbAttribution, { color: colors.textMuted, fontSize: 9 * textScale }]}>
+              Watch data provided by JustWatch via TMDB. Tap any service to search titles.
+            </Text>
+          </View>
+        )}
+
+        {/* View Mode 3: Region Mode */}
+        {streamViewMode === 'region' && (
+          <View style={styles.regionalProvidersContainer}>
+            {totalVisibleInRegion === 0 ? (
+              <View style={[styles.emptyProvidersNotice, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                <Text style={[styles.emptyNoticeText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                  No streaming options reported for {activeStreamRegion}.
+                </Text>
+                <Pressable
+                  style={[styles.emptyNoticeActionBtn, { borderColor: colors.primary }]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setStreamViewMode('worldwide');
+                  }}>
+                  <Text style={[styles.emptyNoticeActionText, { color: colors.primary, fontSize: 11 * textScale }]}>
+                    Explore Worldwide Availability
+                  </Text>
+                </Pressable>
               </View>
             ) : (
               <>

@@ -12,6 +12,7 @@ import {
   GenreFullDetails,
   EntityType,
   WatchProvider,
+  POPULAR_STREAMING_PROVIDERS,
 } from '@/types/media';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
@@ -47,6 +48,20 @@ interface RawCompanyResponse {
   origin_country?: string;
   logo_path?: string | null;
 }
+
+interface RawWatchProviderItem {
+  display_priorities?: Record<string, number>;
+  display_priority?: number;
+  logo_path: string | null;
+  provider_name: string;
+  provider_id: number;
+}
+
+interface RawWatchProviderListResponse {
+  results: RawWatchProviderItem[];
+}
+
+const watchProvidersListCache: Record<string, WatchProvider[]> = {};
 
 interface RawCreditsResponse {
   tagline?: string;
@@ -700,5 +715,97 @@ export const TMDBService = {
       console.warn(`Failed to discover by entity ${entityType} ${entityId}`, e);
       return [];
     }
+  },
+
+  async getWatchProvidersList(
+    apiKey: string,
+    watchRegion?: string
+  ): Promise<WatchProvider[]> {
+    if (!apiKey) {
+      return POPULAR_STREAMING_PROVIDERS.map((p) => ({
+        id: p.id,
+        name: p.name,
+        logoPath: p.logoPath,
+      }));
+    }
+
+    const normRegion = watchRegion ? watchRegion.trim().toUpperCase() : undefined;
+    const cacheKey = normRegion || 'ALL_WORLDWIDE';
+
+    if (watchProvidersListCache[cacheKey] && watchProvidersListCache[cacheKey].length > 0) {
+      return watchProvidersListCache[cacheKey];
+    }
+
+    try {
+      const params: Record<string, string | number> = {};
+      if (normRegion) {
+        params.watch_region = normRegion;
+      }
+
+      const [movieRes, tvRes] = await Promise.allSettled([
+        this.request<RawWatchProviderListResponse>('/watch/providers/movie', apiKey, params),
+        this.request<RawWatchProviderListResponse>('/watch/providers/tv', apiKey, params),
+      ]);
+
+      const movieItems = movieRes.status === 'fulfilled' ? movieRes.value.results || [] : [];
+      const tvItems = tvRes.status === 'fulfilled' ? tvRes.value.results || [] : [];
+
+      const map = new Map<number, WatchProvider>();
+
+      for (const item of [...movieItems, ...tvItems]) {
+        if (!map.has(item.provider_id)) {
+          map.set(item.provider_id, {
+            id: item.provider_id,
+            name: item.provider_name,
+            logoPath: item.logo_path,
+            displayPriority: item.display_priority,
+            displayPriorities: item.display_priorities,
+          });
+        } else {
+          const existing = map.get(item.provider_id)!;
+          if (!existing.logoPath && item.logo_path) {
+            existing.logoPath = item.logo_path;
+          }
+          if (item.display_priorities) {
+            existing.displayPriorities = {
+              ...(existing.displayPriorities || {}),
+              ...item.display_priorities,
+            };
+          }
+        }
+      }
+
+      const providers = Array.from(map.values());
+
+      if (normRegion) {
+        providers.sort((a, b) => {
+          const prioA = a.displayPriorities?.[normRegion] ?? a.displayPriority ?? 999;
+          const prioB = b.displayPriorities?.[normRegion] ?? b.displayPriority ?? 999;
+          if (prioA !== prioB) return prioA - prioB;
+          return a.name.localeCompare(b.name);
+        });
+      } else {
+        providers.sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      if (providers.length > 0) {
+        watchProvidersListCache[cacheKey] = providers;
+        return providers;
+      }
+    } catch (e) {
+      console.warn(`Failed to fetch watch providers for region ${watchRegion}`, e);
+    }
+
+    return POPULAR_STREAMING_PROVIDERS.map((p) => ({
+      id: p.id,
+      name: p.name,
+      logoPath: p.logoPath,
+    }));
+  },
+
+  clearProvidersCache(): void {
+    Object.keys(watchProvidersListCache).forEach((k) => {
+      delete watchProvidersListCache[k];
+    });
   },
 };
