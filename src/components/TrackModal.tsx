@@ -124,6 +124,7 @@ function TrackModalFormContent({
   });
   const [worldwideFilterCountry, setWorldwideFilterCountry] = useState<string>('ALL');
   const [showRegionPickerModal, setShowRegionPickerModal] = useState<boolean>(false);
+  const [showStreamModeDropdown, setShowStreamModeDropdown] = useState<boolean>(false);
 
   const [showReminderModal, setShowReminderModal] = useState(false);
 
@@ -1488,102 +1489,40 @@ function TrackModalFormContent({
             </Text>
           </View>
 
-          <View style={styles.streamingControlsRow}>
-            {/* 1. Region Mode */}
-            <Pressable
-              style={[
-                styles.streamControlPill,
-                streamViewMode === 'region'
-                  ? { backgroundColor: colors.primaryBg, borderColor: colors.primary }
-                  : { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-              ]}
-              onPress={() => {
-                triggerHaptic('selection');
-                setStreamViewMode('region');
-              }}>
-              <Text
-                style={[
-                  styles.streamControlPillText,
-                  {
-                    color: streamViewMode === 'region' ? colors.primary : colors.textSecondary,
-                    fontSize: 10 * textScale,
-                  },
-                ]}>
-                Region ({activeStreamRegion})
-              </Text>
-            </Pressable>
-
-            {/* Region picker dropdown opener */}
-            {streamViewMode === 'region' && (
-              <Pressable
-                style={[styles.streamControlPill, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
-                onPress={() => {
-                  triggerHaptic('selection');
-                  setShowRegionPickerModal(true);
-                }}>
-                <Ionicons name="earth" size={11 * textScale} color={colors.primary} />
-                <Ionicons name="chevron-down" size={10 * textScale} color={colors.primary} />
-              </Pressable>
-            )}
-
-            {/* 2. Subscribed Only Mode */}
-            <Pressable
-              style={[
-                styles.streamControlPill,
+          <Pressable
+            style={[
+              styles.streamDropdownBtn,
+              { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+            ]}
+            onPress={() => {
+              triggerHaptic('selection');
+              setShowStreamModeDropdown(true);
+            }}>
+            <Ionicons
+              name={
                 streamViewMode === 'subscribed'
-                  ? { backgroundColor: colors.primaryBg, borderColor: colors.primary }
-                  : { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-              ]}
-              onPress={() => {
-                triggerHaptic('selection');
-                setStreamViewMode('subscribed');
-              }}>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={11 * textScale}
-                color={streamViewMode === 'subscribed' ? colors.primary : colors.textSecondary}
-              />
-              <Text
-                style={[
-                  styles.streamControlPillText,
-                  {
-                    color: streamViewMode === 'subscribed' ? colors.primary : colors.textSecondary,
-                    fontSize: 10 * textScale,
-                  },
-                ]}>
-                Subscribed
-              </Text>
-            </Pressable>
-
-            {/* 3. Worldwide Mode */}
-            <Pressable
+                  ? 'checkmark-circle'
+                  : streamViewMode === 'worldwide'
+                  ? 'globe'
+                  : 'location'
+              }
+              size={Math.round(12 * buttonScale)}
+              color={colors.primary}
+            />
+            <Text
               style={[
-                styles.streamControlPill,
-                streamViewMode === 'worldwide'
-                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                  : { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                styles.streamDropdownBtnText,
+                { color: colors.text, fontSize: Math.max(10, Math.round(11 * textScale)) },
               ]}
-              onPress={() => {
-                triggerHaptic('selection');
-                setStreamViewMode('worldwide');
-              }}>
-              <Ionicons
-                name="globe-outline"
-                size={11 * textScale}
-                color={streamViewMode === 'worldwide' ? '#ffffff' : colors.textSecondary}
-              />
-              <Text
-                style={[
-                  styles.streamControlPillText,
-                  {
-                    color: streamViewMode === 'worldwide' ? '#ffffff' : colors.textSecondary,
-                    fontSize: 10 * textScale,
-                  },
-                ]}>
-                Worldwide
-              </Text>
-            </Pressable>
-          </View>
+              numberOfLines={1}>
+              {streamViewMode === 'subscribed'
+                ? 'Subscribed'
+                : streamViewMode === 'worldwide'
+                ? 'Worldwide'
+                : `Region (${activeStreamRegion})`}
+            </Text>
+            <Ionicons name="chevron-down" size={Math.round(11 * buttonScale)} color={colors.textSecondary} />
+          </Pressable>
         </View>
 
         {/* View Mode 1: Worldwide Aggregation */}
@@ -1753,6 +1692,27 @@ function TrackModalFormContent({
         {/* View Mode 3: Region Mode */}
         {streamViewMode === 'region' && (
           <View style={styles.regionalProvidersContainer}>
+            <View style={[styles.regionActiveBanner, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+              <View style={styles.regionActiveBannerLeft}>
+                <Ionicons name="location-outline" size={Math.round(13 * textScale)} color={colors.primary} />
+                <Text style={[styles.regionActiveBannerText, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
+                  Region: <Text style={{ color: colors.text, fontWeight: '700' }}>{activeStreamRegion}</Text>
+                </Text>
+              </View>
+              <Pressable
+                style={[styles.changeRegionBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setShowRegionPickerModal(true);
+                }}>
+                <Ionicons name="earth-outline" size={Math.round(11 * textScale)} color={colors.primary} />
+                <Text style={[styles.changeRegionBtnText, { color: colors.primary, fontSize: 10.5 * textScale }]}>
+                  Change Country
+                </Text>
+                <Ionicons name="chevron-down" size={Math.round(10 * textScale)} color={colors.primary} />
+              </Pressable>
+            </View>
+
             {totalVisibleInRegion === 0 ? (
               <View style={[styles.emptyProvidersNotice, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
                 <Text style={[styles.emptyNoticeText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
@@ -1821,6 +1781,146 @@ function TrackModalFormContent({
               Watch data provided by JustWatch via TMDB. Tap any service to search titles.
             </Text>
           </View>
+        )}
+
+        {/* Dropdown Menu Modal for Streaming View Mode */}
+        {showStreamModeDropdown && (
+          <Modal
+            visible={showStreamModeDropdown}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowStreamModeDropdown(false)}>
+            <Pressable style={styles.modalBackdrop} onPress={() => setShowStreamModeDropdown(false)}>
+              <View
+                style={[
+                  styles.regionPickerCard,
+                  { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                ]}>
+                <View style={styles.regionPickerHeader}>
+                  <Text style={[styles.regionPickerTitle, { color: colors.text, fontSize: 14 * headerScale }]}>
+                    Where to Watch
+                  </Text>
+                  <Pressable onPress={() => setShowStreamModeDropdown(false)}>
+                    <Ionicons name="close" size={20} color={colors.textSecondary} />
+                  </Pressable>
+                </View>
+
+                {/* Option 1: Region Mode */}
+                <Pressable
+                  style={[
+                    styles.streamModeMenuItem,
+                    {
+                      backgroundColor: streamViewMode === 'region' ? colors.primaryBg : colors.inputBg,
+                      borderColor: streamViewMode === 'region' ? colors.primary : colors.cardBorder,
+                    },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setStreamViewMode('region');
+                    setShowStreamModeDropdown(false);
+                  }}>
+                  <View style={styles.streamModeMenuLeft}>
+                    <Ionicons
+                      name="location"
+                      size={18}
+                      color={streamViewMode === 'region' ? colors.primary : colors.textSecondary}
+                    />
+                    <View style={styles.streamModeMenuTextCol}>
+                      <Text
+                        style={[
+                          styles.streamModeMenuTitle,
+                          { color: streamViewMode === 'region' ? colors.primary : colors.text, fontSize: 13 * textScale },
+                        ]}>
+                        Region ({activeStreamRegion})
+                      </Text>
+                      <Text style={[styles.streamModeMenuDesc, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
+                        Providers streaming in {activeStreamRegion}
+                      </Text>
+                    </View>
+                  </View>
+                  {streamViewMode === 'region' && (
+                    <Ionicons name="checkmark" size={18} color={colors.primary} />
+                  )}
+                </Pressable>
+
+                {/* Option 2: Subscribed Only */}
+                <Pressable
+                  style={[
+                    styles.streamModeMenuItem,
+                    {
+                      backgroundColor: streamViewMode === 'subscribed' ? colors.primaryBg : colors.inputBg,
+                      borderColor: streamViewMode === 'subscribed' ? colors.primary : colors.cardBorder,
+                    },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setStreamViewMode('subscribed');
+                    setShowStreamModeDropdown(false);
+                  }}>
+                  <View style={styles.streamModeMenuLeft}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={18}
+                      color={streamViewMode === 'subscribed' ? colors.primary : colors.textSecondary}
+                    />
+                    <View style={styles.streamModeMenuTextCol}>
+                      <Text
+                        style={[
+                          styles.streamModeMenuTitle,
+                          { color: streamViewMode === 'subscribed' ? colors.primary : colors.text, fontSize: 13 * textScale },
+                        ]}>
+                        Subscribed Services
+                      </Text>
+                      <Text style={[styles.streamModeMenuDesc, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
+                        Focus only on services you have
+                      </Text>
+                    </View>
+                  </View>
+                  {streamViewMode === 'subscribed' && (
+                    <Ionicons name="checkmark" size={18} color={colors.primary} />
+                  )}
+                </Pressable>
+
+                {/* Option 3: Worldwide Overview */}
+                <Pressable
+                  style={[
+                    styles.streamModeMenuItem,
+                    {
+                      backgroundColor: streamViewMode === 'worldwide' ? colors.primaryBg : colors.inputBg,
+                      borderColor: streamViewMode === 'worldwide' ? colors.primary : colors.cardBorder,
+                    },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setStreamViewMode('worldwide');
+                    setShowStreamModeDropdown(false);
+                  }}>
+                  <View style={styles.streamModeMenuLeft}>
+                    <Ionicons
+                      name="globe"
+                      size={18}
+                      color={streamViewMode === 'worldwide' ? colors.primary : colors.textSecondary}
+                    />
+                    <View style={styles.streamModeMenuTextCol}>
+                      <Text
+                        style={[
+                          styles.streamModeMenuTitle,
+                          { color: streamViewMode === 'worldwide' ? colors.primary : colors.text, fontSize: 13 * textScale },
+                        ]}>
+                        Worldwide Overview
+                      </Text>
+                      <Text style={[styles.streamModeMenuDesc, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
+                        All {availableCountryCodes.length} countries & platforms
+                      </Text>
+                    </View>
+                  </View>
+                  {streamViewMode === 'worldwide' && (
+                    <Ionicons name="checkmark" size={18} color={colors.primary} />
+                  )}
+                </Pressable>
+              </View>
+            </Pressable>
+          </Modal>
         )}
 
         {showRegionPickerModal && (
@@ -4196,23 +4296,75 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexShrink: 1,
   },
-  streamingControlsRow: {
+  streamDropdownBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexShrink: 1,
   },
-  streamControlPill: {
+  streamDropdownBtnText: {
+    fontWeight: '700',
+  },
+  regionActiveBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  regionActiveBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
+  },
+  regionActiveBannerText: {
+    fontWeight: '500',
+  },
+  changeRegionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: 12,
+    borderRadius: 6,
     borderWidth: 1,
   },
-  streamControlPillText: {
+  changeRegionBtnText: {
     fontWeight: '700',
+  },
+  streamModeMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  streamModeMenuLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  streamModeMenuTextCol: {
+    flex: 1,
+  },
+  streamModeMenuTitle: {
+    fontWeight: '700',
+  },
+  streamModeMenuDesc: {
+    marginTop: 2,
   },
   worldwideContainer: {
     marginTop: 10,

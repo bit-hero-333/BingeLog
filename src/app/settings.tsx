@@ -2729,7 +2729,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.16.1 • TMDB & MAL Attributions
+                Version 0.16.2 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2828,17 +2828,8 @@ export default function SettingsScreen() {
               </Text>. All trademarks, logos, and copyrights belong to their respective owners.
             </Text>
 
-            <Pressable
-              style={styles.githubLinkRow}
-              onPress={() => void Linking.openURL('https://github.com/bit-hero-333/BingeLog')}>
-              <Ionicons name="logo-github" size={16} color={colors.primary} />
-              <Text style={[styles.githubLinkText, { color: colors.primary }]}>
-                GitHub Repository: bit-hero-333/BingeLog
-              </Text>
-            </Pressable>
-
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.16.1 • Build 25 • Expo SDK 57
+              Version 0.16.2 • Build 26 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -4248,19 +4239,6 @@ const styles = StyleSheet.create({
   providerGridName: {
     fontWeight: '600',
     textAlign: 'center',
-  },
-  githubLinkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 12,
-    paddingVertical: 6,
-  },
-  githubLinkText: {
-    fontSize: 12,
-    fontWeight: '700',
-    textDecorationLine: 'underline',
   },
   providerScopeTabsRow: {
     flexDirection: 'row',
