@@ -2281,7 +2281,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.15.1 • TMDB & MAL Attributions
+                Version 0.15.1.1 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2308,8 +2308,33 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoAiCredit, { color: colors.textSecondary }]}>
-              Crafted with heavy AI assistance and vibe-coded with care as an independent personal tracking project.
+              Crafted with Google DeepMind Antigravity & Gemini assistance and vibe-coded with care as an independent personal tracking project.
             </Text>
+
+            {/* GitHub Project Link */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.githubButton,
+                {
+                  backgroundColor: colors.cardSelected,
+                  borderColor: colors.cardBorder,
+                  opacity: pressed ? 0.75 : 1,
+                },
+              ]}
+              onPress={() => void Linking.openURL('https://github.com/bit-hero-333/BingeLog')}>
+              <View style={[styles.githubIconBadge, { backgroundColor: colors.card }]}>
+                <Ionicons name="logo-github" size={18} color={colors.text} />
+              </View>
+              <View style={styles.githubButtonTextCol}>
+                <Text style={[styles.githubButtonTitle, { color: colors.text }]}>
+                  GitHub Repository
+                </Text>
+                <Text style={[styles.githubButtonSub, { color: colors.textSecondary }]}>
+                  bit-hero-333/BingeLog • Source & Releases
+                </Text>
+              </View>
+              <Ionicons name="open-outline" size={16} color={colors.primary} />
+            </Pressable>
 
             <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 12 }]} />
 
@@ -2356,7 +2381,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary }]}>
-              Version 0.15.1 • Build 22 • Expo SDK 57
+              Version 0.15.1.1 • Build 23 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -3220,6 +3245,38 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 10,
     fontWeight: '700',
+    textAlign: 'center',
+    alignSelf: 'center',
+    width: '100%',
+  },
+  githubButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    width: '100%',
+  },
+  githubIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  githubButtonTextCol: {
+    flex: 1,
+  },
+  githubButtonTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  githubButtonSub: {
+    fontSize: 11,
+    marginTop: 1,
   },
   hapticDotsRow: {
     flexDirection: 'row',

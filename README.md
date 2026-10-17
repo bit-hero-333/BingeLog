@@ -92,6 +92,13 @@ npx eas-cli build -p android --profile preview
 
 ---
 
+## Contributors & Credits
+
+- **Creator & Lead Maintainer:** [@bit-hero-333](https://github.com/bit-hero-333)
+- **AI Pair Programming & Architecture:** [Google DeepMind Antigravity / Gemini](https://deepmind.google/)
+
+---
+
 ## ⚖️ Attribution & Disclaimers
 
 - **TMDB Attribution:** This product uses the TMDB API but is not endorsed or certified by [TMDB](https://www.themoviedb.org/). All movie and TV metadata, posters, backdrops, and cast information are provided courtesy of The Movie Database.
