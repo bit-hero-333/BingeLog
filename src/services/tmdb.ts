@@ -804,6 +804,16 @@ export const TMDBService = {
     }));
   },
 
+  getCachedProvider(providerId: number): WatchProvider | undefined {
+    for (const list of Object.values(watchProvidersListCache)) {
+      const found = list.find((p) => p.id === providerId);
+      if (found) return found;
+    }
+    const pop = POPULAR_STREAMING_PROVIDERS.find((p) => p.id === providerId);
+    if (pop) return { id: pop.id, name: pop.name, logoPath: pop.logoPath };
+    return undefined;
+  },
+
   async searchPeople(
     query: string,
     apiKey: string
@@ -909,6 +919,9 @@ export const TMDBService = {
         dMax.setDate(dMax.getDate() + 45);
         releaseDateMax = formatDate(dMax);
         releaseType = '4';
+      } else if (filter.releaseWindow === 'all') {
+        releaseDateMin = todayStr;
+        releaseDateMax = undefined;
       }
 
       // Provider IDs resolution

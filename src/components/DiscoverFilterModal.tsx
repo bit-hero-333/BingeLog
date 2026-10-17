@@ -219,11 +219,29 @@ function DiscoverFilterModalContent({
     triggerHaptic('selection');
     setDraft((prev) => {
       const exists = prev.selectedProviders.includes(providerId);
+      const nextIds = exists
+        ? prev.selectedProviders.filter((id) => id !== providerId)
+        : [...prev.selectedProviders, providerId];
+
+      const prevDetails = prev.selectedProviderDetails || [];
+      let nextDetails: WatchProvider[];
+      if (exists) {
+        nextDetails = prevDetails.filter((p) => p.id !== providerId);
+      } else {
+        const found =
+          availableProviders.find((p) => p.id === providerId) ||
+          regionProviders.find((p) => p.id === providerId) ||
+          worldwideProviders.find((p) => p.id === providerId) ||
+          POPULAR_STREAMING_PROVIDERS.find((p) => p.id === providerId);
+        nextDetails = found
+          ? [...prevDetails.filter((p) => p.id !== providerId), { id: found.id, name: found.name, logoPath: found.logoPath }]
+          : prevDetails;
+      }
+
       return {
         ...prev,
-        selectedProviders: exists
-          ? prev.selectedProviders.filter((id) => id !== providerId)
-          : [...prev.selectedProviders, providerId],
+        selectedProviders: nextIds,
+        selectedProviderDetails: nextDetails,
       };
     });
   };
@@ -231,15 +249,22 @@ function DiscoverFilterModalContent({
   const selectAllProviders = () => {
     triggerHaptic('selection');
     const allIds = availableProviders.map((p: WatchProvider) => p.id);
-    setDraft((prev) => ({
-      ...prev,
-      selectedProviders: Array.from(new Set([...prev.selectedProviders, ...allIds])),
-    }));
+    setDraft((prev) => {
+      const prevDetails = prev.selectedProviderDetails || [];
+      const detailMap = new Map<number, WatchProvider>();
+      for (const d of prevDetails) detailMap.set(d.id, d);
+      for (const p of availableProviders) detailMap.set(p.id, { id: p.id, name: p.name, logoPath: p.logoPath });
+      return {
+        ...prev,
+        selectedProviders: Array.from(new Set([...prev.selectedProviders, ...allIds])),
+        selectedProviderDetails: Array.from(detailMap.values()),
+      };
+    });
   };
 
   const clearSelectedProviders = () => {
     triggerHaptic('selection');
-    setDraft((prev) => ({ ...prev, selectedProviders: [] }));
+    setDraft((prev) => ({ ...prev, selectedProviders: [], selectedProviderDetails: [] }));
   };
 
   const addPerson = (person: { id: number; name: string; profilePath: string | null }) => {
@@ -288,7 +313,26 @@ function DiscoverFilterModalContent({
 
   const handleApply = () => {
     triggerHaptic('selection');
-    onApply(draft);
+    const detailMap = new Map<number, WatchProvider>();
+    for (const d of draft.selectedProviderDetails || []) {
+      detailMap.set(d.id, d);
+    }
+    for (const id of draft.selectedProviders) {
+      if (!detailMap.has(id)) {
+        const found =
+          availableProviders.find((p) => p.id === id) ||
+          regionProviders.find((p) => p.id === id) ||
+          worldwideProviders.find((p) => p.id === id) ||
+          POPULAR_STREAMING_PROVIDERS.find((p) => p.id === id);
+        if (found) {
+          detailMap.set(id, { id: found.id, name: found.name, logoPath: found.logoPath });
+        }
+      }
+    }
+    onApply({
+      ...draft,
+      selectedProviderDetails: Array.from(detailMap.values()),
+    });
     onClose();
   };
 
@@ -305,12 +349,12 @@ function DiscoverFilterModalContent({
   };
 
   const RELEASE_WINDOWS: { id: DiscoverReleaseWindow; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { id: 'all', label: 'All Releases', icon: 'infinite-outline' },
     { id: 'upcoming_30', label: 'Next 30 Days', icon: 'calendar-outline' },
     { id: 'upcoming_60', label: 'Next 60 Days', icon: 'calendar-outline' },
     { id: 'upcoming_90', label: 'Next 90 Days', icon: 'calendar-outline' },
     { id: 'digital_premieres', label: 'Streaming Premieres', icon: 'tv-outline' },
     { id: 'in_theaters', label: 'In Theaters', icon: 'film-outline' },
-    { id: 'all', label: 'All Releases', icon: 'infinite-outline' },
   ];
 
   const SORT_OPTIONS: { id: DiscoverSortOption; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -550,7 +594,7 @@ function DiscoverFilterModalContent({
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.providerHorizontalList}>
-                    {availableProviders.slice(0, 35).map((p: WatchProvider) => {
+                    {availableProviders.slice(0, providerSearch.trim() ? 60 : 45).map((p: WatchProvider) => {
                       const isSelected = draft.selectedProviders.includes(p.id);
                       const logoUrl = TMDBService.getImageUrl(p.logoPath, 'w92');
                       return (

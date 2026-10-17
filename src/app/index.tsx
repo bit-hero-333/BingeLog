@@ -28,7 +28,6 @@ import {
   DiscoverReleaseWindow,
   ItemReminderConfig,
   POPULAR_STREAMING_PROVIDERS,
-  PopularProviderOption,
 } from '@/types/media';
 import { MediaCard } from '@/components/MediaCard';
 import { TrackModal } from '@/components/TrackModal';
@@ -87,20 +86,53 @@ export default function DiscoverScreen() {
   const [selectedReminderItem, setSelectedReminderItem] = useState<TMDBMediaItem | null>(null);
   const [reminderModalVisible, setReminderModalVisible] = useState(false);
 
-  // Quick timing windows list
+  // Quick timing windows list (defaults to no particular time frame at all)
   const TIMING_PRESETS: { id: DiscoverReleaseWindow; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { id: 'all', label: 'All Releases', icon: 'infinite-outline' },
     { id: 'upcoming_30', label: 'Next 30 Days', icon: 'calendar-outline' },
     { id: 'upcoming_60', label: 'Next 60 Days', icon: 'calendar-outline' },
     { id: 'upcoming_90', label: 'Next 90 Days', icon: 'calendar-outline' },
     { id: 'digital_premieres', label: 'Streaming Premieres', icon: 'tv-outline' },
     { id: 'in_theaters', label: 'In Theaters', icon: 'film-outline' },
-    { id: 'all', label: 'All Releases', icon: 'infinite-outline' },
   ];
+
+  // Dynamically include any custom provider selected from the filter modal on the quick row
+  const displayedQuickProviders = useMemo(() => {
+    const list: { id: number; name: string; logoPath: string | null }[] = [...POPULAR_STREAMING_PROVIDERS];
+    const existingIds = new Set(POPULAR_STREAMING_PROVIDERS.map((p) => p.id));
+
+    if (multiFilter.selectedProviderDetails && multiFilter.selectedProviderDetails.length > 0) {
+      for (const p of multiFilter.selectedProviderDetails) {
+        if (!existingIds.has(p.id)) {
+          list.push({
+            id: p.id,
+            name: p.name,
+            logoPath: p.logoPath ?? null,
+          });
+          existingIds.add(p.id);
+        }
+      }
+    }
+
+    for (const id of multiFilter.selectedProviders) {
+      if (!existingIds.has(id)) {
+        const cached = TMDBService.getCachedProvider(id);
+        list.push({
+          id,
+          name: cached?.name || `Provider ${id}`,
+          logoPath: cached?.logoPath || '',
+        });
+        existingIds.add(id);
+      }
+    }
+
+    return list;
+  }, [multiFilter.selectedProviderDetails, multiFilter.selectedProviders]);
 
   // Calculate active filter count (excluding default values)
   const activeFilterCount = useMemo(() => {
     let count = 0;
-    if (multiFilter.releaseWindow !== 'upcoming_30') count++;
+    if (multiFilter.releaseWindow !== 'all') count++;
     if (multiFilter.providerScope !== 'none') {
       if (multiFilter.providerScope === 'subscribed') count++;
       else if (multiFilter.selectedProviders.length > 0) count++;
@@ -637,13 +669,13 @@ export default function DiscoverScreen() {
               </Pressable>
             )}
 
-            {/* Popular Providers with logos */}
-            {POPULAR_STREAMING_PROVIDERS.map((p: PopularProviderOption) => {
+            {/* Providers with logos (popular + custom selected from filter) */}
+            {displayedQuickProviders.map((p) => {
               const isSelected =
                 multiFilter.providerScope !== 'none' &&
                 multiFilter.providerScope !== 'subscribed' &&
                 multiFilter.selectedProviders.includes(p.id);
-              const logoUrl = TMDBService.getImageUrl(p.logoPath, 'w92');
+              const logoUrl = p.logoPath ? TMDBService.getImageUrl(p.logoPath, 'w92') : null;
 
               return (
                 <Pressable
@@ -680,10 +712,11 @@ export default function DiscoverScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.activeChipsScroll}>
-            {multiFilter.releaseWindow !== 'upcoming_30' && (
+            {/* Timing window chip (shown only when not default 'all') */}
+            {multiFilter.releaseWindow !== 'all' && (
               <Pressable
                 style={[styles.activeFilterChip, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}
-                onPress={() => setMultiFilter((p) => ({ ...p, releaseWindow: 'upcoming_30' }))}>
+                onPress={() => setMultiFilter((p) => ({ ...p, releaseWindow: 'all' }))}>
                 <Ionicons name="calendar-outline" size={11} color={colors.primary} />
                 <Text style={[styles.activeFilterChipText, { color: colors.primary, fontSize: 11 * textScale }]}>
                   {getReleaseWindowLabel(multiFilter.releaseWindow)}
@@ -691,6 +724,42 @@ export default function DiscoverScreen() {
                 <Ionicons name="close" size={12} color={colors.primary} />
               </Pressable>
             )}
+
+            {/* Provider chip */}
+            {multiFilter.providerScope === 'subscribed' && (
+              <Pressable
+                style={[styles.activeFilterChip, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}
+                onPress={() => setMultiFilter((p) => ({ ...p, providerScope: 'none' }))}>
+                <Ionicons name="checkmark-circle" size={11} color={colors.primary} />
+                <Text style={[styles.activeFilterChipText, { color: colors.primary, fontSize: 11 * textScale }]}>
+                  My Subscriptions
+                </Text>
+                <Ionicons name="close" size={12} color={colors.primary} />
+              </Pressable>
+            )}
+
+            {multiFilter.providerScope !== 'none' &&
+              multiFilter.providerScope !== 'subscribed' &&
+              multiFilter.selectedProviders.length > 0 && (
+                <Pressable
+                  style={[styles.activeFilterChip, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}
+                  onPress={() =>
+                    setMultiFilter((p) => ({
+                      ...p,
+                      providerScope: 'none',
+                      selectedProviders: [],
+                      selectedProviderDetails: [],
+                    }))
+                  }>
+                  <Ionicons name="tv-outline" size={11} color={colors.primary} />
+                  <Text style={[styles.activeFilterChipText, { color: colors.primary, fontSize: 11 * textScale }]}>
+                    {multiFilter.selectedProviders.length === 1 && multiFilter.selectedProviderDetails?.[0]
+                      ? multiFilter.selectedProviderDetails[0].name
+                      : `${multiFilter.selectedProviders.length} Providers`}
+                  </Text>
+                  <Ionicons name="close" size={12} color={colors.primary} />
+                </Pressable>
+              )}
 
             {multiFilter.selectedGenres.length > 0 && (
               <Pressable
@@ -879,7 +948,9 @@ export default function DiscoverScreen() {
                     : searchQuery.trim()
                     ? `Results for "${searchQuery}" (${items.length})`
                     : feedTab === 'upcoming'
-                    ? `Upcoming Releases: ${getReleaseWindowLabel(multiFilter.releaseWindow)} (${items.length})`
+                    ? multiFilter.releaseWindow === 'all'
+                      ? `Upcoming Releases (${items.length})`
+                      : `Upcoming Releases: ${getReleaseWindowLabel(multiFilter.releaseWindow)} (${items.length})`
                     : `Trending Today (${items.length})`}
                 </Text>
               </View>

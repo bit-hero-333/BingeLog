@@ -123,15 +123,15 @@ export interface PopularProviderOption {
 
 export const POPULAR_STREAMING_PROVIDERS: PopularProviderOption[] = [
   { id: 8, name: 'Netflix', logoPath: '/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg' },
-  { id: 9, name: 'Amazon Prime Video', logoPath: '/mHQtdMjh36Z8rL5Z1v6dD8XlQzJ.jpg' },
+  { id: 9, name: 'Amazon Prime Video', logoPath: '/gMZdpavHmxFNnLpMHwVxfqeux2g.png' },
   { id: 337, name: 'Disney Plus', logoPath: '/7rwgEs15tFwyR9NPQ5vpzxTj19Q.jpg' },
-  { id: 350, name: 'Apple TV Plus', logoPath: '/6uhKBfmt2FsMYVsR1Z5qOGi8M3v.jpg' },
-  { id: 1899, name: 'Max', logoPath: '/fksCUZ9QDWZMUwL2LgfhAwVoDX0.jpg' },
-  { id: 283, name: 'Crunchyroll', logoPath: '/8z7rC8uIDaTM91X0ZfkRf04ydFx.jpg' },
-  { id: 531, name: 'Paramount Plus', logoPath: '/xbhHLa3ktAVTkPipbpIlGHizVnH.jpg' },
-  { id: 386, name: 'Peacock', logoPath: '/8VCV78GOGBubAezvo2gImCG9vg3.jpg' },
-  { id: 15, name: 'Hulu', logoPath: '/bxBlRiqHHAvvi2G4Vs7J7t7m36X.jpg' },
-  { id: 188, name: 'YouTube Premium', logoPath: '/4J1t12jV3fOecR3Y4g2aL4pW3Zf.jpg' },
+  { id: 350, name: 'Apple TV Plus', logoPath: '/9ghgSC0MA082EL6HLCW3GalykFD.jpg' },
+  { id: 1899, name: 'Max', logoPath: '/fksCUZ9QDWZMUwL2LgMtLckROUN.jpg' },
+  { id: 283, name: 'Crunchyroll', logoPath: '/uFL3c4Cq8M6WoLymlC5Y8bmGytV.png' },
+  { id: 531, name: 'Paramount Plus', logoPath: '/pkx3klJlwW5JdtaulvDx6hDNtch.png' },
+  { id: 386, name: 'Peacock', logoPath: '/gKkl37BQuKTanygYQG1pyYgLVgf.jpg' },
+  { id: 15, name: 'Hulu', logoPath: '/bxBlRPEPpMVDc4jMhSrTf2339DW.jpg' },
+  { id: 188, name: 'YouTube Premium', logoPath: '/oIkQkEkwfmcG7IGpRR1NB8frZZM.jpg' },
 ];
 
 export interface TMDBMediaItem {
@@ -395,6 +395,7 @@ export interface MultiDiscoverFilter {
   releaseWindow: DiscoverReleaseWindow;
   providerScope: 'none' | 'subscribed' | 'region' | 'worldwide';
   selectedProviders: number[];
+  selectedProviderDetails?: WatchProvider[];
   selectedGenres: number[];
   minRating: number;
   selectedPeople: { id: number; name: string; profilePath?: string | null }[];
@@ -404,9 +405,10 @@ export interface MultiDiscoverFilter {
 
 export const DEFAULT_MULTI_DISCOVER_FILTER: MultiDiscoverFilter = {
   mediaType: 'all',
-  releaseWindow: 'upcoming_30',
+  releaseWindow: 'all',
   providerScope: 'none',
   selectedProviders: [],
+  selectedProviderDetails: [],
   selectedGenres: [],
   minRating: 0,
   selectedPeople: [],
