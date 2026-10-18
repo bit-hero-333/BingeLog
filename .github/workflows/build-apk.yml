@@ -27,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: 'npm'
 
       - name: Setup Java 17
@@ -51,14 +51,16 @@ jobs:
 
       - name: Configure Gradle memory and workers
         run: |
+          printf "\n" >> android/gradle.properties
           if grep -q "org.gradle.jvmargs" android/gradle.properties; then
-            sed -i 's/org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC/g' android/gradle.properties
+            sed -i 's/org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC/g' android/gradle.properties
           else
-            echo "org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC" >> android/gradle.properties
+            echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC" >> android/gradle.properties
           fi
+          sed -i '/org.gradle.workers.max/d' android/gradle.properties
+          sed -i '/org.gradle.parallel/d' android/gradle.properties
           echo "org.gradle.workers.max=2" >> android/gradle.properties
           echo "org.gradle.parallel=false" >> android/gradle.properties
-          echo "GRADLE_OPTS=-Dorg.gradle.jvmargs=\"-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC\" -Dorg.gradle.workers.max=2" >> $GITHUB_ENV
           echo "android/gradle.properties configured:"
           cat android/gradle.properties
 
