@@ -23,6 +23,7 @@ import { MediaCard } from '@/components/MediaCard';
 import { StatsHeader } from '@/components/StatsHeader';
 import { StatusFilterChips, FilterStatus } from '@/components/StatusFilterChips';
 import { TrackModal } from '@/components/TrackModal';
+import { BingeRouletteModal } from '@/components/BingeRouletteModal';
 import { getCountdownInfo } from '@/utils/date';
 import { getTextScale, getHeaderScale, getButtonScale } from '@/utils/sizing';
 
@@ -97,6 +98,7 @@ export default function MyListScreen() {
   // Modal state
   const [activeItem, setActiveItem] = useState<TrackedItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [rouletteVisible, setRouletteVisible] = useState(false);
 
   // Back gesture handler: dismisses local modals and search before tab navigation
   useFocusEffect(
@@ -362,6 +364,24 @@ export default function MyListScreen() {
             </Pressable>
           )}
         </View>
+
+        <Pressable
+          style={[
+            styles.rouletteButton,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.cardBorder,
+              minHeight: Math.max(36, Math.round(38 * buttonScale)),
+              minWidth: Math.max(36, Math.round(38 * buttonScale)),
+            },
+          ]}
+          onPress={() => {
+            triggerHaptic('impact');
+            setRouletteVisible(true);
+          }}
+          accessibilityLabel="What should I watch next roulette">
+          <Ionicons name="dice-outline" size={Math.round(18 * textScale)} color={colors.primary} />
+        </Pressable>
 
         <Pressable
           style={[styles.sortButton, { backgroundColor: colors.card, borderColor: colors.cardBorder, minHeight: Math.max(36, Math.round(38 * buttonScale)) }]}
@@ -752,6 +772,14 @@ export default function MyListScreen() {
           removeItem(id, mediaType);
         }}
       />
+
+      {/* Binge Roulette Modal */}
+      <BingeRouletteModal
+        visible={rouletteVisible}
+        onClose={() => setRouletteVisible(false)}
+        onSelectItem={handleCardPress}
+        initialFormat={mediaTypeFilter}
+      />
     </View>
   );
 }
@@ -785,6 +813,14 @@ const styles = StyleSheet.create({
   },
   clearBtn: {
     padding: 2,
+  },
+  rouletteButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sortButton: {
     flexDirection: 'row',

@@ -33,6 +33,7 @@ import { MediaCard } from '@/components/MediaCard';
 import { TrackModal } from '@/components/TrackModal';
 import { DiscoverFilterModal } from '@/components/DiscoverFilterModal';
 import { ReleaseReminderModal } from '@/components/ReleaseReminderModal';
+import { BingeRouletteModal } from '@/components/BingeRouletteModal';
 import { getTextScale, getHeaderScale } from '@/utils/sizing';
 
 type DiscoverFeedTab = 'upcoming' | 'trending';
@@ -81,6 +82,7 @@ export default function DiscoverScreen() {
   // Selected item for TrackModal
   const [activeItem, setActiveItem] = useState<TMDBMediaItem | TrackedItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [rouletteVisible, setRouletteVisible] = useState(false);
 
   // Selected item for quick ReleaseReminderModal
   const [selectedReminderItem, setSelectedReminderItem] = useState<TMDBMediaItem | null>(null);
@@ -453,6 +455,20 @@ export default function DiscoverScreen() {
               </Pressable>
             )}
           </View>
+
+          {/* Roulette Trigger Button */}
+          <Pressable
+            style={[
+              styles.rouletteTriggerBtn,
+              { backgroundColor: colors.card, borderColor: colors.cardBorder },
+            ]}
+            onPress={() => {
+              triggerHaptic('impact');
+              setRouletteVisible(true);
+            }}
+            accessibilityLabel="What should I watch next roulette">
+            <Ionicons name="dice-outline" size={18} color={colors.primary} />
+          </Pressable>
 
           {/* Filter Modal Trigger Button */}
           <Pressable
@@ -1035,6 +1051,17 @@ export default function DiscoverScreen() {
           removeItem(id, mediaType);
         }}
       />
+
+      {/* Binge Roulette Modal */}
+      <BingeRouletteModal
+        visible={rouletteVisible}
+        onClose={() => setRouletteVisible(false)}
+        onSelectItem={(item) => {
+          setActiveItem(item);
+          setModalVisible(true);
+        }}
+        initialFormat={multiFilter.mediaType}
+      />
     </View>
   );
 }
@@ -1072,6 +1099,14 @@ const styles = StyleSheet.create({
   },
   clearBtn: {
     padding: 4,
+  },
+  rouletteTriggerBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterTriggerBtn: {
     width: 44,

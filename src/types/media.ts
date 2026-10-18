@@ -187,6 +187,7 @@ export interface TrackedItem {
   genre_ids?: number[];
   studios?: string[];
   creators?: string[];
+  watchProviders?: AllWatchProviders;
 
   // Dates & Timeline
   addedAt: string; // ISO date when added to list

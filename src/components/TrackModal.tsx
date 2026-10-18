@@ -787,6 +787,7 @@ function TrackModalFormContent({
       creators: detailedInfo?.creators
         ? detailedInfo.creators.map((c) => c.name)
         : existingRecord?.creators,
+      watchProviders: detailedInfo?.watchProviders || existingRecord?.watchProviders,
 
       // Dates
       addedAt,

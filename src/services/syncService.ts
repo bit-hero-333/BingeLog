@@ -84,7 +84,7 @@ export function buildSyncPayload(
 }
 
 /**
- * 🛜🔄 Send payload through ephemeral relay (ntfy.sh)
+ * Send payload through ephemeral relay (ntfy.sh)
  */
 export async function sendRelayPayload(
   code: string,
@@ -119,7 +119,7 @@ export async function sendRelayPayload(
 }
 
 /**
- * 🛜🔄 Fetch payload from ephemeral relay (ntfy.sh)
+ * Fetch payload from ephemeral relay (ntfy.sh)
  */
 export async function fetchRelayPayload(
   code: string,
@@ -210,7 +210,7 @@ function validateAndReturnPayload(data: any): { success: boolean; payload?: Sync
 }
 
 /**
- * 🛜🚫 Compress payload for offline QR transfer
+ * Compress payload for offline QR transfer
  */
 export function compressPayloadForQr(payload: SyncPayload): string {
   // Minimize field overhead for QR density
@@ -251,7 +251,7 @@ export function compressPayloadForQr(payload: SyncPayload): string {
 }
 
 /**
- * 🛜🚫 Decompress offline QR string back to SyncPayload
+ * Decompress offline QR string back to SyncPayload
  */
 export function decompressQrPayload(compressedStr: string): SyncPayload | null {
   try {

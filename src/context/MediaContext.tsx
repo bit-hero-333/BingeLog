@@ -311,6 +311,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
                       genres: details.genres.map((g) => g.name),
                       genre_ids: details.genres.map((g) => g.id),
                       studios: details.studios && details.studios.length > 0 ? details.studios.map((s) => s.name) : item.studios,
+                      watchProviders: details.watchProviders || item.watchProviders,
                     };
                     changed = true;
                   }
