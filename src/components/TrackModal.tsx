@@ -720,6 +720,72 @@ function TrackModalFormContent({
     }
   };
 
+  // Status Button Press with Dual Completed + Plan support for TV
+  const handleStatusButtonPress = (st: MediaStatus) => {
+    if (mediaType === 'tv') {
+      const isDualActive = status === 'completed' && isAlsoPlanned;
+
+      // Case 1: Already in dual state (Completed + Plan to Watch)
+      if (isDualActive) {
+        if (st === 'completed') {
+          // Remove Completed -> leaves only Plan to Watch
+          triggerHaptic('selection');
+          setStatus('plan_to_watch');
+          setIsAlsoPlanned(false);
+          setFinishedAt('');
+          return;
+        }
+        if (st === 'plan_to_watch') {
+          // Remove Plan to Watch -> leaves only Completed
+          triggerHaptic('selection');
+          setIsAlsoPlanned(false);
+          return;
+        }
+        // Any other status (Watching, On-Hold, Dropped) clears dual and switches cleanly
+        handleStatusChange(st);
+        return;
+      }
+
+      // Case 2: On Completed (not dual)
+      if (status === 'completed') {
+        if (st === 'plan_to_watch') {
+          // Activate dual state
+          triggerHaptic('selection');
+          setIsAlsoPlanned(true);
+          return;
+        }
+        if (st === 'completed') {
+          triggerHaptic('selection');
+          return;
+        }
+        handleStatusChange(st);
+        return;
+      }
+
+      // Case 3: On Plan to Watch (not dual)
+      if (status === 'plan_to_watch') {
+        if (st === 'completed') {
+          // Activate dual state
+          triggerHaptic('selection');
+          setStatus('completed');
+          setIsAlsoPlanned(true);
+          if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+          handleMarkEntireShowWatched();
+          return;
+        }
+        if (st === 'plan_to_watch') {
+          triggerHaptic('selection');
+          return;
+        }
+        handleStatusChange(st);
+        return;
+      }
+    }
+
+    // Normal single status change
+    handleStatusChange(st);
+  };
+
   // Movie minutes watched change
   const handleMinutesChange = (newVal: number) => {
     triggerHaptic('selection');
@@ -2318,14 +2384,7 @@ function TrackModalFormContent({
                       borderWidth: 1.5,
                     },
                   ]}
-                  onPress={() => {
-                    if (mediaType === 'tv' && status === 'completed' && st === 'plan_to_watch') {
-                      triggerHaptic('selection');
-                      setIsAlsoPlanned(!isAlsoPlanned);
-                    } else {
-                      handleStatusChange(st);
-                    }
-                  }}>
+                  onPress={() => handleStatusButtonPress(st)}>
                   <View
                     style={[
                       styles.statusColorPip,
@@ -2340,11 +2399,6 @@ function TrackModalFormContent({
                     ]}>
                     {config.shortLabel}
                   </Text>
-                  {isDualPlannedButton && (
-                    <View style={styles.dualIndicatorPip}>
-                      <Text style={styles.dualIndicatorText}>+ Dual</Text>
-                    </View>
-                  )}
                 </Pressable>
               );
             })}
@@ -4635,20 +4689,6 @@ const styles = StyleSheet.create({
     color: '#c084fc',
     fontSize: 11,
     fontWeight: '700',
-  },
-  dualIndicatorPip: {
-    position: 'absolute',
-    top: 3,
-    right: 4,
-    backgroundColor: '#a855f7',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  dualIndicatorText: {
-    color: '#ffffff',
-    fontSize: 8.5,
-    fontWeight: '800',
   },
   dualStatusCard: {
     marginTop: 10,

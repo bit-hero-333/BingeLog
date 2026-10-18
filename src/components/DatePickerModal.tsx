@@ -7,6 +7,9 @@ import {
   Pressable,
   ScrollView,
   TextInput,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -18,6 +21,26 @@ import {
 import { DateFormatOption, DEFAULT_DATE_FORMAT } from '@/types/media';
 import { useMedia } from '@/context/MediaContext';
 import { useAppTheme } from '@/context/ThemeContext';
+
+function formatDigitsToMask(rawDigits: string, format: DateFormatOption): string {
+  const digits = rawDigits.replace(/\D/g, '').slice(0, 8);
+  if (!digits) return '';
+
+  if (format === 'YYYY-MM-DD') {
+    if (digits.length <= 4) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+    return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+  }
+
+  const delimiter =
+    format === 'MM/DD/YYYY' || format === 'DD/MM/YYYY' || format === 'MMM D, YYYY'
+      ? '/'
+      : '.';
+
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}${delimiter}${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}${delimiter}${digits.slice(2, 4)}${delimiter}${digits.slice(4, 8)}`;
+}
 
 interface DatePickerModalProps {
   visible: boolean;
@@ -85,16 +108,45 @@ function DatePickerContent({
   // Day of week of 1st day (0 = Sunday, 1 = Monday, ...) -> convert to Monday=0
   const firstDayWeekday = (new Date(currentYear, currentMonth, 1).getDay() + 6) % 7;
 
-  // List of years from now+6 down to 1920
+  // List of years from now+6 down to 1920 (ensuring total count is a multiple of 3)
   const availableYears = useMemo(() => {
-    const maxYear = new Date().getFullYear() + 6;
-    const minYear = 1920;
+    const currentY = new Date().getFullYear();
+    const maxYear = currentY + 6;
+    let minYear = 1920;
+    while ((maxYear - minYear + 1) % 3 !== 0) {
+      minYear--;
+    }
     const years: number[] = [];
     for (let y = maxYear; y >= minYear; y--) {
       years.push(y);
     }
     return years;
   }, []);
+
+  const handleManualTextChange = (text: string) => {
+    const prevDigits = manualInputText.replace(/\D/g, '');
+    const newDigits = text.replace(/\D/g, '');
+
+    let targetDigits = newDigits;
+    if (text.length < manualInputText.length && newDigits.length === prevDigits.length) {
+      targetDigits = prevDigits.slice(0, -1);
+    }
+
+    const masked = formatDigitsToMask(targetDigits, activeFormat);
+    setManualInputText(masked);
+
+    if (targetDigits.length === 8) {
+      const iso = parseFormattedDateToIso(masked, activeFormat);
+      if (iso) {
+        const d = new Date(iso);
+        if (!isNaN(d.getTime())) {
+          setSelectedDay(d.getDate());
+          setCurrentMonth(d.getMonth());
+          setCurrentYear(d.getFullYear());
+        }
+      }
+    }
+  };
 
   const handlePrevMonth = () => {
     triggerHaptic('selection');
@@ -118,6 +170,7 @@ function DatePickerContent({
 
   const handleConfirm = () => {
     triggerHaptic('selection');
+    Keyboard.dismiss();
     if (pickerMode === 'input') {
       const trimmed = manualInputText.trim();
       if (trimmed) {
@@ -136,20 +189,28 @@ function DatePickerContent({
     onClose();
   };
 
+  const handleCancel = () => {
+    Keyboard.dismiss();
+    onClose();
+  };
+
   const handleQuickToday = () => {
     triggerHaptic('selection');
+    Keyboard.dismiss();
     onSelectDate(getTodayFormatted(activeFormat));
     onClose();
   };
 
   const handleQuickYesterday = () => {
     triggerHaptic('selection');
+    Keyboard.dismiss();
     onSelectDate(getYesterdayFormatted(activeFormat));
     onClose();
   };
 
   const handleQuickClear = () => {
     triggerHaptic('selection');
+    Keyboard.dismiss();
     if (onClearDate) onClearDate();
     onClose();
   };
@@ -183,9 +244,10 @@ function DatePickerContent({
           onPress={() => {
             triggerHaptic('selection');
             if (pickerMode === 'input') {
+              Keyboard.dismiss();
               setPickerMode('calendar');
             } else {
-              setManualInputText(currentFormatted);
+              setManualInputText(formatDigitsToMask(currentFormatted, activeFormat));
               setPickerMode('input');
             }
           }}>
@@ -433,27 +495,33 @@ function DatePickerContent({
             <TextInput
               style={[styles.textInput, { color: colors.text }]}
               value={manualInputText}
-              onChangeText={setManualInputText}
+              onChangeText={handleManualTextChange}
               placeholder={activeFormat}
               placeholderTextColor={colors.textMuted}
-              keyboardType="numbers-and-punctuation"
+              keyboardType="number-pad"
               autoFocus={true}
+              maxLength={10}
             />
             {manualInputText ? (
-              <Pressable onPress={() => setManualInputText('')} style={{ padding: 4 }}>
+              <Pressable
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setManualInputText('');
+                }}
+                style={{ padding: 4 }}>
                 <Ionicons name="close-circle" size={18} color={colors.textMuted} />
               </Pressable>
             ) : null}
           </View>
           <Text style={[styles.inputFormatHint, { color: colors.textMuted }]}>
-            Format: {activeFormat} (e.g. {getTodayFormatted(activeFormat)})
+            Digits only; delimiters fill automatically (e.g. {getTodayFormatted(activeFormat)})
           </Text>
         </View>
       )}
 
       {/* Actions */}
       <View style={[styles.actionRow, { borderTopColor: colors.divider }]}>
-        <Pressable style={styles.cancelBtn} onPress={onClose}>
+        <Pressable style={styles.cancelBtn} onPress={handleCancel}>
           <Text style={[styles.cancelBtnText, { color: colors.textSecondary }]}>Cancel</Text>
         </Pressable>
         <Pressable
@@ -470,29 +538,72 @@ export function DatePickerModal(props: DatePickerModalProps) {
   if (!props.visible) return null;
 
   return (
-    <Modal visible={props.visible} transparent animationType="fade" onRequestClose={props.onClose}>
-      <Pressable style={styles.overlay} onPress={props.onClose}>
-        <DatePickerContent
-          key={props.initialDate || 'new'}
-          title={props.title}
-          initialDate={props.initialDate}
-          dateFormat={props.dateFormat}
-          onClose={props.onClose}
-          onSelectDate={props.onSelectDate}
-          onClearDate={props.onClearDate}
-        />
-      </Pressable>
+    <Modal
+      visible={props.visible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => {
+        Keyboard.dismiss();
+        props.onClose();
+      }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardAvoidingOverlay}>
+        <ScrollView
+          contentContainerStyle={styles.scrollOverlayContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}>
+          <Pressable
+            style={styles.backdropPressable}
+            onPress={() => {
+              Keyboard.dismiss();
+              props.onClose();
+            }}>
+            <DatePickerContent
+              key={props.initialDate || 'new'}
+              title={props.title}
+              initialDate={props.initialDate}
+              dateFormat={props.dateFormat}
+              onClose={() => {
+                Keyboard.dismiss();
+                props.onClose();
+              }}
+              onSelectDate={(formattedDate) => {
+                Keyboard.dismiss();
+                props.onSelectDate(formattedDate);
+              }}
+              onClearDate={
+                props.onClearDate
+                  ? () => {
+                      Keyboard.dismiss();
+                      props.onClearDate?.();
+                    }
+                  : undefined
+              }
+            />
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  keyboardAvoidingOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
+  },
+  scrollOverlayContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
+  },
+  backdropPressable: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dialogContainer: {
     backgroundColor: '#161922',
@@ -657,10 +768,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   monthGridCell: {
-    width: '30%',
+    width: '31.2%',
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1,
@@ -678,11 +789,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingBottom: 8,
   },
   yearGridCell: {
-    width: '30%',
+    width: '31.2%',
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
