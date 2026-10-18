@@ -17,6 +17,7 @@ import { TrackedItem, WatchProvider, POPULAR_STREAMING_PROVIDERS } from '@/types
 import { getTextScale, getHeaderScale, getButtonScale } from '@/utils/sizing';
 import { TMDBService } from '@/services/tmdb';
 import { getItemGenres } from '@/services/insightsEngine';
+import { isTrackedItemUnreleased } from '@/utils/date';
 
 export type RouletteFormatFilter = 'all' | 'movie' | 'tv';
 export type RouletteRuntimeFilter = 'any' | 'under_90' | 'under_120' | 'over_120';
@@ -71,6 +72,7 @@ function BingeRouletteModalContent({
     selectedRegion,
     streamingRegionStrategy,
     customStreamingRegion,
+    selectedTimezone,
   } = useMedia();
   const { height } = useWindowDimensions();
 
@@ -126,14 +128,22 @@ function BingeRouletteModalContent({
     return providers.some((p) => mySubscribedProviders.includes(p.id));
   }, [mySubscribedProviders, getItemStreamProviders]);
 
-  // Total plan to watch items in entire library
-  const totalPlanToWatchCount = useMemo(() => {
-    return trackedItems.filter((i) => i.status === 'plan_to_watch').length;
-  }, [trackedItems]);
+  // Total released plan to watch items in entire library
+  const totalReleasedPlanToWatchCount = useMemo(() => {
+    return trackedItems.filter((i) => {
+      const matchesStatus = includeOnHold
+        ? i.status === 'plan_to_watch' || i.status === 'on_hold'
+        : i.status === 'plan_to_watch';
+      return matchesStatus && !isTrackedItemUnreleased(i, selectedTimezone);
+    }).length;
+  }, [trackedItems, includeOnHold, selectedTimezone]);
 
-  // Candidates matching active quick filters
+  // Candidates matching active quick filters (strictly released titles)
   const candidateItems = useMemo(() => {
     return trackedItems.filter((item) => {
+      // 0. Exclude unreleased titles (must already be released/premiered)
+      if (isTrackedItemUnreleased(item, selectedTimezone)) return false;
+
       // 1. Status Filter
       if (includeOnHold) {
         if (item.status !== 'plan_to_watch' && item.status !== 'on_hold') return false;
@@ -173,7 +183,7 @@ function BingeRouletteModalContent({
 
       return true;
     });
-  }, [trackedItems, includeOnHold, formatFilter, runtimeFilter, streamFilter, itemIsOnSubscribed, getItemStreamProviders]);
+  }, [trackedItems, includeOnHold, formatFilter, runtimeFilter, streamFilter, itemIsOnSubscribed, getItemStreamProviders, selectedTimezone]);
 
   // Handle dice roll action
   const handleRoll = () => {
@@ -518,14 +528,14 @@ function BingeRouletteModalContent({
                 <Ionicons name="search-outline" size={28} color={colors.textSecondary} />
               </View>
               <Text style={[styles.emptyTitle, { color: colors.text, fontSize: 15 * headerScale }]}>
-                {totalPlanToWatchCount === 0 ? 'Your Watchlist Is Empty' : 'No Titles Match These Filters'}
+                {totalReleasedPlanToWatchCount === 0 ? 'No Released Watchlist Titles' : 'No Titles Match These Filters'}
               </Text>
               <Text style={[styles.emptySubtitle, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
-                {totalPlanToWatchCount === 0
-                  ? 'Add titles marked as "Plan to Watch" from Discover or Search to use Binge Roulette.'
-                  : `You have ${totalPlanToWatchCount} titles on your watchlist, but none match the current runtime or streaming selection.`}
+                {totalReleasedPlanToWatchCount === 0
+                  ? 'Titles must already be released before Binge Roulette can suggest them. Add released titles to Plan to Watch to roll the dice.'
+                  : `You have ${totalReleasedPlanToWatchCount} released ${totalReleasedPlanToWatchCount === 1 ? 'title' : 'titles'} on your watchlist, but none match the current runtime or streaming selection.`}
               </Text>
-              {totalPlanToWatchCount > 0 ? (
+              {totalReleasedPlanToWatchCount > 0 ? (
                 <Pressable
                   style={[styles.emptyResetBtn, { backgroundColor: colors.primary }]}
                   onPress={handleResetFilters}>

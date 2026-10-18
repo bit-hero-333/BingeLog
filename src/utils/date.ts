@@ -444,3 +444,66 @@ export function getCountdownInfo(
   }
 }
 
+/**
+ * Determines whether a tracked media item is unreleased (has not yet premiered or released).
+ * Strictly text-based (zero emojis).
+ */
+export function isTrackedItemUnreleased(
+  item: {
+    mediaType: string;
+    releaseDate?: string;
+    regionalReleaseDate?: string;
+    releaseYear?: string;
+    nextEpisode?: { seasonNumber?: number; episodeNumber?: number; airDate?: string };
+  },
+  timezone?: string
+): boolean {
+  // 1. Primary release / premiere date check
+  const premiereDateStr =
+    item.mediaType === 'movie'
+      ? item.regionalReleaseDate || item.releaseDate
+      : item.releaseDate;
+
+  if (premiereDateStr) {
+    const countdown = getCountdownInfo(premiereDateStr, timezone);
+    // If countdown indicates the date is strictly in the future (daysDiff > 0)
+    if (countdown.daysDiff > 0) {
+      return true;
+    }
+  }
+
+  // 2. Check if releaseYear itself is a full ISO or YYYY-MM-DD date
+  if (item.releaseYear && item.releaseYear.includes('-') && item.releaseYear.length >= 10) {
+    const countdown = getCountdownInfo(item.releaseYear, timezone);
+    if (countdown.daysDiff > 0) {
+      return true;
+    }
+  }
+
+  // 3. Year check: If item has a future release year (e.g. "2027", "2028")
+  if (item.releaseYear) {
+    const match = /^(\d{4})/.exec(item.releaseYear.trim());
+    if (match) {
+      const yearNum = parseInt(match[1], 10);
+      const currentYear = new Date().getFullYear();
+      if (yearNum > currentYear) {
+        return true;
+      }
+    }
+  }
+
+  // 4. For TV shows: if Season 1 Episode 1 has a future air date
+  if (item.mediaType === 'tv' && item.nextEpisode) {
+    const sNum = item.nextEpisode.seasonNumber;
+    const eNum = item.nextEpisode.episodeNumber;
+    if ((sNum === 1 || sNum === undefined) && (eNum === 1 || eNum === undefined) && item.nextEpisode.airDate) {
+      const epCountdown = getCountdownInfo(item.nextEpisode.airDate, timezone);
+      if (epCountdown.daysDiff > 0) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
