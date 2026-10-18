@@ -63,6 +63,7 @@ function InsightDrillDownModalContent({
   const textScale = getTextScale(sizingConfig?.textSize);
   const headerScale = getHeaderScale(sizingConfig?.headerSize);
   const sheetHeight = Math.round(height * 0.85);
+  const widgetColor: string = payload.color || (typeof colors.primary === 'string' ? colors.primary : '#3b82f6');
 
   const handlePressItem = (cItem: DrillDownContributingItem) => {
     triggerHaptic('selection');
@@ -88,8 +89,8 @@ function InsightDrillDownModalContent({
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
           <View style={styles.headerLeft}>
-            <View style={[styles.iconBadge, { backgroundColor: colors.primaryBg }]}>
-              <Ionicons name={payload.icon} size={20 * headerScale} color={colors.primary} />
+            <View style={[styles.iconBadge, { backgroundColor: payload.color ? `${payload.color}20` : colors.primaryBg }]}>
+              <Ionicons name={payload.icon} size={20 * headerScale} color={widgetColor} />
             </View>
             <View style={styles.headerTextCol}>
               <Text style={[styles.title, { color: colors.text, fontSize: 16 * headerScale }]}>
@@ -124,7 +125,7 @@ function InsightDrillDownModalContent({
                   <Text style={[styles.highlightLabel, { color: colors.textSecondary, fontSize: 11 * textScale }]}>
                     {h.label.toUpperCase()}
                   </Text>
-                  <Text style={[styles.highlightValue, { color: colors.primary, fontSize: 18 * headerScale }]}>
+                  <Text style={[styles.highlightValue, { color: widgetColor, fontSize: 18 * headerScale }]}>
                     {h.value}
                   </Text>
                   {h.hint && (
@@ -139,8 +140,8 @@ function InsightDrillDownModalContent({
 
           {/* Notes description */}
           {payload.notes && (
-            <View style={[styles.notesCard, { backgroundColor: colors.cardSelected, borderColor: colors.cardBorder }]}>
-              <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
+            <View style={[styles.notesCard, { backgroundColor: payload.color ? `${payload.color}12` : colors.cardSelected, borderColor: colors.cardBorder }]}>
+              <Ionicons name="information-circle-outline" size={16} color={widgetColor} />
               <Text style={[styles.notesText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
                 {payload.notes}
               </Text>
@@ -158,6 +159,12 @@ function InsightDrillDownModalContent({
                 const posterUrl = item.posterPath
                   ? TMDBService.getImageUrl(item.posterPath, 'w92')
                   : null;
+
+                const metaParts: string[] = [];
+                if (item.releaseYear) metaParts.push(item.releaseYear);
+                metaParts.push(item.mediaType === 'tv' ? 'TV' : 'Movie');
+                if (item.extraInfo) metaParts.push(item.extraInfo);
+                const metaString = metaParts.join(' • ');
 
                 return (
                   <Pressable
@@ -179,26 +186,17 @@ function InsightDrillDownModalContent({
                       <Text style={[styles.itemTitle, { color: colors.text, fontSize: 13.5 * textScale }]} numberOfLines={1}>
                         {item.title}
                       </Text>
-                      <View style={styles.itemMetaRow}>
-                        {item.releaseYear && (
-                          <Text style={[styles.itemMeta, { color: colors.textSecondary, fontSize: 11.5 * textScale }]}>
-                            {item.releaseYear}
-                          </Text>
-                        )}
-                        <Text style={[styles.itemMeta, { color: colors.textSecondary, fontSize: 11.5 * textScale }]}>
-                          • {item.mediaType === 'tv' ? 'TV Series' : 'Movie'}
-                        </Text>
-                        {item.extraInfo && (
-                          <Text style={[styles.itemMeta, { color: colors.textMuted, fontSize: 11 * textScale }]}>
-                            • {item.extraInfo}
-                          </Text>
-                        )}
-                      </View>
+                      <Text
+                        style={[styles.itemMeta, { color: colors.textSecondary, fontSize: 11.5 * textScale }]}
+                        numberOfLines={1}
+                        ellipsizeMode="tail">
+                        {metaString}
+                      </Text>
                     </View>
 
                     <View style={styles.itemRight}>
-                      <View style={[styles.metricBadge, { backgroundColor: colors.primaryBg }]}>
-                        <Text style={[styles.metricBadgeText, { color: colors.primary, fontSize: 11.5 * textScale }]}>
+                      <View style={[styles.metricBadge, { backgroundColor: payload.color ? `${payload.color}1A` : colors.primaryBg }]}>
+                        <Text style={[styles.metricBadgeText, { color: widgetColor, fontSize: 11.5 * textScale }]}>
                           {item.highlightMetric}
                         </Text>
                       </View>
@@ -336,15 +334,12 @@ const styles = StyleSheet.create({
   },
   itemInfo: {
     flex: 1,
+    minWidth: 0,
+    marginRight: 10,
     gap: 3,
   },
   itemTitle: {
     fontWeight: '700',
-  },
-  itemMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
   },
   itemMeta: {
     fontWeight: '500',
@@ -353,6 +348,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexShrink: 0,
   },
   metricBadge: {
     paddingHorizontal: 8,

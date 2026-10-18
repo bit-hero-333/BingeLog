@@ -41,6 +41,9 @@ export function InsightWidgetCard({
   const def = INSIGHT_WIDGET_DEFINITIONS[config.id];
   const surface: WidgetSurfaceData = InsightsEngine.computeSurface(config.id, items);
 
+  const accentColor: string = def?.color || (typeof colors.primary === 'string' ? colors.primary : '#3b82f6');
+  const accentBg = `${accentColor}1A`; // ~10% opacity
+
   const effectiveSize = config.size === 'auto' ? def.defaultSize : config.size;
 
   const handlePress = () => {
@@ -68,8 +71,8 @@ export function InsightWidgetCard({
         onPress={handlePress}
         onLongPress={handleLongPress}
         delayLongPress={300}>
-        <View style={[styles.compactIcon, { backgroundColor: colors.primaryBg }]}>
-          <Ionicons name={def.icon} size={15 * textScale} color={colors.primary} />
+        <View style={[styles.compactIcon, { backgroundColor: accentBg }]}>
+          <Ionicons name={def.icon} size={15 * textScale} color={accentColor} />
         </View>
         <Text style={[styles.compactTitle, { color: colors.textSecondary, fontSize: 11.5 * textScale }]} numberOfLines={1}>
           {def.title}:
@@ -98,14 +101,14 @@ export function InsightWidgetCard({
         onLongPress={handleLongPress}
         delayLongPress={300}>
         <View style={styles.halfCardHeader}>
-          <View style={[styles.halfIconBadge, { backgroundColor: colors.primaryBg }]}>
-            <Ionicons name={def.icon} size={16 * textScale} color={colors.primary} />
+          <View style={[styles.halfIconBadge, { backgroundColor: accentBg }]}>
+            <Ionicons name={def.icon} size={16 * textScale} color={accentColor} />
           </View>
           <Ionicons name="chevron-forward" size={13 * textScale} color={colors.textMuted} />
         </View>
 
         <View style={styles.halfCardBody}>
-          <Text style={[styles.halfCardTitle, { color: colors.textSecondary, fontSize: 11 * headerScale }]} numberOfLines={1}>
+          <Text style={[styles.halfCardTitle, { color: accentColor, fontSize: 10.5 * headerScale }]} numberOfLines={1}>
             {def.title.toUpperCase()}
           </Text>
           <Text style={[styles.halfCardValue, { color: colors.text, fontSize: 19 * headerScale }]} numberOfLines={1}>
@@ -137,11 +140,11 @@ export function InsightWidgetCard({
       delayLongPress={300}>
       <View style={styles.fullCardTop}>
         <View style={styles.fullCardTitleGroup}>
-          <View style={[styles.fullIconBadge, { backgroundColor: colors.primaryBg }]}>
-            <Ionicons name={def.icon} size={18 * headerScale} color={colors.primary} />
+          <View style={[styles.fullIconBadge, { backgroundColor: accentBg }]}>
+            <Ionicons name={def.icon} size={18 * headerScale} color={accentColor} />
           </View>
           <View style={styles.fullTitleCol}>
-            <Text style={[styles.fullCardEyebrow, { color: colors.primary, fontSize: 10.5 * textScale }]}>
+            <Text style={[styles.fullCardEyebrow, { color: accentColor, fontSize: 10.5 * textScale }]}>
               {def.title.toUpperCase()}
             </Text>
             <Text style={[styles.fullCardMain, { color: colors.text, fontSize: 24 * headerScale }]} numberOfLines={1}>
@@ -152,8 +155,8 @@ export function InsightWidgetCard({
 
         <View style={styles.fullCardTopRight}>
           {surface.badgeText && (
-            <View style={[styles.badge, { backgroundColor: colors.primaryBg }]}>
-              <Text style={[styles.badgeText, { color: colors.primary, fontSize: 10.5 * textScale }]}>
+            <View style={[styles.badge, { backgroundColor: accentBg }]}>
+              <Text style={[styles.badgeText, { color: accentColor, fontSize: 10.5 * textScale }]}>
                 {surface.badgeText}
               </Text>
             </View>
@@ -181,7 +184,7 @@ export function InsightWidgetCard({
                     style={[
                       styles.chartBarFill,
                       {
-                        backgroundColor: colors.primary,
+                        backgroundColor: accentColor,
                         height: `${heightPct}%`,
                       },
                     ]}
@@ -203,7 +206,7 @@ export function InsightWidgetCard({
             <View
               style={[
                 styles.progressBarFill,
-                { backgroundColor: colors.primary, width: `${Math.round(surface.progress * 100)}%` },
+                { backgroundColor: accentColor, width: `${Math.round(surface.progress * 100)}%` },
               ]}
             />
           </View>

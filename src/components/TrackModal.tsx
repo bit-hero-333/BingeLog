@@ -32,6 +32,7 @@ import {
   EntitySelection,
   ItemReminderConfig,
   WatchProvider,
+  TMDB_GENRE_MAP,
 } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
@@ -768,9 +769,18 @@ function TrackModalFormContent({
 
       // Rich metadata
       tagline: detailedInfo?.tagline || existingRecord?.tagline,
-      genres: detailedInfo?.genres
-        ? detailedInfo.genres.map((g) => g.name)
-        : existingRecord?.genres,
+      genres:
+        detailedInfo?.genres && detailedInfo.genres.length > 0
+          ? detailedInfo.genres.map((g) => g.name)
+          : existingRecord?.genres && existingRecord.genres.length > 0
+          ? existingRecord.genres
+          : (item as any)?.genre_ids && Array.isArray((item as any).genre_ids)
+          ? ((item as any).genre_ids as number[]).map((gid) => TMDB_GENRE_MAP[gid]).filter(Boolean)
+          : undefined,
+      genre_ids:
+        (item as any)?.genre_ids ||
+        existingRecord?.genre_ids ||
+        (detailedInfo?.genres ? detailedInfo.genres.map((g) => g.id) : undefined),
       studios: detailedInfo?.studios
         ? detailedInfo.studios.map((s) => s.name)
         : existingRecord?.studios,

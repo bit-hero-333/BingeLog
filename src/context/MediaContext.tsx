@@ -291,6 +291,39 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
               // Non-fatal background refresh
             }
           }
+
+          // Auto-refresh missing genres for tracked library items
+          const missingGenresCount = activeItems.filter(
+            (i) => !i.genres || i.genres.length === 0
+          ).length;
+
+          if (missingGenresCount > 0) {
+            try {
+              const updatedItems = [...activeItems];
+              let changed = false;
+              for (let i = 0; i < updatedItems.length; i++) {
+                const item = updatedItems[i];
+                if (!item.genres || item.genres.length === 0) {
+                  const details = await TMDBService.getMediaDetails(item.id, item.mediaType, savedKey);
+                  if (details.genres && details.genres.length > 0) {
+                    updatedItems[i] = {
+                      ...item,
+                      genres: details.genres.map((g) => g.name),
+                      genre_ids: details.genres.map((g) => g.id),
+                      studios: details.studios && details.studios.length > 0 ? details.studios.map((s) => s.name) : item.studios,
+                    };
+                    changed = true;
+                  }
+                }
+              }
+              if (changed) {
+                activeItems = updatedItems;
+                await StorageService.saveTrackedItems(updatedItems);
+              }
+            } catch {
+              // Non-fatal background refresh
+            }
+          }
         }
 
         setTrackedItems(activeItems);
