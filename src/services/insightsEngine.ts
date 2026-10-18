@@ -217,23 +217,31 @@ export const InsightsEngine = {
 
       // 6. Binge Velocity
       case 'binge_velocity': {
-        let totalDays = 0;
+        let totalActiveDays = 0;
         let completedWithDates = 0;
+        let totalPausedDays = 0;
         for (const item of items) {
           if (item.status === 'completed' && item.startedAt && item.finishedAt) {
             const start = new Date(item.startedAt).getTime();
             const end = new Date(item.finishedAt).getTime();
-            const diffDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)));
-            totalDays += diffDays;
+            const totalCalendarDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+            const paused = item.onHoldDays || 0;
+            const activeDays = Math.max(1, totalCalendarDays - paused);
+            totalActiveDays += activeDays;
+            totalPausedDays += paused;
             completedWithDates++;
           }
         }
-        const avgDays = completedWithDates > 0 ? (totalDays / completedWithDates).toFixed(1) : 'N/A';
+        const avgDays = completedWithDates > 0 ? (totalActiveDays / completedWithDates).toFixed(1) : 'N/A';
         return {
           widgetId,
           primaryValue: avgDays !== 'N/A' ? `${avgDays} days` : '3.8 days',
-          primaryLabel: 'Avg Completion Velocity',
-          secondaryValue: completedWithDates > 0 ? `Calculated across ${completedWithDates} logged titles` : 'Estimated pace',
+          primaryLabel: 'Avg Active Completion Pace',
+          secondaryValue: completedWithDates > 0
+            ? totalPausedDays > 0
+              ? `Across ${completedWithDates} titles (${totalPausedDays}d on-hold deducted)`
+              : `Calculated across ${completedWithDates} logged titles`
+            : 'Estimated pace',
         };
       }
 
@@ -1079,12 +1087,14 @@ export const InsightsEngine = {
           .map((i) => {
             const start = new Date(i.startedAt!).getTime();
             const end = new Date(i.finishedAt!).getTime();
-            const diffDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)));
-            return { item: i, diffDays };
+            const totalCalendarDays = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+            const pausedDays = i.onHoldDays || 0;
+            const diffDays = Math.max(1, totalCalendarDays - pausedDays);
+            return { item: i, diffDays, totalCalendarDays, pausedDays };
           })
           .sort((a, b) => a.diffDays - b.diffDays);
 
-        const list: DrillDownContributingItem[] = completedWithDates.slice(0, 30).map(({ item: i, diffDays }) => ({
+        const list: DrillDownContributingItem[] = completedWithDates.slice(0, 30).map(({ item: i, diffDays, pausedDays }) => ({
           id: i.id,
           title: i.title,
           mediaType: i.mediaType,
@@ -1093,13 +1103,17 @@ export const InsightsEngine = {
           status: i.status,
           userScore: i.userScore,
           voteAverage: i.voteAverage,
-          highlightMetric: diffDays === 1 ? '1 day' : `${diffDays} days`,
-          extraInfo: `Finished: ${formatSimpleDate(i.finishedAt)}`,
+          highlightMetric: diffDays === 1 ? '1 active day' : `${diffDays} active days`,
+          extraInfo: pausedDays > 0
+            ? `Finished: ${formatSimpleDate(i.finishedAt)} (${pausedDays}d on-hold deducted)`
+            : `Finished: ${formatSimpleDate(i.finishedAt)}`,
         }));
 
         const avgDays = completedWithDates.length > 0
           ? (completedWithDates.reduce((a, b) => a + b.diffDays, 0) / completedWithDates.length).toFixed(1)
           : 'N/A';
+
+        const totalDeducted = completedWithDates.reduce((a, b) => a + b.pausedDays, 0);
 
         return {
           widgetId,
@@ -1110,10 +1124,10 @@ export const InsightsEngine = {
           summaryHighlights: [
             { label: 'Avg Pace', value: avgDays !== 'N/A' ? `${avgDays}d` : '3.8d' },
             { label: 'Fastest Binge', value: completedWithDates[0] ? `${completedWithDates[0].diffDays}d` : '1d' },
-            { label: 'Tracked Binges', value: String(completedWithDates.length) },
+            { label: 'On-Hold Deducted', value: `${totalDeducted}d` },
           ],
           items: list,
-          notes: 'Titles ranked by how quickly you completed them from start date to finish date.',
+          notes: 'Titles ranked by active completion speed, with on-hold paused days deducted.',
         };
       }
 
@@ -2133,22 +2147,31 @@ export const InsightsEngine = {
       case 'limbo_shelf': {
         const onHold = items
           .filter((i) => i.status === 'on_hold')
-          .sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime());
+          .sort((a, b) => {
+            const dateA = a.onHoldStartedAt || a.updatedAt;
+            const dateB = b.onHoldStartedAt || b.updatedAt;
+            return new Date(dateA).getTime() - new Date(dateB).getTime();
+          });
 
         const list: DrillDownContributingItem[] = (onHold.length > 0 ? onHold : items.filter((i) => i.status === 'plan_to_watch'))
           .slice(0, 30)
-          .map((i) => ({
-            id: i.id,
-            title: i.title,
-            mediaType: i.mediaType,
-            posterPath: i.posterPath,
-            releaseYear: i.releaseYear,
-            status: i.status,
-            userScore: i.userScore,
-            voteAverage: i.voteAverage,
-            highlightMetric: i.status === 'on_hold' ? 'On Hold' : 'Watchlist',
-            extraInfo: `Added: ${formatSimpleDate(i.addedAt)}`,
-          }));
+          .map((i) => {
+            const holdStart = i.onHoldStartedAt ? new Date(i.onHoldStartedAt).getTime() : new Date(i.updatedAt).getTime();
+            const currentHoldDays = Math.max(0, Math.round((Date.now() - holdStart) / (1000 * 60 * 60 * 24)));
+            const totalDays = (i.onHoldDays || 0) + currentHoldDays;
+            return {
+              id: i.id,
+              title: i.title,
+              mediaType: i.mediaType,
+              posterPath: i.posterPath,
+              releaseYear: i.releaseYear,
+              status: i.status,
+              userScore: i.userScore,
+              voteAverage: i.voteAverage,
+              highlightMetric: i.status === 'on_hold' ? (totalDays > 0 ? `${totalDays}d in hold` : 'On Hold') : 'Watchlist',
+              extraInfo: i.onHoldStartedAt ? `Paused: ${formatSimpleDate(i.onHoldStartedAt)}` : `Added: ${formatSimpleDate(i.addedAt)}`,
+            };
+          });
 
         return {
           widgetId,

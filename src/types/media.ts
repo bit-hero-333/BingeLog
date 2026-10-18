@@ -196,6 +196,8 @@ export interface TrackedItem {
   addedAt: string; // ISO date when added to list
   startedAt?: string | null; // Date user began watching (ISO)
   finishedAt?: string | null; // Date user completed watching (ISO)
+  onHoldStartedAt?: string | null; // Timestamp when item was placed on hold (ISO)
+  onHoldDays?: number; // Total cumulative calendar days item spent on hold
   lastWatchedAt?: string | null; // Date user last updated progress
   lastSyncedAt?: string | null; // Date item was last synced with TMDB
   updatedAt: string; // ISO date of last modification

@@ -52,6 +52,7 @@ import {
   getTodayFormatted,
   getRelativeTime,
   getDurationLabel,
+  getDaysDifference,
   formatRuntime,
   getCountdownInfo,
 } from '@/utils/date';
@@ -303,6 +304,8 @@ function TrackModalFormContent({
       ? formatDateInput(existingRecord.finishedAt, dateFormat)
       : ''
   );
+  const [onHoldDays, setOnHoldDays] = useState<number>(existingRecord?.onHoldDays || 0);
+  const [onHoldStartedAt, setOnHoldStartedAt] = useState<string | null>(existingRecord?.onHoldStartedAt || null);
   const [showDatesSection, setShowDatesSection] = useState(false);
 
   // Date picker modal state
@@ -700,7 +703,20 @@ function TrackModalFormContent({
   // Status Change with Date and Progress Sync
   const handleStatusChange = (newStatus: MediaStatus) => {
     triggerHaptic('selection');
+    const prevStatus = status;
     setStatus(newStatus);
+
+    if (newStatus === 'on_hold') {
+      if (prevStatus !== 'on_hold' && !onHoldStartedAt) {
+        setOnHoldStartedAt(new Date().toISOString());
+      }
+    } else if (prevStatus === 'on_hold') {
+      if (onHoldStartedAt) {
+        const diff = Math.max(0, getDaysDifference(onHoldStartedAt, new Date().toISOString()) || 0);
+        setOnHoldDays((prev) => prev + diff);
+        setOnHoldStartedAt(null);
+      }
+    }
 
     if (newStatus === 'completed') {
       if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
@@ -713,9 +729,9 @@ function TrackModalFormContent({
       setIsAlsoPlanned(false);
       if (newStatus === 'watching') {
         if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
-        if (status === 'completed') setFinishedAt('');
+        if (prevStatus === 'completed') setFinishedAt('');
       } else {
-        if (status === 'completed') setFinishedAt('');
+        if (prevStatus === 'completed') setFinishedAt('');
       }
     }
   };
@@ -867,6 +883,8 @@ function TrackModalFormContent({
       addedAt,
       startedAt: startedIso,
       finishedAt: finishedIso,
+      onHoldStartedAt: status === 'on_hold' ? (onHoldStartedAt || new Date().toISOString()) : null,
+      onHoldDays: onHoldDays > 0 ? onHoldDays : undefined,
       lastWatchedAt: new Date().toISOString(),
       lastSyncedAt: existingRecord?.lastSyncedAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -917,7 +935,12 @@ function TrackModalFormContent({
     MAL_SCORES.find((s) => s.score === score)?.label || 'Select Score';
   const startedIsoForLabel = parseFormattedDateToIso(startedAt, dateFormat);
   const finishedIsoForLabel = parseFormattedDateToIso(finishedAt, dateFormat);
-  const durationLabel = getDurationLabel(startedIsoForLabel, finishedIsoForLabel, status === 'completed');
+  const durationLabel = getDurationLabel(
+    startedIsoForLabel,
+    finishedIsoForLabel,
+    status === 'completed',
+    onHoldDays
+  );
 
   // Check if specials exist in seasons list
   const hasSpecials = useMemo(() => {
@@ -3142,6 +3165,41 @@ function TrackModalFormContent({
                   </View>
                 </View>
 
+                {/* On-Hold Paused Days */}
+                {(onHoldDays > 0 || status === 'on_hold') && (
+                  <View style={styles.dateRow}>
+                    <View style={styles.dateLabelGroup}>
+                      <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Paused on Hold:</Text>
+                      {status === 'on_hold' && (
+                        <Text style={[styles.dateRelativeText, { color: '#f59e0b' }]}>
+                          (currently paused)
+                        </Text>
+                      )}
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Pressable
+                        style={[styles.holdStepperBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          setOnHoldDays((prev) => Math.max(0, prev - 1));
+                        }}>
+                        <Ionicons name="remove" size={14} color={colors.textSecondary} />
+                      </Pressable>
+                      <Text style={[styles.dateStaticValue, { color: colors.text, minWidth: 50, textAlign: 'center' }]}>
+                        {onHoldDays} {onHoldDays === 1 ? 'day' : 'days'}
+                      </Text>
+                      <Pressable
+                        style={[styles.holdStepperBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          setOnHoldDays((prev) => prev + 1);
+                        }}>
+                        <Ionicons name="add" size={14} color={colors.textSecondary} />
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+
                 {/* Duration Label */}
                 {durationLabel && (
                   <View style={[styles.durationPillContainer, { backgroundColor: colors.primaryBg }]}>
@@ -4257,6 +4315,14 @@ const styles = StyleSheet.create({
   },
   dateClearBtn: {
     padding: 2,
+  },
+  holdStepperBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   durationPillContainer: {
     flexDirection: 'row',

@@ -243,6 +243,8 @@ export function compressPayloadForQr(payload: SyncPayload): string {
       ua: item.updatedAt,
       n: item.notes,
       iap: item.isAlsoPlanned ? 1 : 0,
+      ohd: item.onHoldDays,
+      ohs: item.onHoldStartedAt,
     })),
     s: payload.settings,
   };
@@ -287,6 +289,8 @@ export function decompressQrPayload(compressedStr: string): SyncPayload | null {
         updatedAt: item.ua || new Date().toISOString(),
         notes: item.n,
         isAlsoPlanned: (item as any).iap === 1,
+        onHoldDays: (item as any).ohd,
+        onHoldStartedAt: (item as any).ohs,
       }));
 
       return {
@@ -458,6 +462,8 @@ export function mergeLibraries(
         startedAt: inc.startedAt || existing.startedAt,
         finishedAt: inc.finishedAt || existing.finishedAt,
         isAlsoPlanned: status === 'completed' ? Boolean(inc.isAlsoPlanned ?? existing.isAlsoPlanned) : undefined,
+        onHoldDays: Math.max(inc.onHoldDays || 0, existing.onHoldDays || 0) || undefined,
+        onHoldStartedAt: inc.onHoldStartedAt || existing.onHoldStartedAt,
         updatedAt: new Date().toISOString(),
       });
     }

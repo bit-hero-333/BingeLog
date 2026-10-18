@@ -260,23 +260,34 @@ export function getDaysDifference(
 export function getDurationLabel(
   startDateStr?: string | null,
   endDateStr?: string | null,
-  isCompleted?: boolean
+  isCompleted?: boolean,
+  pausedDays = 0
 ): string | null {
   if (!startDateStr) return null;
 
   if (endDateStr && isCompleted) {
-    const days = getDaysDifference(startDateStr, endDateStr);
-    if (days === null) return null;
-    if (days === 0) return 'Completed on same day';
-    if (days === 1) return 'Completed in 1 day';
-    return `Completed in ${days} days`;
+    const totalDays = getDaysDifference(startDateStr, endDateStr);
+    if (totalDays === null) return null;
+    const netDays = Math.max(0, totalDays - Math.max(0, pausedDays));
+    if (pausedDays > 0) {
+      if (netDays === 0) return `Completed on same day (${pausedDays}d paused)`;
+      if (netDays === 1) return `Completed in 1 active day (${pausedDays}d paused)`;
+      return `Completed in ${netDays} active days (${pausedDays}d paused)`;
+    }
+    if (netDays === 0) return 'Completed on same day';
+    if (netDays === 1) return 'Completed in 1 day';
+    return `Completed in ${netDays} days`;
   }
 
-  const days = getDaysDifference(startDateStr, new Date().toISOString());
-  if (days === null) return null;
-  if (days === 0) return 'Started today';
-  if (days === 1) return 'Started yesterday (1 day)';
-  return `Watching for ${days} days`;
+  const totalDays = getDaysDifference(startDateStr, new Date().toISOString());
+  if (totalDays === null) return null;
+  const netDays = Math.max(0, totalDays - Math.max(0, pausedDays));
+  if (pausedDays > 0) {
+    return `Watching for ${netDays} active days (${pausedDays}d paused)`;
+  }
+  if (netDays === 0) return 'Started today';
+  if (netDays === 1) return 'Started yesterday (1 day)';
+  return `Watching for ${netDays} days`;
 }
 
 export function formatRuntime(minutes?: number | null): string {
