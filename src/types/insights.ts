@@ -52,6 +52,7 @@ export type InsightWidgetId =
   | 'upcoming_drops_watchlist'
   | 'milestones_ahead'
   | 'library_health'
+  | 'season_anticipation'
   // Streaming
   | 'streaming_mileage'
   | 'subscription_value';
@@ -490,6 +491,17 @@ export const INSIGHT_WIDGET_DEFINITIONS: Record<InsightWidgetId, InsightWidgetDe
     defaultEnabled: false,
     allowedSizes: ['half', 'full', 'compact'],
   },
+  season_anticipation: {
+    id: 'season_anticipation',
+    title: 'Season Anticipation & Rewatch Queue',
+    subtitle: 'Completed TV shows queued on Plan to Watch for new seasons or rewatching',
+    category: 'habits_loyalty',
+    icon: 'hourglass-outline',
+    color: '#a855f7',
+    defaultSize: 'half',
+    defaultEnabled: true,
+    allowedSizes: ['half', 'full', 'compact'],
+  },
 
   // Streaming Mileage
   streaming_mileage: {
@@ -538,24 +550,25 @@ export const DEFAULT_INSIGHTS_LAYOUT: InsightWidgetConfig[] = [
   { id: 'upcoming_drops_watchlist', enabled: true, size: 'half', order: 18 },
   { id: 'time_equivalents', enabled: true, size: 'full', order: 19 },
   { id: 'milestones_ahead', enabled: true, size: 'full', order: 20 },
+  { id: 'season_anticipation', enabled: true, size: 'half', order: 21 },
   // Available but off by default for clean start
-  { id: 'avg_runtimes', enabled: false, size: 'half', order: 21 },
-  { id: 'binge_velocity', enabled: false, size: 'half', order: 22 },
-  { id: 'monthly_watch_time', enabled: false, size: 'full', order: 23 },
-  { id: 'guilty_pleasures', enabled: false, size: 'half', order: 24 },
-  { id: 'score_by_status', enabled: false, size: 'half', order: 25 },
-  { id: 'rating_spread', enabled: false, size: 'half', order: 26 },
-  { id: 'top_studios', enabled: false, size: 'half', order: 27 },
-  { id: 'franchise_progress', enabled: false, size: 'full', order: 28 },
-  { id: 'fresh_vs_catalog', enabled: false, size: 'half', order: 29 },
-  { id: 'country_origins', enabled: false, size: 'half', order: 30 },
-  { id: 'drop_analysis', enabled: false, size: 'half', order: 31 },
-  { id: 'limbo_shelf', enabled: false, size: 'half', order: 32 },
-  { id: 'watchlist_conversion', enabled: false, size: 'half', order: 33 },
-  { id: 'series_loyalty', enabled: false, size: 'half', order: 34 },
-  { id: 'library_health', enabled: false, size: 'half', order: 35 },
-  { id: 'streaming_mileage', enabled: false, size: 'half', order: 36 },
-  { id: 'subscription_value', enabled: false, size: 'full', order: 37 },
+  { id: 'avg_runtimes', enabled: false, size: 'half', order: 22 },
+  { id: 'binge_velocity', enabled: false, size: 'half', order: 23 },
+  { id: 'monthly_watch_time', enabled: false, size: 'full', order: 24 },
+  { id: 'guilty_pleasures', enabled: false, size: 'half', order: 25 },
+  { id: 'score_by_status', enabled: false, size: 'half', order: 26 },
+  { id: 'rating_spread', enabled: false, size: 'half', order: 27 },
+  { id: 'top_studios', enabled: false, size: 'half', order: 28 },
+  { id: 'franchise_progress', enabled: false, size: 'full', order: 29 },
+  { id: 'fresh_vs_catalog', enabled: false, size: 'half', order: 30 },
+  { id: 'country_origins', enabled: false, size: 'half', order: 31 },
+  { id: 'drop_analysis', enabled: false, size: 'half', order: 32 },
+  { id: 'limbo_shelf', enabled: false, size: 'half', order: 33 },
+  { id: 'watchlist_conversion', enabled: false, size: 'half', order: 34 },
+  { id: 'series_loyalty', enabled: false, size: 'half', order: 35 },
+  { id: 'library_health', enabled: false, size: 'half', order: 36 },
+  { id: 'streaming_mileage', enabled: false, size: 'half', order: 37 },
+  { id: 'subscription_value', enabled: false, size: 'full', order: 38 },
 ];
 
 export const INSIGHT_WIDGET_CATALOG: InsightWidgetDefinition[] = Object.values(INSIGHT_WIDGET_DEFINITIONS);

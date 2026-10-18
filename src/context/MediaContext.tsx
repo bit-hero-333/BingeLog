@@ -250,15 +250,28 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setStreamingRegionStrategyState(savedStreamingRegionStrategy);
         setCustomStreamingRegionState(savedCustomStreamingRegion);
         if (savedInsightsLayout && savedInsightsLayout.length > 0) {
-          setInsightsLayoutState(savedInsightsLayout);
+          const existingIds = new Set(savedInsightsLayout.map((w) => w.id));
+          const missingWidgets = DEFAULT_INSIGHTS_LAYOUT.filter((w) => !existingIds.has(w.id));
+          if (missingWidgets.length > 0) {
+            const merged = [...savedInsightsLayout, ...missingWidgets];
+            setInsightsLayoutState(merged);
+            await StorageService.saveInsightsLayout(merged);
+          } else {
+            setInsightsLayoutState(savedInsightsLayout);
+          }
         }
         HapticsService.setIntensity(savedHaptic);
 
-        // Auto-refresh missing next air dates for active watchlist TV shows
+        // Auto-refresh missing next air dates for active watchlist & dual-tracked TV shows
         let activeItems = savedItems || [];
         if (savedKey && activeItems.length > 0) {
           const missingAirDateCount = activeItems.filter(
-            (i) => (i.status === 'watching' || i.status === 'plan_to_watch') && i.mediaType === 'tv' && !i.nextAirDate
+            (i) =>
+              (i.status === 'watching' ||
+                i.status === 'plan_to_watch' ||
+                (i.mediaType === 'tv' && i.status === 'completed' && i.isAlsoPlanned)) &&
+              i.mediaType === 'tv' &&
+              !i.nextAirDate
           ).length;
 
           if (missingAirDateCount > 0) {
@@ -268,7 +281,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
               for (let i = 0; i < updatedItems.length; i++) {
                 const item = updatedItems[i];
                 if (
-                  (item.status === 'watching' || item.status === 'plan_to_watch') &&
+                  (item.status === 'watching' ||
+                    item.status === 'plan_to_watch' ||
+                    (item.mediaType === 'tv' && item.status === 'completed' && item.isAlsoPlanned)) &&
                   item.mediaType === 'tv' &&
                   !item.nextAirDate
                 ) {
@@ -843,6 +858,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           break;
         case 'completed':
           completed++;
+          if (item.mediaType === 'tv' && item.isAlsoPlanned) {
+            planToWatch++;
+          }
           break;
         case 'on_hold':
           onHold++;

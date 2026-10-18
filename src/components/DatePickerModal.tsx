@@ -5,6 +5,8 @@ import {
   Text,
   StyleSheet,
   Pressable,
+  ScrollView,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -44,6 +46,8 @@ const MONTH_NAMES = [
 
 const WEEKDAY_NAMES = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
+type PickerMode = 'calendar' | 'month' | 'year' | 'input';
+
 function DatePickerContent({
   title,
   initialDate,
@@ -52,7 +56,7 @@ function DatePickerContent({
   onSelectDate,
   onClearDate,
 }: Omit<DatePickerModalProps, 'visible'>) {
-  const { dateFormat: contextDateFormat } = useMedia();
+  const { dateFormat: contextDateFormat, triggerHaptic } = useMedia();
   const { colors } = useAppTheme();
   const activeFormat = propDateFormat || contextDateFormat || DEFAULT_DATE_FORMAT;
 
@@ -73,13 +77,27 @@ function DatePickerContent({
   const [selectedDay, setSelectedDay] = useState<number>(parsed.day);
   const [currentMonth, setCurrentMonth] = useState<number>(parsed.month);
   const [currentYear, setCurrentYear] = useState<number>(parsed.year);
+  const [pickerMode, setPickerMode] = useState<PickerMode>('calendar');
+  const [manualInputText, setManualInputText] = useState<string>(initialDate || '');
 
   // Calculate days in month
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   // Day of week of 1st day (0 = Sunday, 1 = Monday, ...) -> convert to Monday=0
   const firstDayWeekday = (new Date(currentYear, currentMonth, 1).getDay() + 6) % 7;
 
+  // List of years from now+6 down to 1920
+  const availableYears = useMemo(() => {
+    const maxYear = new Date().getFullYear() + 6;
+    const minYear = 1920;
+    const years: number[] = [];
+    for (let y = maxYear; y >= minYear; y--) {
+      years.push(y);
+    }
+    return years;
+  }, []);
+
   const handlePrevMonth = () => {
+    triggerHaptic('selection');
     if (currentMonth === 0) {
       setCurrentMonth(11);
       setCurrentYear((y) => y - 1);
@@ -89,6 +107,7 @@ function DatePickerContent({
   };
 
   const handleNextMonth = () => {
+    triggerHaptic('selection');
     if (currentMonth === 11) {
       setCurrentMonth(0);
       setCurrentYear((y) => y + 1);
@@ -98,6 +117,19 @@ function DatePickerContent({
   };
 
   const handleConfirm = () => {
+    triggerHaptic('selection');
+    if (pickerMode === 'input') {
+      const trimmed = manualInputText.trim();
+      if (trimmed) {
+        const iso = parseFormattedDateToIso(trimmed, activeFormat);
+        if (iso) {
+          onSelectDate(trimmed);
+          onClose();
+          return;
+        }
+      }
+    }
+
     const validDay = Math.min(selectedDay, daysInMonth);
     const dateObj = new Date(currentYear, currentMonth, validDay, 12, 0, 0);
     onSelectDate(formatDate(dateObj, activeFormat));
@@ -105,16 +137,19 @@ function DatePickerContent({
   };
 
   const handleQuickToday = () => {
+    triggerHaptic('selection');
     onSelectDate(getTodayFormatted(activeFormat));
     onClose();
   };
 
   const handleQuickYesterday = () => {
+    triggerHaptic('selection');
     onSelectDate(getYesterdayFormatted(activeFormat));
     onClose();
   };
 
   const handleQuickClear = () => {
+    triggerHaptic('selection');
     if (onClearDate) onClearDate();
     onClose();
   };
@@ -135,92 +170,286 @@ function DatePickerContent({
       onPress={(e) => e.stopPropagation()}>
       {/* Header */}
       <View style={[styles.dialogHeader, { borderBottomColor: colors.divider }]}>
-        <Text style={[styles.dialogTitle, { color: colors.textSecondary }]}>{title}</Text>
-        <Text style={[styles.selectedDateBanner, { color: colors.primary }]} selectable={true}>
-          {currentFormatted}
-        </Text>
-      </View>
-
-      {/* Quick Shortcuts */}
-      <View style={styles.quickBar}>
-        <Pressable
-          style={[styles.quickBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
-          onPress={handleQuickToday}>
-          <Text style={[styles.quickBtnText, { color: colors.textSecondary }]}>Today</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.quickBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
-          onPress={handleQuickYesterday}>
-          <Text style={[styles.quickBtnText, { color: colors.textSecondary }]}>Yesterday</Text>
-        </Pressable>
-        {onClearDate && (
-          <Pressable style={styles.quickBtnDanger} onPress={handleQuickClear}>
-            <Text style={styles.quickBtnDangerText}>Clear Date</Text>
-          </Pressable>
-        )}
-      </View>
-
-      {/* Month / Year Navigator */}
-      <View style={styles.monthNavRow}>
-        <Pressable
-          style={[styles.navArrow, { backgroundColor: colors.inputBg }]}
-          onPress={handlePrevMonth}>
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
-        </Pressable>
-
-        <View style={styles.monthYearLabelContainer}>
-          <Text style={[styles.monthYearText, { color: colors.text }]}>
-            {MONTH_NAMES[currentMonth]} {currentYear}
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Text style={[styles.dialogTitle, { color: colors.textSecondary }]}>{title}</Text>
+          <Text style={[styles.selectedDateBanner, { color: colors.primary }]} selectable={true}>
+            {pickerMode === 'input' && manualInputText ? manualInputText : currentFormatted}
           </Text>
         </View>
 
+        {/* Edit Pencil / Calendar Mode Toggle Button */}
         <Pressable
-          style={[styles.navArrow, { backgroundColor: colors.inputBg }]}
-          onPress={handleNextMonth}>
-          <Ionicons name="chevron-forward" size={20} color={colors.text} />
+          style={[styles.headerModeToggle, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+          onPress={() => {
+            triggerHaptic('selection');
+            if (pickerMode === 'input') {
+              setPickerMode('calendar');
+            } else {
+              setManualInputText(currentFormatted);
+              setPickerMode('input');
+            }
+          }}>
+          <Ionicons
+            name={pickerMode === 'input' ? 'calendar-outline' : 'pencil-outline'}
+            size={18}
+            color={colors.primary}
+          />
         </Pressable>
       </View>
 
-      {/* Weekday headers */}
-      <View style={styles.weekdaysRow}>
-        {WEEKDAY_NAMES.map((w, idx) => (
-          <Text key={idx} style={[styles.weekdayText, { color: colors.textMuted }]}>
-            {w}
-          </Text>
-        ))}
-      </View>
-
-      {/* Days Grid */}
-      <View style={styles.daysGrid}>
-        {/* Blank offset days */}
-        {Array.from({ length: firstDayWeekday }).map((_, idx) => (
-          <View key={`empty-${idx}`} style={styles.dayCell} />
-        ))}
-
-        {/* Month days */}
-        {Array.from({ length: daysInMonth }).map((_, idx) => {
-          const day = idx + 1;
-          const isSelected = selectedDay === day;
-          return (
-            <Pressable
-              key={`day-${day}`}
-              style={[
-                styles.dayCell,
-                isSelected && [styles.dayCellSelected, { backgroundColor: colors.primary }],
-              ]}
-              onPress={() => setSelectedDay(day)}>
-              <Text
-                style={[
-                  styles.dayText,
-                  { color: colors.text },
-                  isSelected && styles.dayTextSelected,
-                ]}>
-                {day}
-              </Text>
+      {/* Quick Shortcuts (visible in calendar mode) */}
+      {pickerMode === 'calendar' && (
+        <View style={styles.quickBar}>
+          <Pressable
+            style={[styles.quickBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+            onPress={handleQuickToday}>
+            <Text style={[styles.quickBtnText, { color: colors.textSecondary }]}>Today</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.quickBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+            onPress={handleQuickYesterday}>
+            <Text style={[styles.quickBtnText, { color: colors.textSecondary }]}>Yesterday</Text>
+          </Pressable>
+          {onClearDate && (
+            <Pressable style={styles.quickBtnDanger} onPress={handleQuickClear}>
+              <Text style={styles.quickBtnDangerText}>Clear Date</Text>
             </Pressable>
-          );
-        })}
-      </View>
+          )}
+        </View>
+      )}
+
+      {/* MODE 1: CALENDAR VIEW */}
+      {pickerMode === 'calendar' && (
+        <>
+          {/* Month / Year Navigator */}
+          <View style={styles.monthNavRow}>
+            <Pressable
+              style={[styles.navArrow, { backgroundColor: colors.inputBg }]}
+              onPress={handlePrevMonth}>
+              <Ionicons name="chevron-back" size={20} color={colors.text} />
+            </Pressable>
+
+            {/* Clickable Month/Year to open Month View */}
+            <Pressable
+              style={[styles.monthYearSelectorBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setPickerMode('month');
+              }}>
+              <Text style={[styles.monthYearText, { color: colors.text }]}>
+                {MONTH_NAMES[currentMonth]} {currentYear}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={colors.primary} style={{ marginLeft: 6 }} />
+            </Pressable>
+
+            <Pressable
+              style={[styles.navArrow, { backgroundColor: colors.inputBg }]}
+              onPress={handleNextMonth}>
+              <Ionicons name="chevron-forward" size={20} color={colors.text} />
+            </Pressable>
+          </View>
+
+          {/* Weekday headers */}
+          <View style={styles.weekdaysRow}>
+            {WEEKDAY_NAMES.map((w, idx) => (
+              <Text key={idx} style={[styles.weekdayText, { color: colors.textMuted }]}>
+                {w}
+              </Text>
+            ))}
+          </View>
+
+          {/* Days Grid */}
+          <View style={styles.daysGrid}>
+            {/* Blank offset days */}
+            {Array.from({ length: firstDayWeekday }).map((_, idx) => (
+              <View key={`empty-${idx}`} style={styles.dayCell} />
+            ))}
+
+            {/* Month days */}
+            {Array.from({ length: daysInMonth }).map((_, idx) => {
+              const day = idx + 1;
+              const isSelected = selectedDay === day;
+              return (
+                <Pressable
+                  key={`day-${day}`}
+                  style={[
+                    styles.dayCell,
+                    isSelected && [styles.dayCellSelected, { backgroundColor: colors.primary }],
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setSelectedDay(day);
+                  }}>
+                  <Text
+                    style={[
+                      styles.dayText,
+                      { color: colors.text },
+                      isSelected && styles.dayTextSelected,
+                    ]}>
+                    {day}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      )}
+
+      {/* MODE 2: MONTH VIEW */}
+      {pickerMode === 'month' && (
+        <View style={styles.pickerSubViewContainer}>
+          {/* Top Year Button in Month View */}
+          <View style={styles.subViewHeaderRow}>
+            <Pressable
+              style={[styles.yearBadgeBtn, { backgroundColor: colors.inputBg, borderColor: colors.primary }]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setPickerMode('year');
+              }}>
+              <Text style={[styles.yearBadgeBtnText, { color: colors.primary }]}>{currentYear}</Text>
+              <Ionicons name="chevron-down" size={16} color={colors.primary} style={{ marginLeft: 6 }} />
+            </Pressable>
+
+            <Pressable
+              style={[styles.backToCalBtn, { backgroundColor: colors.inputBg }]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setPickerMode('calendar');
+              }}>
+              <Ionicons name="close" size={18} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+
+          <Text style={[styles.subViewHint, { color: colors.textMuted }]}>
+            Select a month (or tap {currentYear} to change year)
+          </Text>
+
+          {/* 12 Months Grid */}
+          <View style={styles.monthsGrid}>
+            {MONTH_NAMES.map((name, idx) => {
+              const isSelected = currentMonth === idx;
+              return (
+                <Pressable
+                  key={name}
+                  style={[
+                    styles.monthGridCell,
+                    { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                    isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setCurrentMonth(idx);
+                    setPickerMode('calendar');
+                  }}>
+                  <Text
+                    style={[
+                      styles.monthGridCellText,
+                      { color: isSelected ? '#ffffff' : colors.text },
+                      isSelected && { fontWeight: '700' },
+                    ]}
+                    numberOfLines={1}>
+                    {name.slice(0, 3)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      {/* MODE 3: YEAR VIEW */}
+      {pickerMode === 'year' && (
+        <View style={styles.pickerSubViewContainer}>
+          {/* Top Header in Year View */}
+          <View style={styles.subViewHeaderRow}>
+            <Pressable
+              style={[styles.yearBadgeBtn, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setPickerMode('month');
+              }}>
+              <Text style={[styles.yearBadgeBtnText, { color: colors.primary }]}>
+                {MONTH_NAMES[currentMonth]} {currentYear}
+              </Text>
+              <Ionicons name="chevron-up" size={16} color={colors.primary} style={{ marginLeft: 6 }} />
+            </Pressable>
+
+            <Pressable
+              style={[styles.backToCalBtn, { backgroundColor: colors.inputBg }]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setPickerMode('month');
+              }}>
+              <Ionicons name="arrow-back" size={18} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+
+          <Text style={[styles.subViewHint, { color: colors.textMuted }]}>
+            Choose year to return to months
+          </Text>
+
+          {/* Scrollable Years Grid (3 Columns) */}
+          <ScrollView
+            style={styles.yearsScrollView}
+            contentContainerStyle={styles.yearsGridContent}
+            showsVerticalScrollIndicator={true}>
+            {availableYears.map((y) => {
+              const isSelected = currentYear === y;
+              return (
+                <Pressable
+                  key={y}
+                  style={[
+                    styles.yearGridCell,
+                    { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                    isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setCurrentYear(y);
+                    setPickerMode('month'); // Returns to months view with that year selected!
+                  }}>
+                  <Text
+                    style={[
+                      styles.yearGridCellText,
+                      { color: isSelected ? '#ffffff' : colors.text },
+                      isSelected && { fontWeight: '800' },
+                    ]}>
+                    {y}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* MODE 4: DIRECT MANUAL DATE INPUT */}
+      {pickerMode === 'input' && (
+        <View style={styles.inputModeContainer}>
+          <Text style={[styles.inputModeLabel, { color: colors.textSecondary }]}>
+            Enter Date ({activeFormat})
+          </Text>
+          <View style={[styles.textInputWrapper, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+            <TextInput
+              style={[styles.textInput, { color: colors.text }]}
+              value={manualInputText}
+              onChangeText={setManualInputText}
+              placeholder={activeFormat}
+              placeholderTextColor={colors.textMuted}
+              keyboardType="numbers-and-punctuation"
+              autoFocus={true}
+            />
+            {manualInputText ? (
+              <Pressable onPress={() => setManualInputText('')} style={{ padding: 4 }}>
+                <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+              </Pressable>
+            ) : null}
+          </View>
+          <Text style={[styles.inputFormatHint, { color: colors.textMuted }]}>
+            Format: {activeFormat} (e.g. {getTodayFormatted(activeFormat)})
+          </Text>
+        </View>
+      )}
 
       {/* Actions */}
       <View style={[styles.actionRow, { borderTopColor: colors.divider }]}>
@@ -294,6 +523,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  headerModeToggle: {
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   quickBar: {
     flexDirection: 'row',
@@ -337,8 +572,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#1f2432',
     borderRadius: 8,
   },
-  monthYearLabelContainer: {
+  monthYearSelectorBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   monthYearText: {
     color: '#ffffff',
@@ -382,6 +622,106 @@ const styles = StyleSheet.create({
   dayTextSelected: {
     color: '#ffffff',
     fontWeight: '800',
+  },
+  pickerSubViewContainer: {
+    minHeight: 240,
+    marginBottom: 12,
+  },
+  subViewHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  yearBadgeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
+  },
+  yearBadgeBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  backToCalBtn: {
+    padding: 6,
+    borderRadius: 8,
+  },
+  subViewHint: {
+    fontSize: 11.5,
+    marginBottom: 12,
+  },
+  monthsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  monthGridCell: {
+    width: '30%',
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthGridCellText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+  },
+  yearsScrollView: {
+    maxHeight: 240,
+  },
+  yearsGridContent: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'space-between',
+    paddingBottom: 8,
+  },
+  yearGridCell: {
+    width: '30%',
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  yearGridCellText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  inputModeContainer: {
+    minHeight: 180,
+    justifyContent: 'center',
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  inputModeLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  textInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    paddingVertical: 6,
+  },
+  inputFormatHint: {
+    fontSize: 11.5,
+    marginTop: 8,
   },
   actionRow: {
     flexDirection: 'row',

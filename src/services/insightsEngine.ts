@@ -789,6 +789,23 @@ export const InsightsEngine = {
         };
       }
 
+      // 39. Season Anticipation & Rewatch Queue
+      case 'season_anticipation': {
+        const dualItems = items.filter(
+          (i) => i.mediaType === 'tv' && i.status === 'completed' && Boolean(i.isAlsoPlanned)
+        );
+        const count = dualItems.length;
+        const withUpcoming = dualItems.filter(
+          (i) => i.nextAirDate || i.nextEpisode?.airDate
+        ).length;
+        return {
+          widgetId,
+          primaryValue: `${count} Shows`,
+          primaryLabel: 'Queued for Next Season',
+          secondaryValue: withUpcoming > 0 ? `${withUpcoming} announced release date(s)` : 'Awaiting premiere dates',
+        };
+      }
+
       default: {
         return {
           widgetId,
@@ -2435,6 +2452,61 @@ export const InsightsEngine = {
           ],
           items: list,
           notes: 'Measures your return on subscription investment by tracking titles actively watched on streaming services.',
+        };
+      }
+
+      // 39. Season Anticipation & Rewatch Queue
+      case 'season_anticipation': {
+        const dualItems = items.filter(
+          (i) => i.mediaType === 'tv' && i.status === 'completed' && Boolean(i.isAlsoPlanned)
+        );
+        const sorted = dualItems.slice().sort((a, b) => {
+          const dateA = a.nextAirDate || a.nextEpisode?.airDate;
+          const dateB = b.nextAirDate || b.nextEpisode?.airDate;
+          if (dateA && dateB) return dateA.localeCompare(dateB);
+          if (dateA) return -1;
+          if (dateB) return 1;
+          return b.userScore - a.userScore;
+        });
+
+        const list: DrillDownContributingItem[] = sorted.slice(0, 30).map((i) => {
+          const airDate = i.nextAirDate || i.nextEpisode?.airDate;
+          return {
+            id: i.id,
+            title: i.title,
+            mediaType: i.mediaType,
+            posterPath: i.posterPath,
+            releaseYear: i.releaseYear,
+            status: 'completed',
+            userScore: i.userScore,
+            voteAverage: i.voteAverage,
+            highlightMetric: airDate ? `Next: ${formatSimpleDate(airDate)}` : 'Awaiting Air Date',
+            extraInfo: i.userScore > 0 ? `Rated ${i.userScore}/10 • Completed & Planned` : 'Completed & Planned',
+          };
+        });
+
+        const withDates = dualItems.filter((i) => i.nextAirDate || i.nextEpisode?.airDate).length;
+        const avgScore =
+          dualItems.filter((i) => i.userScore > 0).length > 0
+            ? (
+                dualItems.filter((i) => i.userScore > 0).reduce((sum, i) => sum + i.userScore, 0) /
+                dualItems.filter((i) => i.userScore > 0).length
+              ).toFixed(1)
+            : '-';
+
+        return {
+          widgetId,
+          title: def.title,
+          subtitle: def.subtitle,
+          icon: def.icon,
+          color: def.color,
+          summaryHighlights: [
+            { label: 'Anticipated Shows', value: String(dualItems.length) },
+            { label: 'Announced Air Dates', value: String(withDates) },
+            { label: 'Average User Score', value: avgScore !== '-' ? `${avgScore} / 10` : 'Unrated' },
+          ],
+          items: list,
+          notes: 'Completed TV shows kept in Plan to Watch for upcoming seasons or scheduled rewatches.',
         };
       }
 

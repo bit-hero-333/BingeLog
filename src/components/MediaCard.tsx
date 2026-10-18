@@ -52,6 +52,13 @@ export function MediaCard({
   const currentTracked = trackedRecord || (isTrackedItem ? (item as TrackedItem) : undefined);
   const posterUrl = TMDBService.getImageUrl(posterPath, 'w342');
 
+  const isDualStatus = Boolean(
+    currentTracked &&
+    currentTracked.mediaType === 'tv' &&
+    currentTracked.status === 'completed' &&
+    currentTracked.isAlsoPlanned
+  );
+
   const statusConfig = currentTracked ? STATUS_CONFIG[currentTracked.status] : null;
 
   // Determine date summary label
@@ -143,14 +150,19 @@ export function MediaCard({
         )}
 
         {/* Status Indicator Stripe */}
-        {statusConfig && (
+        {isDualStatus ? (
+          <View style={styles.statusStripeDual}>
+            <View style={[styles.statusStripeHalf, { backgroundColor: '#3b82f6' }]} />
+            <View style={[styles.statusStripeHalf, { backgroundColor: '#a855f7' }]} />
+          </View>
+        ) : statusConfig ? (
           <View
             style={[
               styles.statusStripe,
               { backgroundColor: statusConfig.color },
             ]}
           />
-        )}
+        ) : null}
       </View>
 
       {/* Content Info */}
@@ -222,21 +234,39 @@ export function MediaCard({
               <View
                 style={[
                   styles.statusTag,
-                  { backgroundColor: statusConfig?.bgColor || 'rgba(59, 130, 246, 0.15)' },
+                  isDualStatus
+                    ? { backgroundColor: 'rgba(168, 85, 247, 0.15)', borderColor: '#a855f7', borderWidth: 0.5 }
+                    : { backgroundColor: statusConfig?.bgColor || 'rgba(59, 130, 246, 0.15)' },
                 ]}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    { backgroundColor: statusConfig?.color || '#3b82f6' },
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.statusTagText,
-                    { color: statusConfig?.color || '#3b82f6', fontSize: 11 * textScale },
-                  ]}>
-                  {statusConfig?.shortLabel}
-                </Text>
+                {isDualStatus ? (
+                  <>
+                    <View style={[styles.statusDot, { backgroundColor: '#3b82f6' }]} />
+                    <View style={[styles.statusDot, { backgroundColor: '#a855f7', marginLeft: -3 }]} />
+                    <Text
+                      style={[
+                        styles.statusTagText,
+                        { color: '#c084fc', fontSize: 11 * textScale, fontWeight: '700' },
+                      ]}>
+                      Completed + Plan
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <View
+                      style={[
+                        styles.statusDot,
+                        { backgroundColor: statusConfig?.color || '#3b82f6' },
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.statusTagText,
+                        { color: statusConfig?.color || '#3b82f6', fontSize: 11 * textScale },
+                      ]}>
+                      {statusConfig?.shortLabel}
+                    </Text>
+                  </>
+                )}
               </View>
 
               {currentTracked.userScore > 0 && (
@@ -370,6 +400,19 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 3.5,
+  },
+  statusStripeDual: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3.5,
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
+  statusStripeHalf: {
+    flex: 1,
+    width: '100%',
   },
   infoContainer: {
     flex: 1,

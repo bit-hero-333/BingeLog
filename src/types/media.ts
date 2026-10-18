@@ -177,6 +177,9 @@ export interface TrackedItem {
   // Viewing Progress & Rewatch Tracking (Movies & TV Shows)
   rewatchCount?: number;
 
+  // TV Dual-Tracking (Completed & Plan to Watch simultaneously)
+  isAlsoPlanned?: boolean;
+
   // Movie Tracking Fields
   runtimeMinutes?: number | null;
   minutesWatched?: number | null;

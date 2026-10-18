@@ -167,6 +167,9 @@ export default function MyListScreen() {
       if (counts[i.status] !== undefined) {
         counts[i.status]++;
       }
+      if (i.mediaType === 'tv' && i.status === 'completed' && i.isAlsoPlanned) {
+        counts.plan_to_watch++;
+      }
     });
 
     return counts;
@@ -202,7 +205,13 @@ export default function MyListScreen() {
 
     // Filter by status
     if (selectedStatus !== 'all') {
-      result = result.filter((i) => i.status === selectedStatus);
+      if (selectedStatus === 'plan_to_watch') {
+        result = result.filter(
+          (i) => i.status === 'plan_to_watch' || (i.mediaType === 'tv' && i.status === 'completed' && Boolean(i.isAlsoPlanned))
+        );
+      } else {
+        result = result.filter((i) => i.status === selectedStatus);
+      }
     }
 
     // Filter by genre

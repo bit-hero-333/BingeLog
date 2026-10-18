@@ -131,9 +131,10 @@ function BingeRouletteModalContent({
   // Total released plan to watch items in entire library
   const totalReleasedPlanToWatchCount = useMemo(() => {
     return trackedItems.filter((i) => {
+      const isDualPlanned = i.mediaType === 'tv' && i.status === 'completed' && Boolean(i.isAlsoPlanned);
       const matchesStatus = includeOnHold
-        ? i.status === 'plan_to_watch' || i.status === 'on_hold'
-        : i.status === 'plan_to_watch';
+        ? i.status === 'plan_to_watch' || i.status === 'on_hold' || isDualPlanned
+        : i.status === 'plan_to_watch' || isDualPlanned;
       return matchesStatus && !isTrackedItemUnreleased(i, selectedTimezone);
     }).length;
   }, [trackedItems, includeOnHold, selectedTimezone]);
@@ -145,10 +146,11 @@ function BingeRouletteModalContent({
       if (isTrackedItemUnreleased(item, selectedTimezone)) return false;
 
       // 1. Status Filter
+      const isDualPlanned = item.mediaType === 'tv' && item.status === 'completed' && Boolean(item.isAlsoPlanned);
       if (includeOnHold) {
-        if (item.status !== 'plan_to_watch' && item.status !== 'on_hold') return false;
+        if (item.status !== 'plan_to_watch' && item.status !== 'on_hold' && !isDualPlanned) return false;
       } else {
-        if (item.status !== 'plan_to_watch') return false;
+        if (item.status !== 'plan_to_watch' && !isDualPlanned) return false;
       }
 
       // 2. Format Filter
@@ -246,6 +248,7 @@ function BingeRouletteModalContent({
     const updated: TrackedItem = {
       ...displayItem,
       status: 'watching',
+      isAlsoPlanned: false,
       startedAt: displayItem.startedAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -625,6 +628,15 @@ function BingeRouletteModalContent({
                           {displayItem.mediaType === 'movie'
                             ? `${displayItem.runtimeMinutes}m`
                             : `${displayItem.runtimeMinutes}m/ep`}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {displayItem.mediaType === 'tv' && displayItem.status === 'completed' && displayItem.isAlsoPlanned ? (
+                      <View style={[styles.metaBadge, { backgroundColor: 'rgba(168, 85, 247, 0.15)', borderColor: '#a855f7', borderWidth: 1 }]}>
+                        <Ionicons name="repeat" size={11} color="#c084fc" />
+                        <Text style={[styles.metaBadgeText, { color: '#c084fc', fontSize: 10.5 * textScale, fontWeight: '700' }]}>
+                          Completed + Planned
                         </Text>
                       </View>
                     ) : null}

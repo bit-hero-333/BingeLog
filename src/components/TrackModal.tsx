@@ -14,6 +14,7 @@ import {
   useWindowDimensions,
   Animated,
   PanResponder,
+  Switch,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -284,6 +285,9 @@ function TrackModalFormContent({
   );
   const [notes, setNotes] = useState<string>(
     existingRecord ? existingRecord.notes || '' : ''
+  );
+  const [isAlsoPlanned, setIsAlsoPlanned] = useState<boolean>(
+    existingRecord ? Boolean(existingRecord.isAlsoPlanned) : false
   );
 
   // Dates:
@@ -705,11 +709,14 @@ function TrackModalFormContent({
       } else if (mediaType === 'movie' && runtimeMinutes) {
         setMinutesWatched(runtimeMinutes);
       }
-    } else if (newStatus === 'watching') {
-      if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
-      if (status === 'completed') setFinishedAt('');
     } else {
-      if (status === 'completed') setFinishedAt('');
+      setIsAlsoPlanned(false);
+      if (newStatus === 'watching') {
+        if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
+        if (status === 'completed') setFinishedAt('');
+      } else {
+        if (status === 'completed') setFinishedAt('');
+      }
     }
   };
 
@@ -761,6 +768,7 @@ function TrackModalFormContent({
       totalSeasons,
       seasons: seasons.length > 0 ? seasons : undefined,
       watchedEpisodeKeys: mediaType === 'tv' ? Array.from(watchedKeys) : undefined,
+      isAlsoPlanned: mediaType === 'tv' && status === 'completed' ? Boolean(isAlsoPlanned) : undefined,
 
       // Movie
       runtimeMinutes,
@@ -2275,7 +2283,16 @@ function TrackModalFormContent({
   const renderStatusSelector = () => (
     <>
           <View style={styles.statusHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Status</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Status</Text>
+              {mediaType === 'tv' && status === 'completed' && isAlsoPlanned && (
+                <View style={styles.dualStatusHeaderBadge}>
+                  <View style={[styles.statusColorPipSmall, { backgroundColor: '#3b82f6' }]} />
+                  <View style={[styles.statusColorPipSmall, { backgroundColor: '#a855f7' }]} />
+                  <Text style={styles.dualStatusHeaderText}>Completed + Plan</Text>
+                </View>
+              )}
+            </View>
             {!status && (
               <Text style={styles.unselectedStatusHint}>Tap a status to begin tracking</Text>
             )}
@@ -2284,7 +2301,8 @@ function TrackModalFormContent({
           <View style={styles.statusGrid}>
             {(Object.keys(STATUS_CONFIG) as MediaStatus[]).map((st) => {
               const config = STATUS_CONFIG[st];
-              const isSelected = status === st;
+              const isDualPlannedButton = mediaType === 'tv' && status === 'completed' && isAlsoPlanned && st === 'plan_to_watch';
+              const isSelected = status === st || isDualPlannedButton;
               return (
                 <Pressable
                   key={st}
@@ -2300,7 +2318,14 @@ function TrackModalFormContent({
                       borderWidth: 1.5,
                     },
                   ]}
-                  onPress={() => handleStatusChange(st)}>
+                  onPress={() => {
+                    if (mediaType === 'tv' && status === 'completed' && st === 'plan_to_watch') {
+                      triggerHaptic('selection');
+                      setIsAlsoPlanned(!isAlsoPlanned);
+                    } else {
+                      handleStatusChange(st);
+                    }
+                  }}>
                   <View
                     style={[
                       styles.statusColorPip,
@@ -2315,11 +2340,97 @@ function TrackModalFormContent({
                     ]}>
                     {config.shortLabel}
                   </Text>
+                  {isDualPlannedButton && (
+                    <View style={styles.dualIndicatorPip}>
+                      <Text style={styles.dualIndicatorText}>+ Dual</Text>
+                    </View>
+                  )}
                 </Pressable>
               );
             })}
           </View>
 
+          {/* TV Dual-Tracking Option for Completed & Planned */}
+          {mediaType === 'tv' && status === 'completed' && (
+            <Pressable
+              style={[
+                styles.dualStatusCard,
+                {
+                  backgroundColor: isAlsoPlanned ? 'rgba(168, 85, 247, 0.12)' : colors.inputBg,
+                  borderColor: isAlsoPlanned ? '#a855f7' : colors.cardBorder,
+                },
+              ]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setIsAlsoPlanned(!isAlsoPlanned);
+              }}>
+              <View style={styles.dualStatusRow}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <Ionicons
+                      name="bookmark-outline"
+                      size={16}
+                      color={isAlsoPlanned ? '#c084fc' : colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.dualStatusCardTitle,
+                        { color: isAlsoPlanned ? '#c084fc' : colors.text },
+                      ]}>
+                      Also on Plan to Watch
+                    </Text>
+                    {isAlsoPlanned && (
+                      <View style={styles.dualStatusPill}>
+                        <Text style={styles.dualStatusPillText}>Active</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.dualStatusCardDesc, { color: colors.textSecondary }]}>
+                    Keep completed stats while queueing up for upcoming seasons or future rewatching.
+                  </Text>
+                </View>
+                <Switch
+                  value={isAlsoPlanned}
+                  onValueChange={(val) => {
+                    triggerHaptic('selection');
+                    setIsAlsoPlanned(val);
+                  }}
+                  trackColor={{ false: colors.cardBorder, true: '#a855f7' }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+            </Pressable>
+          )}
+
+          {/* Prompt when on Plan to Watch for TV */}
+          {mediaType === 'tv' && status === 'plan_to_watch' && (
+            <Pressable
+              style={[
+                styles.dualStatusPromptCard,
+                {
+                  backgroundColor: colors.inputBg,
+                  borderColor: colors.cardBorder,
+                },
+              ]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setStatus('completed');
+                setIsAlsoPlanned(true);
+                if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+                handleMarkEntireShowWatched();
+              }}>
+              <Ionicons name="checkmark-done-circle-outline" size={20} color="#3b82f6" />
+              <View style={{ flex: 1, marginHorizontal: 8 }}>
+                <Text style={[styles.dualStatusPromptTitle, { color: colors.text }]}>
+                  Finished current seasons?
+                </Text>
+                <Text style={[styles.dualStatusPromptDesc, { color: colors.textSecondary }]}>
+                  Mark as both Completed and Plan to Watch at the same time.
+                </Text>
+              </View>
+              <Ionicons name="arrow-forward" size={16} color="#3b82f6" />
+            </Pressable>
+          )}
     </>
   );
 
@@ -4503,6 +4614,87 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  dualStatusHeaderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(168, 85, 247, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#a855f7',
+    gap: 4,
+  },
+  statusColorPipSmall: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  dualStatusHeaderText: {
+    color: '#c084fc',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  dualIndicatorPip: {
+    position: 'absolute',
+    top: 3,
+    right: 4,
+    backgroundColor: '#a855f7',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  dualIndicatorText: {
+    color: '#ffffff',
+    fontSize: 8.5,
+    fontWeight: '800',
+  },
+  dualStatusCard: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  dualStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dualStatusCardTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  dualStatusPill: {
+    backgroundColor: '#a855f7',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+  },
+  dualStatusPillText: {
+    color: '#ffffff',
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  dualStatusCardDesc: {
+    fontSize: 11.5,
+    lineHeight: 16,
+  },
+  dualStatusPromptCard: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dualStatusPromptTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  dualStatusPromptDesc: {
+    fontSize: 11,
+    marginTop: 2,
   },
 });
 
