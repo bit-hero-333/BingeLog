@@ -3289,7 +3289,6 @@ function TrackModalFormContent({
                     <Pressable
                       style={[styles.datePickerTriggerBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                       onPress={() => setDatePickerTarget('started')}>
-                      <Ionicons name="calendar-outline" size={14} color={colors.primary} />
                       <Text
                         style={[
                           styles.datePickerTriggerText,
@@ -3323,7 +3322,6 @@ function TrackModalFormContent({
                     <Pressable
                       style={[styles.datePickerTriggerBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                       onPress={() => setDatePickerTarget('finished')}>
-                      <Ionicons name="calendar-outline" size={14} color={colors.primary} />
                       <Text
                         style={[
                           styles.datePickerTriggerText,
@@ -3404,15 +3402,8 @@ function TrackModalFormContent({
                                   onPress={() => {
                                     triggerHaptic('selection');
                                     setActiveHoldTarget('start');
+                                    setDatePickerTarget('holdRangeStart');
                                   }}>
-                                  <Pressable
-                                    onPress={() => {
-                                      triggerHaptic('selection');
-                                      setDatePickerTarget('holdRangeStart');
-                                    }}
-                                    hitSlop={6}>
-                                    <Ionicons name="calendar-outline" size={13} color={colors.primary} />
-                                  </Pressable>
                                   <Text
                                     style={[
                                       styles.holdRangeInputText,
@@ -3451,15 +3442,8 @@ function TrackModalFormContent({
                                   onPress={() => {
                                     triggerHaptic('selection');
                                     setActiveHoldTarget('end');
+                                    setDatePickerTarget('holdRangeEnd');
                                   }}>
-                                  <Pressable
-                                    onPress={() => {
-                                      triggerHaptic('selection');
-                                      setDatePickerTarget('holdRangeEnd');
-                                    }}
-                                    hitSlop={6}>
-                                    <Ionicons name="calendar-outline" size={13} color={colors.primary} />
-                                  </Pressable>
                                   <Text
                                     style={[
                                       styles.holdRangeInputText,
@@ -3623,26 +3607,16 @@ function TrackModalFormContent({
                             </Pressable>
                           </View>
 
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          {onHoldDays > 0 && (
                             <Pressable
                               style={[styles.holdQuickPresetBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
                               onPress={() => {
                                 triggerHaptic('selection');
-                                setOnHoldDays((prev) => prev + 7);
+                                setOnHoldDays(0);
                               }}>
-                              <Text style={[styles.holdQuickPresetText, { color: colors.primary }]}>+7d</Text>
+                              <Text style={[styles.holdQuickPresetText, { color: colors.textMuted }]}>Reset</Text>
                             </Pressable>
-                            {onHoldDays > 0 && (
-                              <Pressable
-                                style={[styles.holdQuickPresetBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
-                                onPress={() => {
-                                  triggerHaptic('selection');
-                                  setOnHoldDays(0);
-                                }}>
-                                <Text style={[styles.holdQuickPresetText, { color: colors.textMuted }]}>Reset</Text>
-                              </Pressable>
-                            )}
-                          </View>
+                          )}
                         </View>
                       </View>
                     )}
@@ -4779,9 +4753,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   datePickerTriggerBtn: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
     backgroundColor: '#0d0f15',
     borderWidth: 1,
     borderColor: '#262d3d',
@@ -4851,18 +4824,17 @@ const styles = StyleSheet.create({
   },
   holdRangeInputBtn: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
   },
   holdRangeInputText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   holdNavRow: {
     flexDirection: 'row',
