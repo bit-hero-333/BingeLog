@@ -18,6 +18,7 @@ jobs:
   build:
     name: Build Android Release APK
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -26,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Setup Java 17
@@ -48,11 +49,25 @@ jobs:
       - name: Prebuild native Android project
         run: npx expo prebuild --platform android --clean
 
+      - name: Configure Gradle memory and workers
+        run: |
+          if grep -q "org.gradle.jvmargs" android/gradle.properties; then
+            sed -i 's/org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC/g' android/gradle.properties
+          else
+            echo "org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC" >> android/gradle.properties
+          fi
+          echo "org.gradle.workers.max=2" >> android/gradle.properties
+          echo "org.gradle.parallel=false" >> android/gradle.properties
+          echo "GRADLE_OPTS=-Dorg.gradle.jvmargs=\"-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC\" -Dorg.gradle.workers.max=2" >> $GITHUB_ENV
+          echo "android/gradle.properties configured:"
+          cat android/gradle.properties
+
       - name: Build Android Release APK
+        timeout-minutes: 30
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Prepare APK artifact
         run: |
