@@ -342,7 +342,27 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        setTrackedItems(activeItems);
+        // Retroactive backfill for existing on-hold items missing onHoldStartedAt
+        let holdBackfillChanged = false;
+        activeItems = activeItems.map((item) => {
+            if (item.status === 'on_hold' && !item.onHoldStartedAt) {
+              holdBackfillChanged = true;
+              return {
+                ...item,
+                onHoldStartedAt: item.lastWatchedAt || item.updatedAt || item.addedAt || new Date().toISOString(),
+              };
+            }
+            return item;
+          });
+          if (holdBackfillChanged) {
+            try {
+              await StorageService.saveTrackedItems(activeItems);
+            } catch {
+              // Non-fatal
+            }
+          }
+
+          setTrackedItems(activeItems);
 
         // Schedule all upcoming device notifications if enabled
         const count = await NotificationService.syncAll(activeItems, {

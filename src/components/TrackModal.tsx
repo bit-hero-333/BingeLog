@@ -305,7 +305,13 @@ function TrackModalFormContent({
       : ''
   );
   const [onHoldDays, setOnHoldDays] = useState<number>(existingRecord?.onHoldDays || 0);
-  const [onHoldStartedAt, setOnHoldStartedAt] = useState<string | null>(existingRecord?.onHoldStartedAt || null);
+  const [onHoldStartedAt, setOnHoldStartedAt] = useState<string | null>(
+    existingRecord?.onHoldStartedAt ||
+      (existingRecord?.status === 'on_hold'
+        ? (existingRecord.lastWatchedAt || existingRecord.updatedAt || existingRecord.addedAt || null)
+        : null)
+  );
+  const [showHoldAdjustment, setShowHoldAdjustment] = useState(false);
   const [showDatesSection, setShowDatesSection] = useState(false);
 
   // Date picker modal state
@@ -935,11 +941,16 @@ function TrackModalFormContent({
     MAL_SCORES.find((s) => s.score === score)?.label || 'Select Score';
   const startedIsoForLabel = parseFormattedDateToIso(startedAt, dateFormat);
   const finishedIsoForLabel = parseFormattedDateToIso(finishedAt, dateFormat);
+  const currentOngoingHoldDays = useMemo(() => {
+    if (status !== 'on_hold' || !onHoldStartedAt) return 0;
+    return Math.max(0, getDaysDifference(onHoldStartedAt, new Date().toISOString()) || 0);
+  }, [status, onHoldStartedAt]);
+  const effectivePausedDays = onHoldDays + currentOngoingHoldDays;
   const durationLabel = getDurationLabel(
     startedIsoForLabel,
     finishedIsoForLabel,
     status === 'completed',
-    onHoldDays
+    effectivePausedDays
   );
 
   // Check if specials exist in seasons list
@@ -3165,38 +3176,90 @@ function TrackModalFormContent({
                   </View>
                 </View>
 
-                {/* On-Hold Paused Days */}
-                {(onHoldDays > 0 || status === 'on_hold') && (
-                  <View style={styles.dateRow}>
-                    <View style={styles.dateLabelGroup}>
-                      <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Paused on Hold:</Text>
-                      {status === 'on_hold' && (
-                        <Text style={[styles.dateRelativeText, { color: '#f59e0b' }]}>
-                          (currently paused)
+                {/* On-Hold Paused Days (Collapsible Dropdown for fine tuning) */}
+                {(effectivePausedDays > 0 || status === 'on_hold') && (
+                  <View style={{ marginBottom: 4 }}>
+                    <Pressable
+                      style={styles.holdDropdownTrigger}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        setShowHoldAdjustment(!showHoldAdjustment);
+                      }}>
+                      <View style={styles.dateLabelGroup}>
+                        <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Paused on Hold:</Text>
+                        {status === 'on_hold' && (
+                          <Text style={[styles.dateRelativeText, { color: '#f59e0b' }]}>
+                            (currently paused)
+                          </Text>
+                        )}
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.dateStaticValue, { color: colors.text }]}>
+                          {effectivePausedDays} {effectivePausedDays === 1 ? 'day' : 'days'}
                         </Text>
-                      )}
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Pressable
-                        style={[styles.holdStepperBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                        onPress={() => {
-                          triggerHaptic('selection');
-                          setOnHoldDays((prev) => Math.max(0, prev - 1));
-                        }}>
-                        <Ionicons name="remove" size={14} color={colors.textSecondary} />
-                      </Pressable>
-                      <Text style={[styles.dateStaticValue, { color: colors.text, minWidth: 50, textAlign: 'center' }]}>
-                        {onHoldDays} {onHoldDays === 1 ? 'day' : 'days'}
-                      </Text>
-                      <Pressable
-                        style={[styles.holdStepperBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                        onPress={() => {
-                          triggerHaptic('selection');
-                          setOnHoldDays((prev) => prev + 1);
-                        }}>
-                        <Ionicons name="add" size={14} color={colors.textSecondary} />
-                      </Pressable>
-                    </View>
+                        <Ionicons
+                          name={showHoldAdjustment ? 'chevron-up' : 'chevron-down'}
+                          size={14}
+                          color={colors.textSecondary}
+                        />
+                      </View>
+                    </Pressable>
+
+                    {showHoldAdjustment && (
+                      <View
+                        style={[
+                          styles.holdDropdownContent,
+                          { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                        ]}>
+                        <Text style={[styles.holdDropdownHint, { color: colors.textMuted }]}>
+                          Fine-tune only if you took a break earlier in real life before updating the app.
+                        </Text>
+                        <View style={styles.holdStepperRow}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Pressable
+                              style={[styles.holdStepperBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+                              onPress={() => {
+                                triggerHaptic('selection');
+                                setOnHoldDays((prev) => Math.max(0, prev - 1));
+                              }}>
+                              <Ionicons name="remove" size={14} color={colors.textSecondary} />
+                            </Pressable>
+                            <Text style={[styles.holdStepperValueText, { color: colors.text }]}>
+                              {onHoldDays}d logged
+                            </Text>
+                            <Pressable
+                              style={[styles.holdStepperBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+                              onPress={() => {
+                                triggerHaptic('selection');
+                                setOnHoldDays((prev) => prev + 1);
+                              }}>
+                              <Ionicons name="add" size={14} color={colors.textSecondary} />
+                            </Pressable>
+                          </View>
+
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Pressable
+                              style={[styles.holdQuickPresetBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+                              onPress={() => {
+                                triggerHaptic('selection');
+                                setOnHoldDays((prev) => prev + 7);
+                              }}>
+                              <Text style={[styles.holdQuickPresetText, { color: colors.primary }]}>+7d</Text>
+                            </Pressable>
+                            {onHoldDays > 0 && (
+                              <Pressable
+                                style={[styles.holdQuickPresetBtn, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+                                onPress={() => {
+                                  triggerHaptic('selection');
+                                  setOnHoldDays(0);
+                                }}>
+                                <Text style={[styles.holdQuickPresetText, { color: colors.textMuted }]}>Reset</Text>
+                              </Pressable>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    )}
                   </View>
                 )}
 
@@ -4316,6 +4379,30 @@ const styles = StyleSheet.create({
   dateClearBtn: {
     padding: 2,
   },
+  holdDropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  holdDropdownContent: {
+    marginTop: 6,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  holdDropdownHint: {
+    fontSize: 11,
+    lineHeight: 15,
+    marginBottom: 8,
+  },
+  holdStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   holdStepperBtn: {
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -4323,6 +4410,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  holdStepperValueText: {
+    fontSize: 12,
+    fontWeight: '700',
+    minWidth: 65,
+    textAlign: 'center',
+  },
+  holdQuickPresetBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  holdQuickPresetText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   durationPillContainer: {
     flexDirection: 'row',
