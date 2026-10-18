@@ -12,6 +12,9 @@ import {
   Modal,
   BackHandler,
   Keyboard,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -26,6 +29,10 @@ import { TrackModal } from '@/components/TrackModal';
 import { BingeRouletteModal } from '@/components/BingeRouletteModal';
 import { getCountdownInfo } from '@/utils/date';
 import { getTextScale, getHeaderScale, getButtonScale } from '@/utils/sizing';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 type MediaTypeFilter = 'all' | 'movie' | 'tv';
 
@@ -83,7 +90,7 @@ export default function MyListScreen() {
   const buttonScale = getButtonScale(sizingConfig?.buttonSize);
 
   const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaTypeFilter>('all');
-  const [mediaTypeModalVisible, setMediaTypeModalVisible] = useState(false);
+  const [isMediaTypeDropdownOpen, setIsMediaTypeDropdownOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>('all');
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [filterUpcomingOnly, setFilterUpcomingOnly] = useState(false);
@@ -108,8 +115,9 @@ export default function MyListScreen() {
           setSortModalVisible(false);
           return true;
         }
-        if (mediaTypeModalVisible) {
-          setMediaTypeModalVisible(false);
+        if (isMediaTypeDropdownOpen) {
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          setIsMediaTypeDropdownOpen(false);
           return true;
         }
         if (filterQuery.trim().length > 0) {
@@ -122,7 +130,7 @@ export default function MyListScreen() {
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
-    }, [sortModalVisible, mediaTypeModalVisible, filterQuery])
+    }, [sortModalVisible, isMediaTypeDropdownOpen, filterQuery])
   );
 
   // Movie vs TV counts
@@ -414,7 +422,8 @@ export default function MyListScreen() {
             ]}
             onPress={() => {
               triggerHaptic('selection');
-              setMediaTypeModalVisible(true);
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setIsMediaTypeDropdownOpen((prev) => !prev);
             }}>
             <Ionicons
               name={
@@ -440,7 +449,7 @@ export default function MyListScreen() {
                 : `All (${trackedItems.length})`}
             </Text>
             <Ionicons
-              name="chevron-down"
+              name={isMediaTypeDropdownOpen ? 'chevron-up' : 'chevron-down'}
               size={Math.round(13 * textScale)}
               color={mediaTypeFilter !== 'all' ? colors.primary : colors.textSecondary}
             />
@@ -473,6 +482,92 @@ export default function MyListScreen() {
             </Text>
           </Pressable>
         </View>
+
+        {isMediaTypeDropdownOpen && (
+          <View
+            style={[
+              styles.inlineMediaTypeDropdown,
+              { backgroundColor: colors.card, borderColor: colors.cardBorder },
+            ]}>
+            {(
+              [
+                {
+                  id: 'all' as const,
+                  label: 'All Titles',
+                  count: trackedItems.length,
+                  icon: 'layers-outline' as const,
+                },
+                {
+                  id: 'movie' as const,
+                  label: 'Movies',
+                  count: movieCount,
+                  icon: 'film-outline' as const,
+                },
+                {
+                  id: 'tv' as const,
+                  label: 'TV Shows',
+                  count: tvCount,
+                  icon: 'tv-outline' as const,
+                },
+              ] as const
+            ).map((opt, idx, arr) => {
+              const isSelected = mediaTypeFilter === opt.id;
+              const isLast = idx === arr.length - 1;
+              return (
+                <Pressable
+                  key={opt.id}
+                  style={[
+                    styles.inlineMediaTypeOption,
+                    !isLast && { borderBottomWidth: 1, borderBottomColor: colors.divider },
+                    isSelected && { backgroundColor: colors.primaryBg },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setMediaTypeFilter(opt.id);
+                    setIsMediaTypeDropdownOpen(false);
+                  }}>
+                  <View style={styles.inlineMediaTypeOptionLeft}>
+                    <Ionicons
+                      name={opt.icon}
+                      size={Math.round(16 * textScale)}
+                      color={isSelected ? colors.primary : colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.inlineMediaTypeOptionLabel,
+                        {
+                          color: isSelected ? colors.primary : colors.text,
+                          fontSize: Math.round(13 * textScale),
+                        },
+                        isSelected && { fontWeight: '700' },
+                      ]}>
+                      {opt.label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.inlineMediaTypeOptionCount,
+                        {
+                          color: isSelected ? colors.primary : colors.textSecondary,
+                          fontSize: Math.round(12 * textScale),
+                        },
+                      ]}>
+                      ({opt.count})
+                    </Text>
+                  </View>
+
+                  {isSelected && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={Math.round(18 * textScale)}
+                      color={colors.primary}
+                    />
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
       </View>
 
       {/* Sync Banner notification */}
@@ -676,95 +771,6 @@ export default function MyListScreen() {
         </Pressable>
       </Modal>
 
-      {/* Media Type Filter Modal */}
-      <Modal
-        visible={mediaTypeModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setMediaTypeModalVisible(false)}>
-        <Pressable style={styles.sortModalBackdrop} onPress={() => setMediaTypeModalVisible(false)}>
-          <Pressable
-            style={[styles.sortModalCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-            onPress={(e) => e.stopPropagation()}>
-            <View style={[styles.sortModalHeader, { borderBottomColor: colors.divider }]}>
-              <View style={styles.sortModalHeaderTitleRow}>
-                <Ionicons name="filter-outline" size={Math.round(18 * headerScale)} color={colors.primary} />
-                <Text style={[styles.sortModalTitle, { color: colors.text, fontSize: Math.round(16 * headerScale) }]} selectable={true}>
-                  Filter by Media Type
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => setMediaTypeModalVisible(false)}
-                hitSlop={8}
-                style={styles.sortModalCloseBtn}>
-                <Ionicons name="close" size={20} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-
-            <View style={styles.sortOptionsList}>
-              {(
-                [
-                  {
-                    id: 'all' as const,
-                    label: 'All Titles',
-                    count: trackedItems.length,
-                    icon: 'layers-outline' as const,
-                  },
-                  {
-                    id: 'movie' as const,
-                    label: 'Movies',
-                    count: movieCount,
-                    icon: 'film-outline' as const,
-                  },
-                  {
-                    id: 'tv' as const,
-                    label: 'TV Shows',
-                    count: tvCount,
-                    icon: 'tv-outline' as const,
-                  },
-                ] as const
-              ).map((opt) => {
-                const isSelected = mediaTypeFilter === opt.id;
-                return (
-                  <Pressable
-                    key={opt.id}
-                    style={[
-                      styles.sortOptionRow,
-                      { borderBottomColor: colors.divider },
-                      isSelected && { backgroundColor: colors.primaryBg },
-                    ]}
-                    onPress={() => {
-                      triggerHaptic('selection');
-                      setMediaTypeFilter(opt.id);
-                      setMediaTypeModalVisible(false);
-                    }}>
-                    <View style={styles.sortOptionLeft}>
-                      <Ionicons
-                        name={opt.icon}
-                        size={Math.round(17 * textScale)}
-                        color={isSelected ? colors.primary : colors.textSecondary}
-                      />
-                      <Text
-                        style={[
-                          styles.sortOptionLabel,
-                          { color: isSelected ? colors.primary : colors.text, fontSize: Math.round(13.5 * textScale) },
-                          isSelected && { fontWeight: '700' },
-                        ]}>
-                        {opt.label} ({opt.count})
-                      </Text>
-                    </View>
-
-                    {isSelected && (
-                      <Ionicons name="checkmark-circle" size={19} color={colors.primary} />
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
       {/* Track / Edit Modal */}
       <TrackModal
         visible={modalVisible}
@@ -881,6 +887,32 @@ const styles = StyleSheet.create({
   upcomingToggleText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  inlineMediaTypeDropdown: {
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  inlineMediaTypeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  inlineMediaTypeOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  inlineMediaTypeOptionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  inlineMediaTypeOptionCount: {
+    fontSize: 12,
+    marginLeft: 2,
   },
   bannerContainer: {
     flexDirection: 'row',

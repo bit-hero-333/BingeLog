@@ -78,6 +78,23 @@ interface FormContentProps {
   onRemove?: (id: number, mediaType: MediaType) => void;
 }
 
+const HOLD_MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const HOLD_WEEKDAY_NAMES = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
 function TrackModalFormContent({
   item,
   existingRecord,
@@ -315,7 +332,38 @@ function TrackModalFormContent({
   const [showDatesSection, setShowDatesSection] = useState(false);
 
   // Date picker modal state
-  const [datePickerTarget, setDatePickerTarget] = useState<'started' | 'finished' | null>(null);
+  const [datePickerTarget, setDatePickerTarget] = useState<
+    'started' | 'finished' | 'holdRangeStart' | 'holdRangeEnd' | null
+  >(null);
+
+  // On-hold intricate calendar system state
+  const [holdCalendarYear, setHoldCalendarYear] = useState<number>(() => {
+    if (onHoldStartedAt) {
+      const d = new Date(onHoldStartedAt);
+      if (!isNaN(d.getTime())) return d.getFullYear();
+    }
+    return new Date().getFullYear();
+  });
+  const [holdCalendarMonth, setHoldCalendarMonth] = useState<number>(() => {
+    if (onHoldStartedAt) {
+      const d = new Date(onHoldStartedAt);
+      if (!isNaN(d.getTime())) return d.getMonth();
+    }
+    return new Date().getMonth();
+  });
+  const [holdRangeStart, setHoldRangeStart] = useState<string>(() => {
+    if (onHoldStartedAt) {
+      return formatDateInput(onHoldStartedAt, dateFormat);
+    }
+    return '';
+  });
+  const [holdRangeEnd, setHoldRangeEnd] = useState<string>(() => {
+    if (existingRecord?.status === 'on_hold') {
+      return getTodayFormatted(dateFormat);
+    }
+    return '';
+  });
+  const [activeHoldTarget, setActiveHoldTarget] = useState<'start' | 'end'>('start');
 
   // Episode detail sheet state
   const [selectedEpisodeForDetail, setSelectedEpisodeForDetail] = useState<{
@@ -714,7 +762,13 @@ function TrackModalFormContent({
 
     if (newStatus === 'on_hold') {
       if (prevStatus !== 'on_hold' && !onHoldStartedAt) {
-        setOnHoldStartedAt(new Date().toISOString());
+        const nowIso = new Date().toISOString();
+        setOnHoldStartedAt(nowIso);
+        setHoldRangeStart(formatDateInput(nowIso, dateFormat));
+        setHoldRangeEnd(getTodayFormatted(dateFormat));
+        const d = new Date(nowIso);
+        setHoldCalendarMonth(d.getMonth());
+        setHoldCalendarYear(d.getFullYear());
       }
     } else if (prevStatus === 'on_hold') {
       if (onHoldStartedAt) {
@@ -952,6 +1006,126 @@ function TrackModalFormContent({
     status === 'completed',
     effectivePausedDays
   );
+
+  const daysInHoldMonth = useMemo(() => {
+    return new Date(holdCalendarYear, holdCalendarMonth + 1, 0).getDate();
+  }, [holdCalendarYear, holdCalendarMonth]);
+
+  const firstDayWeekdayHoldMonth = useMemo(() => {
+    return (new Date(holdCalendarYear, holdCalendarMonth, 1).getDay() + 6) % 7;
+  }, [holdCalendarYear, holdCalendarMonth]);
+
+  const startIsoShort = useMemo(() => {
+    return holdRangeStart ? parseFormattedDateToIso(holdRangeStart, dateFormat)?.slice(0, 10) : null;
+  }, [holdRangeStart, dateFormat]);
+
+  const endIsoShort = useMemo(() => {
+    return holdRangeEnd ? parseFormattedDateToIso(holdRangeEnd, dateFormat)?.slice(0, 10) : null;
+  }, [holdRangeEnd, dateFormat]);
+
+  const todayIsoShort = useMemo(() => {
+    return new Date().toISOString().slice(0, 10);
+  }, []);
+
+  const handleHoldPrevMonth = () => {
+    triggerHaptic('selection');
+    if (holdCalendarMonth === 0) {
+      setHoldCalendarMonth(11);
+      setHoldCalendarYear((y) => y - 1);
+    } else {
+      setHoldCalendarMonth((m) => m - 1);
+    }
+  };
+
+  const handleHoldNextMonth = () => {
+    triggerHaptic('selection');
+    if (holdCalendarMonth === 11) {
+      setHoldCalendarMonth(0);
+      setHoldCalendarYear((y) => y + 1);
+    } else {
+      setHoldCalendarMonth((m) => m + 1);
+    }
+  };
+
+  const handleSelectHoldDay = (day: number) => {
+    triggerHaptic('selection');
+    const dateObj = new Date(holdCalendarYear, holdCalendarMonth, day, 12, 0, 0);
+    const formatted = formatDate(dateObj, dateFormat);
+    const iso = dateObj.toISOString();
+
+    if (activeHoldTarget === 'start') {
+      setHoldRangeStart(formatted);
+      if (status === 'on_hold') {
+        setOnHoldStartedAt(iso);
+      }
+      if (holdRangeEnd) {
+        const endIso = parseFormattedDateToIso(holdRangeEnd, dateFormat);
+        if (endIso && endIso < iso) {
+          setHoldRangeEnd('');
+          setActiveHoldTarget('end');
+        } else if (endIso) {
+          const diff = getDaysDifference(iso, endIso);
+          if (diff !== null) setOnHoldDays(diff);
+          setActiveHoldTarget('end');
+        } else {
+          setActiveHoldTarget('end');
+        }
+      } else {
+        setActiveHoldTarget('end');
+      }
+    } else {
+      // activeHoldTarget === 'end'
+      if (holdRangeStart) {
+        const startIso = parseFormattedDateToIso(holdRangeStart, dateFormat);
+        if (startIso && iso < startIso) {
+          // Earlier than start: make this the new start
+          setHoldRangeStart(formatted);
+          if (status === 'on_hold') {
+            setOnHoldStartedAt(iso);
+          }
+          setHoldRangeEnd('');
+          setActiveHoldTarget('end');
+        } else if (startIso) {
+          setHoldRangeEnd(formatted);
+          const diff = getDaysDifference(startIso, iso);
+          if (diff !== null) setOnHoldDays(diff);
+          setActiveHoldTarget('start');
+        }
+      } else {
+        setHoldRangeStart(formatted);
+        if (status === 'on_hold') {
+          setOnHoldStartedAt(iso);
+        }
+        setActiveHoldTarget('end');
+      }
+    }
+  };
+
+  const handleApplyHoldPreset = (days: number) => {
+    triggerHaptic('selection');
+    const endObj = new Date();
+    const startObj = new Date();
+    startObj.setDate(endObj.getDate() - days);
+
+    const startFormatted = formatDate(startObj, dateFormat);
+    const endFormatted = formatDate(endObj, dateFormat);
+    setHoldRangeStart(startFormatted);
+    setHoldRangeEnd(endFormatted);
+    setHoldCalendarMonth(startObj.getMonth());
+    setHoldCalendarYear(startObj.getFullYear());
+    setOnHoldDays(days);
+    if (status === 'on_hold') {
+      setOnHoldStartedAt(startObj.toISOString());
+    }
+  };
+
+  const handleClearHoldDates = () => {
+    triggerHaptic('selection');
+    setHoldRangeStart('');
+    setHoldRangeEnd('');
+    setOnHoldDays(0);
+    setActiveHoldTarget('start');
+  };
 
   // Check if specials exist in seasons list
   const hasSpecials = useMemo(() => {
@@ -3212,8 +3386,220 @@ function TrackModalFormContent({
                           { backgroundColor: colors.card, borderColor: colors.cardBorder },
                         ]}>
                         <Text style={[styles.holdDropdownHint, { color: colors.textMuted }]}>
-                          Fine-tune only if you took a break earlier in real life before updating the app.
+                          Use the calendar to pick your break period or fine-tune days directly.
                         </Text>
+
+                        {/* Calendar System Container */}
+                        <View style={[styles.holdCalendarContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                          {/* Range Inputs (From / To) */}
+                          <View style={styles.holdRangeInputsRow}>
+                            <View style={styles.holdRangeInputBlock}>
+                              <Text style={[styles.holdRangeInputLabel, { color: colors.textSecondary }]}>Pause From:</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Pressable
+                                  style={[
+                                    styles.holdRangeInputBtn,
+                                    { backgroundColor: colors.card, borderColor: activeHoldTarget === 'start' ? colors.primary : colors.cardBorder },
+                                  ]}
+                                  onPress={() => {
+                                    triggerHaptic('selection');
+                                    setActiveHoldTarget('start');
+                                  }}>
+                                  <Pressable
+                                    onPress={() => {
+                                      triggerHaptic('selection');
+                                      setDatePickerTarget('holdRangeStart');
+                                    }}
+                                    hitSlop={6}>
+                                    <Ionicons name="calendar-outline" size={13} color={colors.primary} />
+                                  </Pressable>
+                                  <Text
+                                    style={[
+                                      styles.holdRangeInputText,
+                                      { color: holdRangeStart ? colors.text : colors.textMuted },
+                                    ]}
+                                    numberOfLines={1}>
+                                    {holdRangeStart || 'Select Date'}
+                                  </Text>
+                                </Pressable>
+                                <Pressable
+                                  style={[styles.holdQuickPresetBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                                  onPress={() => {
+                                    const todayStr = getTodayFormatted(dateFormat);
+                                    setHoldRangeStart(todayStr);
+                                    if (status === 'on_hold') {
+                                      setOnHoldStartedAt(new Date().toISOString());
+                                    }
+                                    const d = new Date();
+                                    setHoldCalendarMonth(d.getMonth());
+                                    setHoldCalendarYear(d.getFullYear());
+                                    setActiveHoldTarget('end');
+                                  }}>
+                                  <Text style={[styles.holdQuickPresetText, { color: colors.primary }]}>Today</Text>
+                                </Pressable>
+                              </View>
+                            </View>
+
+                            <View style={styles.holdRangeInputBlock}>
+                              <Text style={[styles.holdRangeInputLabel, { color: colors.textSecondary }]}>Pause To:</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Pressable
+                                  style={[
+                                    styles.holdRangeInputBtn,
+                                    { backgroundColor: colors.card, borderColor: activeHoldTarget === 'end' ? colors.primary : colors.cardBorder },
+                                  ]}
+                                  onPress={() => {
+                                    triggerHaptic('selection');
+                                    setActiveHoldTarget('end');
+                                  }}>
+                                  <Pressable
+                                    onPress={() => {
+                                      triggerHaptic('selection');
+                                      setDatePickerTarget('holdRangeEnd');
+                                    }}
+                                    hitSlop={6}>
+                                    <Ionicons name="calendar-outline" size={13} color={colors.primary} />
+                                  </Pressable>
+                                  <Text
+                                    style={[
+                                      styles.holdRangeInputText,
+                                      { color: holdRangeEnd ? colors.text : colors.textMuted },
+                                    ]}
+                                    numberOfLines={1}>
+                                    {holdRangeEnd || 'Select Date'}
+                                  </Text>
+                                </Pressable>
+                                <Pressable
+                                  style={[styles.holdQuickPresetBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                                  onPress={() => {
+                                    const todayStr = getTodayFormatted(dateFormat);
+                                    setHoldRangeEnd(todayStr);
+                                    if (holdRangeStart) {
+                                      const sIso = parseFormattedDateToIso(holdRangeStart, dateFormat);
+                                      const eIso = new Date().toISOString();
+                                      if (sIso) {
+                                        const diff = getDaysDifference(sIso, eIso);
+                                        if (diff !== null) setOnHoldDays(diff);
+                                      }
+                                    }
+                                    const d = new Date();
+                                    setHoldCalendarMonth(d.getMonth());
+                                    setHoldCalendarYear(d.getFullYear());
+                                    setActiveHoldTarget('start');
+                                  }}>
+                                  <Text style={[styles.holdQuickPresetText, { color: colors.primary }]}>Today</Text>
+                                </Pressable>
+                              </View>
+                            </View>
+                          </View>
+
+                          {/* Month Navigator Header */}
+                          <View style={styles.holdNavRow}>
+                            <Pressable style={styles.holdNavBtn} onPress={handleHoldPrevMonth}>
+                              <Ionicons name="chevron-back" size={16} color={colors.text} />
+                            </Pressable>
+                            <Text style={[styles.holdNavTitle, { color: colors.text }]}>
+                              {HOLD_MONTH_NAMES[holdCalendarMonth]} {holdCalendarYear}
+                            </Text>
+                            <Pressable style={styles.holdNavBtn} onPress={handleHoldNextMonth}>
+                              <Ionicons name="chevron-forward" size={16} color={colors.text} />
+                            </Pressable>
+                          </View>
+
+                          {/* Weekday headers */}
+                          <View style={styles.holdWeekdaysRow}>
+                            {HOLD_WEEKDAY_NAMES.map((w, idx) => (
+                              <Text key={idx} style={[styles.holdWeekdayText, { color: colors.textMuted }]}>
+                                {w}
+                              </Text>
+                            ))}
+                          </View>
+
+                          {/* Days Grid */}
+                          <View style={styles.holdDaysGrid}>
+                            {Array.from({ length: firstDayWeekdayHoldMonth }).map((_, idx) => (
+                              <View key={`empty-${idx}`} style={styles.holdDayCell} />
+                            ))}
+
+                            {Array.from({ length: daysInHoldMonth }).map((_, idx) => {
+                              const day = idx + 1;
+                              const monthStr = String(holdCalendarMonth + 1).padStart(2, '0');
+                              const dayStr = String(day).padStart(2, '0');
+                              const thisIsoShort = `${holdCalendarYear}-${monthStr}-${dayStr}`;
+
+                              const isStart = startIsoShort === thisIsoShort;
+                              const isEnd = endIsoShort === thisIsoShort;
+                              const isInRange = Boolean(
+                                startIsoShort && endIsoShort && thisIsoShort > startIsoShort && thisIsoShort < endIsoShort
+                              );
+                              const isToday = todayIsoShort === thisIsoShort;
+
+                              return (
+                                <Pressable
+                                  key={`day-${day}`}
+                                  style={[
+                                    styles.holdDayCell,
+                                    isInRange && [styles.holdDayCellInRange, { backgroundColor: colors.primaryBg }],
+                                    (isStart || isEnd) && [styles.holdDayCellSelected, { backgroundColor: colors.primary }],
+                                    isToday && !isStart && !isEnd && [styles.holdDayCellToday, { borderColor: colors.primary }],
+                                  ]}
+                                  onPress={() => handleSelectHoldDay(day)}>
+                                  <Text
+                                    style={[
+                                      styles.holdDayText,
+                                      { color: colors.text },
+                                      (isStart || isEnd) && styles.holdDayTextSelected,
+                                      isInRange && { color: colors.primary, fontWeight: '700' },
+                                    ]}>
+                                    {day}
+                                  </Text>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+
+                          {/* Summary pill if range selected */}
+                          {(holdRangeStart || onHoldDays > 0) && (
+                            <View style={[styles.holdSummaryPill, { backgroundColor: colors.primaryBg }]}>
+                              <Ionicons name="calendar" size={13} color={colors.primary} />
+                              <Text style={[styles.holdSummaryText, { color: colors.primary }]}>
+                                {holdRangeStart && holdRangeEnd
+                                  ? `${onHoldDays} days selected (${holdRangeStart} - ${holdRangeEnd})`
+                                  : holdRangeStart && status === 'on_hold'
+                                  ? `Paused since ${holdRangeStart} (${currentOngoingHoldDays}d ongoing)`
+                                  : `${onHoldDays} paused days logged`}
+                              </Text>
+                            </View>
+                          )}
+
+                          {/* Quick Interval Preset Chips */}
+                          <View style={styles.holdQuickPresetsRow}>
+                            <Pressable
+                              style={[styles.holdPresetChip, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                              onPress={() => handleApplyHoldPreset(7)}>
+                              <Text style={[styles.holdPresetChipText, { color: colors.textSecondary }]}>+7 Days</Text>
+                            </Pressable>
+                            <Pressable
+                              style={[styles.holdPresetChip, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                              onPress={() => handleApplyHoldPreset(14)}>
+                              <Text style={[styles.holdPresetChipText, { color: colors.textSecondary }]}>+14 Days</Text>
+                            </Pressable>
+                            <Pressable
+                              style={[styles.holdPresetChip, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                              onPress={() => handleApplyHoldPreset(30)}>
+                              <Text style={[styles.holdPresetChipText, { color: colors.textSecondary }]}>+30 Days</Text>
+                            </Pressable>
+                            {(holdRangeStart || holdRangeEnd || onHoldDays > 0) && (
+                              <Pressable
+                                style={[styles.holdPresetChip, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                                onPress={handleClearHoldDates}>
+                                <Text style={[styles.holdPresetChipText, { color: colors.textMuted }]}>Clear</Text>
+                              </Pressable>
+                            )}
+                          </View>
+                        </View>
+
+                        {/* Fine-Tuning Stepper (On bottom of calendar) */}
                         <View style={styles.holdStepperRow}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <Pressable
@@ -3431,18 +3817,65 @@ function TrackModalFormContent({
       {/* Interactive Visual DatePicker Modal */}
       <DatePickerModal
         visible={datePickerTarget !== null}
-        title={datePickerTarget === 'started' ? 'Select Start Date' : 'Select Finish Date'}
-        initialDate={datePickerTarget === 'started' ? startedAt : finishedAt}
+        title={
+          datePickerTarget === 'started'
+            ? 'Select Start Date'
+            : datePickerTarget === 'finished'
+            ? 'Select Finish Date'
+            : datePickerTarget === 'holdRangeStart'
+            ? 'Select Break Start Date'
+            : 'Select Break End Date'
+        }
+        initialDate={
+          datePickerTarget === 'started'
+            ? startedAt
+            : datePickerTarget === 'finished'
+            ? finishedAt
+            : datePickerTarget === 'holdRangeStart'
+            ? holdRangeStart
+            : holdRangeEnd
+        }
         dateFormat={dateFormat}
         onClose={() => setDatePickerTarget(null)}
         onSelectDate={(newDate) => {
           if (datePickerTarget === 'started') setStartedAt(newDate);
           else if (datePickerTarget === 'finished') setFinishedAt(newDate);
+          else if (datePickerTarget === 'holdRangeStart') {
+            setHoldRangeStart(newDate);
+            const iso = parseFormattedDateToIso(newDate, dateFormat);
+            if (iso) {
+              const d = new Date(iso);
+              setHoldCalendarMonth(d.getMonth());
+              setHoldCalendarYear(d.getFullYear());
+              if (status === 'on_hold') {
+                setOnHoldStartedAt(iso);
+              }
+              if (holdRangeEnd) {
+                const endIso = parseFormattedDateToIso(holdRangeEnd, dateFormat);
+                if (endIso) {
+                  const days = getDaysDifference(iso, endIso);
+                  if (days !== null) setOnHoldDays(days);
+                }
+              }
+            }
+          } else if (datePickerTarget === 'holdRangeEnd') {
+            setHoldRangeEnd(newDate);
+            if (holdRangeStart) {
+              const startIso = parseFormattedDateToIso(holdRangeStart, dateFormat);
+              const endIso = parseFormattedDateToIso(newDate, dateFormat);
+              if (startIso && endIso) {
+                const days = getDaysDifference(startIso, endIso);
+                if (days !== null) setOnHoldDays(days);
+              }
+            }
+          }
           setDatePickerTarget(null);
         }}
         onClearDate={() => {
           if (datePickerTarget === 'started') setStartedAt('');
           else if (datePickerTarget === 'finished') setFinishedAt('');
+          else if (datePickerTarget === 'holdRangeStart') setHoldRangeStart('');
+          else if (datePickerTarget === 'holdRangeEnd') setHoldRangeEnd('');
           setDatePickerTarget(null);
         }}
       />
@@ -4395,6 +4828,127 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 15,
     marginBottom: 8,
+  },
+  holdCalendarContainer: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  holdRangeInputsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  holdRangeInputBlock: {
+    flex: 1,
+  },
+  holdRangeInputLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  holdRangeInputBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  holdRangeInputText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    flex: 1,
+  },
+  holdNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    marginBottom: 6,
+  },
+  holdNavTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  holdNavBtn: {
+    padding: 4,
+    borderRadius: 4,
+  },
+  holdWeekdaysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  holdWeekdayText: {
+    width: '14.28%',
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  holdDaysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  holdDayCell: {
+    width: '14.28%',
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 1,
+    borderRadius: 15,
+  },
+  holdDayCellSelected: {
+    borderRadius: 15,
+  },
+  holdDayCellInRange: {
+    borderRadius: 4,
+  },
+  holdDayCellToday: {
+    borderWidth: 1,
+  },
+  holdDayText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  holdDayTextSelected: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  holdSummaryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 8,
+    borderRadius: 6,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  holdSummaryText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  holdQuickPresetsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  holdPresetChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  holdPresetChipText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   holdStepperRow: {
     flexDirection: 'row',
