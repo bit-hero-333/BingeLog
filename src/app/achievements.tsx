@@ -25,6 +25,7 @@ import {
 } from '@/types/achievements';
 import { AchievementDetailModal } from '@/components/AchievementDetailModal';
 import { TierRoadmapModal } from '@/components/TierRoadmapModal';
+import { MetallicAchievementBadge } from '@/components/MetallicAchievementBadge';
 import { TrackModal } from '@/components/TrackModal';
 import { TrackedItem } from '@/types/media';
 import { getTextScale, getHeaderScale } from '@/utils/sizing';
@@ -134,21 +135,14 @@ export default function AchievementsScreen() {
         onPress={() => handleOpenAchievement(item)}>
         {/* Main Card Content */}
         <View style={styles.cardHeaderRow}>
-          {/* Big Metallic / Locked Icon */}
-          <View
-            style={[
-              styles.iconWrapper,
-              {
-                backgroundColor: isLocked ? 'rgba(71, 85, 105, 0.15)' : tierConfig.glow,
-                borderColor: isLocked ? '#475569' : tierConfig.color,
-              },
-            ]}>
-            <Ionicons
-              name={isLocked ? 'lock-closed' : (definition.iconName as any)}
-              size={30 * headerScale}
-              color={isLocked ? '#64748b' : tierConfig.color}
-            />
-          </View>
+          {/* Big Metallic / Locked Sunburst Badge */}
+          <MetallicAchievementBadge
+            tier={currentTier}
+            iconName={definition.iconName}
+            size={54}
+            animate={false}
+            scale={headerScale * 0.9}
+          />
 
           {/* Title, Badge & 7-Pip Gem Ladder */}
           <View style={styles.cardInfoCol}>

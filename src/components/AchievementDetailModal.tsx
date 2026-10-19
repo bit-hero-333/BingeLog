@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
   Modal,
   View,
@@ -7,13 +7,12 @@ import {
   Pressable,
   ScrollView,
   Dimensions,
-  Animated,
-  Easing,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useMedia } from '@/context/MediaContext';
+import { MetallicAchievementBadge } from '@/components/MetallicAchievementBadge';
 import {
   AchievementProgress,
   TIER_CONFIG,
@@ -42,46 +41,6 @@ export function AchievementDetailModal({
   const textScale = getTextScale(sizingConfig?.textSize);
   const headerScale = getHeaderScale(sizingConfig?.headerSize);
 
-  // Shining pulse animation (strictly running only when visible)
-  const [pulseAnim] = useState(() => new Animated.Value(0));
-
-  useEffect(() => {
-    if (!visible) return;
-
-    pulseAnim.setValue(0);
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1600,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0,
-          duration: 1600,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    loop.start();
-
-    return () => {
-      loop.stop();
-      pulseAnim.setValue(0);
-    };
-  }, [visible, pulseAnim]);
-
-  const auraScale = pulseAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.08],
-  });
-
-  const auraOpacity = pulseAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.65, 1],
-  });
 
   if (!achievement) return null;
 
@@ -137,24 +96,15 @@ export function AchievementDetailModal({
             nestedScrollEnabled={true}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.scrollBody}>
-            {/* Main Trophy Icon Centerpiece with Animated Shining Aura */}
+            {/* Main Trophy Icon Centerpiece with Sunburst Corona and Metallic Coating */}
             <View style={styles.iconContainer}>
-              <Animated.View
-                style={[
-                  styles.iconAura,
-                  {
-                    backgroundColor: isLocked ? 'rgba(71, 85, 105, 0.15)' : currentTierConfig.glow,
-                    borderColor: isLocked ? '#475569' : currentTierConfig.color,
-                    transform: [{ scale: isLocked ? 1 : auraScale }],
-                    opacity: isLocked ? 0.7 : auraOpacity,
-                  },
-                ]}>
-                <Ionicons
-                  name={isLocked ? 'lock-closed' : (definition.iconName as any)}
-                  size={58 * headerScale}
-                  color={isLocked ? '#64748b' : currentTierConfig.color}
-                />
-              </Animated.View>
+              <MetallicAchievementBadge
+                tier={currentTier}
+                iconName={definition.iconName}
+                size={Math.round(144 * headerScale)}
+                animate={visible}
+                scale={headerScale}
+              />
             </View>
 
             {/* Title & Tier Banner */}
@@ -403,15 +353,8 @@ const styles = StyleSheet.create({
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
-    marginBottom: 12,
-  },
-  iconAura: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: 6,
+    marginBottom: 8,
   },
   headerInfo: {
     alignItems: 'center',
