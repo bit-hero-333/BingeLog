@@ -54,6 +54,7 @@ import { EntityModal } from '@/components/EntityModal';
 import { CustomizeInsightsModal } from '@/components/insights/CustomizeInsightsModal';
 import { INSIGHT_WIDGET_CATALOG } from '@/types/insights';
 import { router } from 'expo-router';
+import { AchievementsEngine } from '@/services/achievementsEngine';
 
 const SCALES: ElementScale[] = ['small', 'medium', 'large', 'xlarge'];
 
@@ -463,7 +464,9 @@ export default function SettingsScreen() {
         sizingConfig,
       });
 
-      if (!res.success && res.message) {
+      if (res.success) {
+        void AchievementsEngine.recordExtraStat('backupCount');
+      } else if (res.message) {
         Alert.alert('Export Notice', res.message);
       }
     } catch {
@@ -2812,7 +2815,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.21.3 • TMDB & MAL Attributions
+                Version 0.22.0 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2912,7 +2915,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.21.3 • Build 39 • Expo SDK 57
+              Version 0.22.0 • Build 40 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -2923,6 +2926,7 @@ export default function SettingsScreen() {
         visible={showSyncModal}
         onClose={() => setShowSyncModal(false)}
         onSyncComplete={() => {
+          void AchievementsEngine.recordExtraStat('syncCount');
           void getStorageMetrics(trackedItems.length).then((metrics) => setStorageMetrics(metrics));
         }}
       />

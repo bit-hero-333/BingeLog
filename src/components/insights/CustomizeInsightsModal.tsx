@@ -22,6 +22,7 @@ import {
   DEFAULT_INSIGHTS_LAYOUT,
 } from '@/types/insights';
 import { getTextScale, getHeaderScale, getButtonScale } from '@/utils/sizing';
+import { AchievementsEngine } from '@/services/achievementsEngine';
 
 interface CustomizeInsightsModalProps {
   visible: boolean;
@@ -258,6 +259,7 @@ function CustomizeInsightsModalContent({ onClose }: { onClose: () => void }) {
 
   const handleSave = async () => {
     triggerHaptic('success');
+    void AchievementsEngine.recordExtraStat('layoutCustomizationCount');
     await updateInsightsLayout(draftLayout);
     onClose();
   };

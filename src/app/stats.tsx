@@ -9,12 +9,13 @@ import {
   BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useMedia } from '@/context/MediaContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { getTextScale, getHeaderScale, getButtonScale } from '@/utils/sizing';
 import { TrackModal } from '@/components/TrackModal';
 import { TrackedItem } from '@/types/media';
+import { AchievementsEngine } from '@/services/achievementsEngine';
 import {
   InsightWidgetConfig,
   InsightWidgetId,
@@ -28,6 +29,7 @@ import { InsightQuickConfigModal } from '@/components/insights/InsightQuickConfi
 import { CustomizeInsightsModal } from '@/components/insights/CustomizeInsightsModal';
 
 export default function StatsScreen() {
+  const router = useRouter();
   const { trackedItems, triggerHaptic, sizingConfig, insightsLayout, resetInsightsLayout, saveItem, removeItem } = useMedia();
   const { colors } = useAppTheme();
   const textScale = getTextScale(sizingConfig?.textSize);
@@ -105,6 +107,7 @@ export default function StatsScreen() {
 
   const handlePressWidget = (widgetId: InsightWidgetId) => {
     triggerHaptic('selection');
+    void AchievementsEngine.recordExtraStat('drillDownCount');
     // Lazy on-demand computation for deep drill-down payload
     const payload = InsightsEngine.computeDrillDown(widgetId, trackedItems);
     setDrillDownPayload(payload);
@@ -139,18 +142,33 @@ export default function StatsScreen() {
           </Text>
         </View>
 
-        <Pressable
-          style={[
-            styles.customizeIconBtn,
-            { backgroundColor: colors.card, borderColor: colors.cardBorder },
-          ]}
-          onPress={() => {
-            triggerHaptic('selection');
-            setFullCustomizerVisible(true);
-          }}
-          hitSlop={8}>
-          <Ionicons name="options-outline" size={19 * textScale} color={colors.primary} />
-        </Pressable>
+        <View style={styles.headerActionsRow}>
+          <Pressable
+            style={[
+              styles.customizeIconBtn,
+              { backgroundColor: colors.card, borderColor: colors.cardBorder },
+            ]}
+            onPress={() => {
+              triggerHaptic('selection');
+              router.push('/achievements');
+            }}
+            hitSlop={8}>
+            <Ionicons name="trophy" size={19 * textScale} color="#FFD700" />
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.customizeIconBtn,
+              { backgroundColor: colors.card, borderColor: colors.cardBorder },
+            ]}
+            onPress={() => {
+              triggerHaptic('selection');
+              setFullCustomizerVisible(true);
+            }}
+            hitSlop={8}>
+            <Ionicons name="options-outline" size={19 * textScale} color={colors.primary} />
+          </Pressable>
+        </View>
       </View>
 
       {/* Widgets Scroll Content */}
@@ -294,6 +312,11 @@ const styles = StyleSheet.create({
   screenSubtitle: {
     fontWeight: '500',
     marginTop: 2,
+  },
+  headerActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   customizeIconBtn: {
     width: 38,

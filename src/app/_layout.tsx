@@ -136,6 +136,14 @@ function TabLayoutContent() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="achievements"
+          options={{
+            href: null,
+            headerShown: false,
+            tabBarStyle: { display: 'none' },
+          }}
+        />
       </Tabs>
     </>
   );
