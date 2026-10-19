@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
   View,
@@ -7,6 +7,8 @@ import {
   Pressable,
   ScrollView,
   Dimensions,
+  Animated,
+  Easing,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +18,7 @@ import {
   AchievementProgress,
   TIER_CONFIG,
   TIER_ORDER,
+  EarnedTier,
 } from '@/types/achievements';
 import { TMDBService } from '@/services/tmdb';
 import { getTextScale, getHeaderScale } from '@/utils/sizing';
@@ -39,9 +42,50 @@ export function AchievementDetailModal({
   const textScale = getTextScale(sizingConfig?.textSize);
   const headerScale = getHeaderScale(sizingConfig?.headerSize);
 
+  // Shining pulse animation (strictly running only when visible)
+  const [pulseAnim] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (!visible) return;
+
+    pulseAnim.setValue(0);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1600,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 1600,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+
+    return () => {
+      loop.stop();
+      pulseAnim.setValue(0);
+    };
+  }, [visible, pulseAnim]);
+
+  const auraScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.08],
+  });
+
+  const auraOpacity = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.65, 1],
+  });
+
   if (!achievement) return null;
 
-  const { definition, currentTier, currentValue, nextTier, nextTierTarget, progressPercent, unlockedAt, contributingItems, contributingSubtext } = achievement;
+  const { definition, currentTier, currentValue, nextTier, progressPercent, unlockedAt, contributingItems, contributingSubtext } = achievement;
   const currentTierConfig = TIER_CONFIG[currentTier];
   const nextTierConfig = nextTier ? TIER_CONFIG[nextTier] : null;
   const isLocked = currentTier === 'locked';
@@ -67,13 +111,16 @@ export function AchievementDetailModal({
       transparent
       animationType="fade"
       onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable
+      <View style={styles.backdrop}>
+        {/* Full-screen backdrop touch dismiss */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+
+        {/* Modal Window Container (View, not Pressable, to ensure smooth scrolling) */}
+        <View
           style={[
             styles.modalCard,
             { backgroundColor: colors.card, borderColor: isLocked ? colors.cardBorder : currentTierConfig.color },
-          ]}
-          onPress={(e) => e.stopPropagation()}>
+          ]}>
           {/* Top Close Button */}
           <Pressable
             style={[styles.closeBtn, { backgroundColor: colors.inputBg }]}
@@ -85,20 +132,29 @@ export function AchievementDetailModal({
             <Ionicons name="close" size={20} color={colors.textSecondary} />
           </Pressable>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
-            {/* Main Trophy Icon Centerpiece */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled={true}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollBody}>
+            {/* Main Trophy Icon Centerpiece with Animated Shining Aura */}
             <View style={styles.iconContainer}>
-              <View
+              <Animated.View
                 style={[
                   styles.iconAura,
-                  { backgroundColor: isLocked ? 'rgba(71, 85, 105, 0.15)' : currentTierConfig.glow },
+                  {
+                    backgroundColor: isLocked ? 'rgba(71, 85, 105, 0.15)' : currentTierConfig.glow,
+                    borderColor: isLocked ? '#475569' : currentTierConfig.color,
+                    transform: [{ scale: isLocked ? 1 : auraScale }],
+                    opacity: isLocked ? 0.7 : auraOpacity,
+                  },
                 ]}>
                 <Ionicons
                   name={isLocked ? 'lock-closed' : (definition.iconName as any)}
                   size={58 * headerScale}
                   color={isLocked ? '#64748b' : currentTierConfig.color}
                 />
-              </View>
+              </Animated.View>
             </View>
 
             {/* Title & Tier Banner */}
@@ -137,20 +193,20 @@ export function AchievementDetailModal({
               </Text>
             </View>
 
-            {/* Target Status Bar */}
+            {/* Target Status Bar (Cleaned without cramped Next tag) */}
             <View style={[styles.progressSection, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
               <View style={styles.progressHeaderRow}>
-                <Text style={[styles.progressMetricText, { color: colors.text, fontSize: 12 * textScale }]}>
+                <Text
+                  style={[styles.progressMetricText, { color: colors.text, fontSize: 12 * textScale }]}
+                  numberOfLines={2}>
                   {contributingSubtext || `${currentValue.toLocaleString()} ${definition.metricLabel}`}
                 </Text>
                 <Text
                   style={[
-                    styles.progressTargetText,
+                    styles.progressPercentBadge,
                     { color: nextTierConfig ? nextTierConfig.color : currentTierConfig.color, fontSize: 12 * textScale },
                   ]}>
-                  {nextTier
-                    ? `Next: ${nextTierConfig?.label} (${nextTierTarget.toLocaleString()})`
-                    : 'Mastered (Diamond)'}
+                  {achievement.isMaxed ? 'Diamond Mastered' : `${Math.round(progressPercent * 100)}%`}
                 </Text>
               </View>
 
@@ -174,7 +230,7 @@ export function AchievementDetailModal({
               </Text>
 
               <View style={[styles.ladderCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-                {TIER_ORDER.map((tier) => {
+                {TIER_ORDER.map((tier: EarnedTier) => {
                   const cfg = TIER_CONFIG[tier];
                   const threshold = definition.thresholds[tier];
                   const isEarned = TIER_CONFIG[currentTier].order >= cfg.order;
@@ -304,8 +360,8 @@ export function AchievementDetailModal({
               </View>
             )}
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -407,12 +463,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
+    gap: 8,
   },
   progressMetricText: {
     fontWeight: '700',
+    flex: 1,
   },
-  progressTargetText: {
-    fontWeight: '700',
+  progressPercentBadge: {
+    fontWeight: '800',
+    textAlign: 'right',
   },
   progressBarTrack: {
     height: 8,

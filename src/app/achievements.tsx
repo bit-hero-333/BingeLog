@@ -24,6 +24,7 @@ import {
   TIER_ORDER,
 } from '@/types/achievements';
 import { AchievementDetailModal } from '@/components/AchievementDetailModal';
+import { TierRoadmapModal } from '@/components/TierRoadmapModal';
 import { TrackModal } from '@/components/TrackModal';
 import { TrackedItem } from '@/types/media';
 import { getTextScale, getHeaderScale } from '@/utils/sizing';
@@ -54,6 +55,7 @@ export default function AchievementsScreen() {
   const [progressList, setProgressList] = useState<AchievementProgress[]>([]);
   const [statsSummary, setStatsSummary] = useState<AchievementStatsSummary | null>(null);
   const [selectedAchievement, setSelectedAchievement] = useState<AchievementProgress | null>(null);
+  const [roadmapModalVisible, setRoadmapModalVisible] = useState(false);
 
   // TrackModal integration for contributing items
   const [selectedTrackItem, setSelectedTrackItem] = useState<TrackedItem | null>(null);
@@ -267,36 +269,45 @@ export default function AchievementsScreen() {
         <View style={styles.headerRightPlaceholder} />
       </View>
 
-      {/* Overview Trophies Banner */}
+      {/* Overview Trophies Banner (Clickable to open Tier Roadmap & Full Breakdown) */}
       {statsSummary && (
-        <View style={[styles.trophyBanner, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <Pressable
+          style={[styles.trophyBanner, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+          onPress={() => {
+            triggerHaptic('selection');
+            setRoadmapModalVisible(true);
+          }}>
           <View style={styles.trophyBannerTop}>
-            <Text style={[styles.bannerScoreTitle, { color: colors.text, fontSize: 12 * textScale }]}>
-              Overall Progress
-            </Text>
-            <Text style={[styles.bannerScoreValue, { color: '#FFD700', fontSize: 13 * textScale }]}>
-              {statsSummary.completionScorePercent}% Completed
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.bannerScoreTitle, { color: colors.text, fontSize: 12.5 * textScale }]}>
+                Overall Progress
+              </Text>
+              <Ionicons name="information-circle-outline" size={14} color={colors.textSecondary} />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={[styles.bannerScoreValue, { color: '#FFD700', fontSize: 13 * textScale }]}>
+                {statsSummary.completionScorePercent}% Completed
+              </Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+            </View>
           </View>
 
-          {/* 7-Tier Counts Grid */}
+          {/* 7-Tier Counts Grid (Clean Colored Numbers + Pips, No Cramped Abbreviated Labels) */}
           <View style={styles.trophyCountersRow}>
             {TIER_ORDER.map((tier) => {
               const cfg = TIER_CONFIG[tier];
               const count = statsSummary.tierCounts[tier] || 0;
               return (
                 <View key={tier} style={styles.trophyCounterCol}>
-                  <Text style={[styles.trophyCountNumber, { color: cfg.color, fontSize: 14 * headerScale }]}>
+                  <View style={[styles.bannerGemPip, { backgroundColor: cfg.color, borderColor: cfg.color }]} />
+                  <Text style={[styles.trophyCountNumber, { color: cfg.color, fontSize: 15 * headerScale }]}>
                     {count}
-                  </Text>
-                  <Text style={[styles.trophyCountLabel, { color: colors.textSecondary, fontSize: 9.5 * textScale }]}>
-                    {cfg.label.substring(0, 4)}
                   </Text>
                 </View>
               );
             })}
           </View>
-        </View>
+        </Pressable>
       )}
 
       {/* Search Bar */}
@@ -389,6 +400,13 @@ export default function AchievementsScreen() {
         onSelectMedia={handleSelectMediaFromDetail}
       />
 
+      {/* Tier Progression Roadmap & Full Breakdown Modal */}
+      <TierRoadmapModal
+        visible={roadmapModalVisible}
+        statsSummary={statsSummary}
+        onClose={() => setRoadmapModalVisible(false)}
+      />
+
       {/* TrackModal if opened from detail */}
       {selectedTrackItem && (
         <TrackModal
@@ -478,12 +496,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
+  bannerGemPip: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    borderWidth: 1,
+    marginBottom: 3,
+  },
   trophyCountNumber: {
     fontWeight: '800',
-  },
-  trophyCountLabel: {
-    fontWeight: '600',
-    marginTop: 1,
   },
   searchSection: {
     paddingHorizontal: 16,
