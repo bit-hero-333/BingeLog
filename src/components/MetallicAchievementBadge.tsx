@@ -201,69 +201,47 @@ export function MetallicAchievementBadge({
     outputRange: [0.45, 1],
   });
 
-  // Radii dimensions for Sun Rays, Ring, and Inner Dish
+  // Radii dimensions for Light Rays, Ring, and Inner Dish
   const cx = size / 2;
   const cy = size / 2;
-  const rOuterRay = size * 0.485;
-  const rInnerRay = size * 0.33;
   const rRing = size * 0.32;
   const rDish = size * 0.30;
   const iconSize = Math.round(size * 0.33 * scale);
 
-  // 8-Ray Concave Sunburst Path matching the user sketch
-  const sunburstPath = useMemo(() => {
-    const numRays = 8;
+  // Volumetric translucent rays of light radiating outward from behind the badge
+  const lightRaysPaths = useMemo(() => {
+    const numRays = 12;
     const angleStep = (Math.PI * 2) / numRays;
-    const halfStep = angleStep / 2;
-    const rValley = rInnerRay;
-    const rCtrl = rInnerRay * 1.05; // pulled close to base circle for dramatic concave scoops
+    const halfWidthAngle = angleStep * 0.22; // sleek, elegant light beams
+    const rStart = rRing * 0.95;
 
-    let d = '';
+    const paths: string[] = [];
     for (let i = 0; i < numRays; i++) {
-      const tipAngle = i * angleStep - Math.PI / 2; // Ray 0 at 12 o'clock
-      const prevValAngle = tipAngle - halfStep;
-      const nextValAngle = tipAngle + halfStep;
+      const centerAngle = i * angleStep;
+      // Alternating longer and slightly shorter beams for natural light dispersion
+      const rEnd = size * (i % 2 === 0 ? 0.49 : 0.43);
 
-      const tipX = cx + rOuterRay * Math.cos(tipAngle);
-      const tipY = cy + rOuterRay * Math.sin(tipAngle);
+      const a1 = centerAngle - halfWidthAngle;
+      const a2 = centerAngle + halfWidthAngle;
+      const a3 = centerAngle + halfWidthAngle * 1.4; // light fans out softly as it expands
+      const a4 = centerAngle - halfWidthAngle * 1.4;
 
-      const valX = cx + rValley * Math.cos(nextValAngle);
-      const valY = cy + rValley * Math.sin(nextValAngle);
+      const p1x = cx + rStart * Math.cos(a1);
+      const p1y = cy + rStart * Math.sin(a1);
+      const p2x = cx + rStart * Math.cos(a2);
+      const p2y = cy + rStart * Math.sin(a2);
 
-      const ctrlInAngle = tipAngle - halfStep * 0.48;
-      const ctrlInX = cx + rCtrl * Math.cos(ctrlInAngle);
-      const ctrlInY = cy + rCtrl * Math.sin(ctrlInAngle);
+      const p3x = cx + rEnd * Math.cos(a3);
+      const p3y = cy + rEnd * Math.sin(a3);
+      const p4x = cx + rEnd * Math.cos(a4);
+      const p4y = cy + rEnd * Math.sin(a4);
 
-      const ctrlOutAngle = tipAngle + halfStep * 0.48;
-      const ctrlOutX = cx + rCtrl * Math.cos(ctrlOutAngle);
-      const ctrlOutY = cy + rCtrl * Math.sin(ctrlOutAngle);
-
-      if (i === 0) {
-        const startValX = cx + rValley * Math.cos(prevValAngle);
-        const startValY = cy + rValley * Math.sin(prevValAngle);
-        d += `M ${startValX.toFixed(2)} ${startValY.toFixed(2)} `;
-      }
-
-      d += `Q ${ctrlInX.toFixed(2)} ${ctrlInY.toFixed(2)} ${tipX.toFixed(2)} ${tipY.toFixed(2)} `;
-      d += `Q ${ctrlOutX.toFixed(2)} ${ctrlOutY.toFixed(2)} ${valX.toFixed(2)} ${valY.toFixed(2)} `;
+      paths.push(
+        `M ${p1x.toFixed(2)} ${p1y.toFixed(2)} L ${p4x.toFixed(2)} ${p4y.toFixed(2)} L ${p3x.toFixed(2)} ${p3y.toFixed(2)} L ${p2x.toFixed(2)} ${p2y.toFixed(2)} Z`
+      );
     }
-
-    d += 'Z';
-    return d;
-  }, [cx, cy, rOuterRay, rInnerRay]);
-
-  // Diamond Star Sparkle coordinates at the 8 ray tips
-  const sparkleCoordinates = useMemo(() => {
-    const coords: { x: number; y: number }[] = [];
-    for (let i = 0; i < 8; i++) {
-      const angle = (i * Math.PI) / 4 - Math.PI / 2;
-      coords.push({
-        x: cx + (rOuterRay - 3) * Math.cos(angle),
-        y: cy + (rOuterRay - 3) * Math.sin(angle),
-      });
-    }
-    return coords;
-  }, [cx, cy, rOuterRay]);
+    return paths;
+  }, [cx, cy, rRing, size]);
 
   return (
     <View style={[styles.badgeWrapper, { width: size, height: size }]}>
@@ -273,8 +251,9 @@ export function MetallicAchievementBadge({
           <Svg width={size} height={size}>
             <Defs>
               <RadialGradient id="haloGrad" cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor={palette.core} stopOpacity="0.65" />
-                <Stop offset="55%" stopColor={palette.core} stopOpacity="0.3" />
+                <Stop offset="0%" stopColor={palette.core} stopOpacity="0.5" />
+                <Stop offset="50%" stopColor={palette.core} stopOpacity="0.28" />
+                <Stop offset="80%" stopColor={palette.sheen} stopOpacity="0.1" />
                 <Stop offset="100%" stopColor={palette.core} stopOpacity="0" />
               </RadialGradient>
             </Defs>
@@ -283,7 +262,7 @@ export function MetallicAchievementBadge({
         </View>
       )}
 
-      {/* Layer 2: Rotating Sunburst Rays & Twinkling Sparkles */}
+      {/* Layer 2: Rotating Soft Rays of Light (No cartoon spikes - translucent light beams fading to 0 opacity) */}
       {!isLocked && (
         <Animated.View
           style={[
@@ -294,34 +273,19 @@ export function MetallicAchievementBadge({
           ]}>
           <Svg width={size} height={size}>
             <Defs>
-              {/* Metallic Gradient for Sunburst Rays */}
-              <LinearGradient id="sunRaysGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor={palette.highlight} stopOpacity="1" />
-                <Stop offset="28%" stopColor={palette.sheen} stopOpacity="0.95" />
-                <Stop offset="55%" stopColor={palette.core} stopOpacity="0.9" />
-                <Stop offset="82%" stopColor={palette.sheen} stopOpacity="0.85" />
-                <Stop offset="100%" stopColor={palette.dark} stopOpacity="0.8" />
-              </LinearGradient>
-
-              {/* Sparkle Glint Gradient */}
-              <RadialGradient id="sparkleGrad" cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-                <Stop offset="60%" stopColor={palette.highlight} stopOpacity="0.8" />
-                <Stop offset="100%" stopColor={palette.sheen} stopOpacity="0" />
+              {/* Radial Fade Gradient for Rays of Light */}
+              <RadialGradient id="lightRayGrad" cx="50%" cy="50%" r="50%">
+                <Stop offset="0%" stopColor={palette.highlight} stopOpacity="0" />
+                <Stop offset="55%" stopColor={palette.highlight} stopOpacity="0.45" />
+                <Stop offset="75%" stopColor={palette.sheen} stopOpacity="0.2" />
+                <Stop offset="100%" stopColor={palette.core} stopOpacity="0" />
               </RadialGradient>
             </Defs>
 
-            {/* 8 Flared Sunburst Rays */}
-            <Path d={sunburstPath} fill="url(#sunRaysGrad)" />
-
-            {/* Radiant Sparkle Glints at the 8 Sun Ray Tips */}
+            {/* 12 Translucent Light Shafts */}
             <G>
-              {sparkleCoordinates.map((pt, idx) => (
-                <Path
-                  key={idx}
-                  d={`M ${pt.x} ${pt.y - 4} Q ${pt.x} ${pt.y} ${pt.x + 4} ${pt.y} Q ${pt.x} ${pt.y} ${pt.x} ${pt.y + 4} Q ${pt.x} ${pt.y} ${pt.x - 4} ${pt.y} Q ${pt.x} ${pt.y} ${pt.x} ${pt.y - 4} Z`}
-                  fill="url(#sparkleGrad)"
-                />
+              {lightRaysPaths.map((d, idx) => (
+                <Path key={idx} d={d} fill="url(#lightRayGrad)" />
               ))}
             </G>
           </Svg>
