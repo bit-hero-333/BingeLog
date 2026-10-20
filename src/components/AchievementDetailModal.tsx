@@ -96,13 +96,14 @@ export function AchievementDetailModal({
             nestedScrollEnabled={true}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.scrollBody}>
-            {/* Main Trophy Icon Centerpiece with Sunburst Corona and Metallic Coating */}
+            {/* Main Trophy Icon Centerpiece with Breathing Glow and Metallic Coating */}
             <View style={styles.iconContainer}>
               <MetallicAchievementBadge
                 tier={currentTier}
                 iconName={definition.iconName}
-                size={Math.round(144 * headerScale)}
-                animate={visible}
+                size={Math.round(152 * headerScale)}
+                showGlow={true}
+                animateGlow={visible}
                 scale={headerScale}
               />
             </View>

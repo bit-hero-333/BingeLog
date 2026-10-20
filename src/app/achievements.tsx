@@ -135,13 +135,13 @@ export default function AchievementsScreen() {
         onPress={() => handleOpenAchievement(item)}>
         {/* Main Card Content */}
         <View style={styles.cardHeaderRow}>
-          {/* Big Metallic / Locked Sunburst Badge */}
+          {/* Crisp Metallic Badge (Zero Halo) */}
           <MetallicAchievementBadge
             tier={currentTier}
             iconName={definition.iconName}
-            size={54}
-            animate={false}
-            scale={headerScale * 0.9}
+            size={50}
+            showGlow={false}
+            scale={headerScale}
           />
 
           {/* Title, Badge & 7-Pip Gem Ladder */}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, {
@@ -6,9 +6,7 @@ import Svg, {
   LinearGradient,
   RadialGradient,
   Stop,
-  Path,
   Circle,
-  G,
 } from 'react-native-svg';
 import { AchievementTier } from '@/types/achievements';
 
@@ -44,7 +42,7 @@ export const METALLIC_PALETTES: Record<AchievementTier, MetallicPalette> = {
     core: '#CD7F32',
     dark: '#9E4E18',
     deepShadow: '#4A1F06',
-    glow: 'rgba(205, 127, 50, 0.55)',
+    glow: 'rgba(205, 127, 50, 0.75)',
     ringHighlight: '#FFF0E3',
     ringBase: '#CD7F32',
     ringShadow: '#3D1703',
@@ -56,7 +54,7 @@ export const METALLIC_PALETTES: Record<AchievementTier, MetallicPalette> = {
     core: '#C0C0C0',
     dark: '#7D8B99',
     deepShadow: '#2F3841',
-    glow: 'rgba(215, 225, 235, 0.65)',
+    glow: 'rgba(215, 225, 235, 0.85)',
     ringHighlight: '#FFFFFF',
     ringBase: '#D8DEE4',
     ringShadow: '#485460',
@@ -68,7 +66,7 @@ export const METALLIC_PALETTES: Record<AchievementTier, MetallicPalette> = {
     core: '#FFD700',
     dark: '#D4AF37',
     deepShadow: '#5C3E00',
-    glow: 'rgba(255, 215, 0, 0.65)',
+    glow: 'rgba(255, 215, 0, 0.85)',
     ringHighlight: '#FFFFFF',
     ringBase: '#FFD700',
     ringShadow: '#6B4700',
@@ -80,7 +78,7 @@ export const METALLIC_PALETTES: Record<AchievementTier, MetallicPalette> = {
     core: '#C0D8ED',
     dark: '#7B9EB8',
     deepShadow: '#223547',
-    glow: 'rgba(192, 216, 237, 0.65)',
+    glow: 'rgba(192, 216, 237, 0.85)',
     ringHighlight: '#FFFFFF',
     ringBase: '#C0D8ED',
     ringShadow: '#31485E',
@@ -92,7 +90,7 @@ export const METALLIC_PALETTES: Record<AchievementTier, MetallicPalette> = {
     core: '#E0115F',
     dark: '#910537',
     deepShadow: '#3D0013',
-    glow: 'rgba(224, 17, 95, 0.65)',
+    glow: 'rgba(224, 17, 95, 0.85)',
     ringHighlight: '#FFE4EE',
     ringBase: '#FF3377',
     ringShadow: '#4A0219',
@@ -104,7 +102,7 @@ export const METALLIC_PALETTES: Record<AchievementTier, MetallicPalette> = {
     core: '#50C878',
     dark: '#1B8240',
     deepShadow: '#062B13',
-    glow: 'rgba(80, 200, 120, 0.65)',
+    glow: 'rgba(80, 200, 120, 0.85)',
     ringHighlight: '#E3FDF0',
     ringBase: '#50C878',
     ringShadow: '#0B3819',
@@ -116,7 +114,7 @@ export const METALLIC_PALETTES: Record<AchievementTier, MetallicPalette> = {
     core: '#B8D8E7',
     dark: '#6E9BB8',
     deepShadow: '#192E3F',
-    glow: 'rgba(184, 216, 231, 0.7)',
+    glow: 'rgba(184, 216, 231, 0.9)',
     ringHighlight: '#FFFFFF',
     ringBase: '#CDE5F2',
     ringShadow: '#243C50',
@@ -128,7 +126,8 @@ interface MetallicAchievementBadgeProps {
   tier: AchievementTier;
   iconName: string;
   size?: number;
-  animate?: boolean;
+  showGlow?: boolean;
+  animateGlow?: boolean;
   scale?: number;
 }
 
@@ -136,163 +135,94 @@ export function MetallicAchievementBadge({
   tier,
   iconName,
   size = 136,
-  animate = true,
+  showGlow = true,
+  animateGlow = true,
   scale = 1,
 }: MetallicAchievementBadgeProps) {
   const isLocked = tier === 'locked';
   const palette = METALLIC_PALETTES[tier];
 
-  // Continuous rotation of the sunburst rays (slow, majestic solar spin)
-  const [spinAnim] = useState(() => new Animated.Value(0));
-  // Twinkling glint shimmer animation
-  const [shimmerAnim] = useState(() => new Animated.Value(0));
+  // Breathing animation for the pure circular glow halo
+  const [glowAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
-    if (!animate || isLocked) {
-      spinAnim.setValue(0);
-      shimmerAnim.setValue(0);
+    if (!showGlow || !animateGlow || isLocked) {
+      glowAnim.setValue(0);
       return;
     }
 
-    const spinLoop = Animated.loop(
-      Animated.timing(spinAnim, {
-        toValue: 1,
-        duration: 24000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-
-    const shimmerLoop = Animated.loop(
+    const breathingLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(shimmerAnim, {
+        Animated.timing(glowAnim, {
           toValue: 1,
-          duration: 1600,
+          duration: 2100,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
-        Animated.timing(shimmerAnim, {
+        Animated.timing(glowAnim, {
           toValue: 0,
-          duration: 1600,
+          duration: 2100,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
       ])
     );
 
-    spinLoop.start();
-    shimmerLoop.start();
+    breathingLoop.start();
 
     return () => {
-      spinLoop.stop();
-      shimmerLoop.stop();
-      spinAnim.setValue(0);
-      shimmerAnim.setValue(0);
+      breathingLoop.stop();
+      glowAnim.setValue(0);
     };
-  }, [animate, isLocked, spinAnim, shimmerAnim]);
+  }, [showGlow, animateGlow, isLocked, glowAnim]);
 
-  const spinInterpolate = spinAnim.interpolate({
+  // The glow effect grows more intense (less transparent / more color) and expands from inwards to outwards
+  const glowScale = glowAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
+    outputRange: [0.82, 1.18],
   });
 
-  const shimmerOpacity = shimmerAnim.interpolate({
+  const glowOpacity = glowAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.45, 1],
+    outputRange: [0.25, 0.90],
   });
 
-  // Radii dimensions for Light Rays, Ring, and Inner Dish
   const cx = size / 2;
   const cy = size / 2;
-  const rRing = size * 0.32;
-  const rDish = size * 0.30;
-  const iconSize = Math.round(size * 0.33 * scale);
 
-  // Volumetric translucent rays of light radiating outward from behind the badge
-  const lightRaysPaths = useMemo(() => {
-    const numRays = 12;
-    const angleStep = (Math.PI * 2) / numRays;
-    const halfWidthAngle = angleStep * 0.22; // sleek, elegant light beams
-    const rStart = rRing * 0.95;
-
-    const paths: string[] = [];
-    for (let i = 0; i < numRays; i++) {
-      const centerAngle = i * angleStep;
-      // Alternating longer and slightly shorter beams for natural light dispersion
-      const rEnd = size * (i % 2 === 0 ? 0.49 : 0.43);
-
-      const a1 = centerAngle - halfWidthAngle;
-      const a2 = centerAngle + halfWidthAngle;
-      const a3 = centerAngle + halfWidthAngle * 1.4; // light fans out softly as it expands
-      const a4 = centerAngle - halfWidthAngle * 1.4;
-
-      const p1x = cx + rStart * Math.cos(a1);
-      const p1y = cy + rStart * Math.sin(a1);
-      const p2x = cx + rStart * Math.cos(a2);
-      const p2y = cy + rStart * Math.sin(a2);
-
-      const p3x = cx + rEnd * Math.cos(a3);
-      const p3y = cy + rEnd * Math.sin(a3);
-      const p4x = cx + rEnd * Math.cos(a4);
-      const p4y = cy + rEnd * Math.sin(a4);
-
-      paths.push(
-        `M ${p1x.toFixed(2)} ${p1y.toFixed(2)} L ${p4x.toFixed(2)} ${p4y.toFixed(2)} L ${p3x.toFixed(2)} ${p3y.toFixed(2)} L ${p2x.toFixed(2)} ${p2y.toFixed(2)} Z`
-      );
-    }
-    return paths;
-  }, [cx, cy, rRing, size]);
+  // When showGlow is false (e.g. list cards), the medal tightly fills the container
+  const rRing = showGlow ? size * 0.33 : size * 0.46;
+  const rDish = showGlow ? size * 0.31 : size * 0.43;
+  const iconSize = Math.round(size * (showGlow ? 0.34 : 0.46) * scale);
+  const ringStrokeWidth = showGlow ? 3.5 : 2.5;
 
   return (
     <View style={[styles.badgeWrapper, { width: size, height: size }]}>
-      {/* Layer 1: Ambient Outer Glow Halo */}
-      {!isLocked && (
-        <View style={StyleSheet.absoluteFill}>
-          <Svg width={size} height={size}>
-            <Defs>
-              <RadialGradient id="haloGrad" cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor={palette.core} stopOpacity="0.5" />
-                <Stop offset="50%" stopColor={palette.core} stopOpacity="0.28" />
-                <Stop offset="80%" stopColor={palette.sheen} stopOpacity="0.1" />
-                <Stop offset="100%" stopColor={palette.core} stopOpacity="0" />
-              </RadialGradient>
-            </Defs>
-            <Circle cx={cx} cy={cy} r={size * 0.49} fill="url(#haloGrad)" />
-          </Svg>
-        </View>
-      )}
-
-      {/* Layer 2: Rotating Soft Rays of Light (No cartoon spikes - translucent light beams fading to 0 opacity) */}
-      {!isLocked && (
+      {/* Layer 1: Pure Breathing Circular Glow Halo (Zero shapes, zero rays, zero spinning) */}
+      {showGlow && !isLocked && (
         <Animated.View
           style={[
             StyleSheet.absoluteFill,
             {
-              transform: [{ rotate: spinInterpolate }],
+              transform: [{ scale: glowScale }],
+              opacity: glowOpacity,
             },
           ]}>
           <Svg width={size} height={size}>
             <Defs>
-              {/* Radial Fade Gradient for Rays of Light */}
-              <RadialGradient id="lightRayGrad" cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor={palette.highlight} stopOpacity="0" />
-                <Stop offset="55%" stopColor={palette.highlight} stopOpacity="0.45" />
-                <Stop offset="75%" stopColor={palette.sheen} stopOpacity="0.2" />
+              <RadialGradient id="breathingHaloGrad" cx="50%" cy="50%" r="50%">
+                <Stop offset="0%" stopColor={palette.core} stopOpacity="0.85" />
+                <Stop offset="45%" stopColor={palette.core} stopOpacity="0.60" />
+                <Stop offset="75%" stopColor={palette.sheen} stopOpacity="0.30" />
                 <Stop offset="100%" stopColor={palette.core} stopOpacity="0" />
               </RadialGradient>
             </Defs>
-
-            {/* 12 Translucent Light Shafts */}
-            <G>
-              {lightRaysPaths.map((d, idx) => (
-                <Path key={idx} d={d} fill="url(#lightRayGrad)" />
-              ))}
-            </G>
+            <Circle cx={cx} cy={cy} r={size * 0.48} fill="url(#breathingHaloGrad)" />
           </Svg>
         </Animated.View>
       )}
 
-      {/* Layer 3: Central Specular Ring and Metallic Dish (Static Base) */}
+      {/* Layer 2: Central Metallic Circle (100% static, solid, no scaling) */}
       <View style={StyleSheet.absoluteFill}>
         <Svg width={size} height={size}>
           <Defs>
@@ -306,7 +236,7 @@ export function MetallicAchievementBadge({
 
             {/* Polished Metallic Inner Dish Radial Gradient */}
             <RadialGradient id="metallicDishGrad" cx="38%" cy="32%" r="62%">
-              <Stop offset="0%" stopColor={palette.sheen} stopOpacity="0.9" />
+              <Stop offset="0%" stopColor={palette.sheen} stopOpacity="0.95" />
               <Stop offset="35%" stopColor={palette.core} stopOpacity="0.95" />
               <Stop offset="75%" stopColor={palette.dark} stopOpacity="1" />
               <Stop offset="100%" stopColor={palette.deepShadow} stopOpacity="1" />
@@ -321,14 +251,14 @@ export function MetallicAchievementBadge({
             fill={isLocked ? '#1e293b' : 'url(#metallicDishGrad)'}
           />
 
-          {/* Crisp Specular Border Ring (White / Specular Bevel as drawn in user diagram) */}
+          {/* Crisp Specular Border Ring (White / Metallic Bevel Rim) */}
           <Circle
             cx={cx}
             cy={cy}
             r={rRing}
             fill="none"
             stroke={isLocked ? '#475569' : 'url(#metallicRingGrad)'}
-            strokeWidth={3.5}
+            strokeWidth={ringStrokeWidth}
           />
 
           {/* Inner Specular Highlight Rim */}
@@ -346,7 +276,7 @@ export function MetallicAchievementBadge({
         </Svg>
       </View>
 
-      {/* Layer 4: Centered Metallic Icon */}
+      {/* Layer 3: Centered Metallic Icon */}
       <View style={styles.centerIconWrapper}>
         <Ionicons
           name={isLocked ? 'lock-closed' : (iconName as any)}
@@ -354,27 +284,6 @@ export function MetallicAchievementBadge({
           color={isLocked ? '#64748b' : palette.iconColor}
         />
       </View>
-
-      {/* Layer 5: Dynamic Sparkle Shimmer Overlay */}
-      {!isLocked && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.shimmerGlint,
-            {
-              top: cy - rDish * 0.7,
-              left: cx - rDish * 0.7,
-              opacity: shimmerOpacity,
-            },
-          ]}>
-          <Svg width={14} height={14} viewBox="0 0 14 14">
-            <Path
-              d="M 7 0 Q 7 7 14 7 Q 7 7 7 14 Q 7 7 0 7 Q 7 7 7 0 Z"
-              fill="#FFFFFF"
-            />
-          </Svg>
-        </Animated.View>
-      )}
     </View>
   );
 }
@@ -393,10 +302,5 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  shimmerGlint: {
-    position: 'absolute',
-    width: 14,
-    height: 14,
   },
 });
