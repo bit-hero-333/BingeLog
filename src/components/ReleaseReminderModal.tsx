@@ -51,6 +51,7 @@ function ReleaseReminderSheetContent({
     notificationMinute: globalMinute,
     notificationDaysAhead: globalDaysAhead,
     notificationTiming: globalTiming,
+    notificationDayOffset: globalDayOffset,
     timeFormat,
     dateFormat,
     selectedTimezone,
@@ -65,6 +66,7 @@ function ReleaseReminderSheetContent({
       : 'Title';
 
   const existingConfig = existingRecord?.reminder;
+  const originCountry = existingRecord?.originCountry || (item as any)?.originCountry || (item as any)?.origin_country?.[0];
 
   const [enabled, setEnabled] = useState<boolean>(existingConfig?.enabled ?? true);
   const [timing, setTiming] = useState<NotificationTimingOption>(
@@ -75,6 +77,7 @@ function ReleaseReminderSheetContent({
   );
   const [hour, setHour] = useState<number>(existingConfig?.hour ?? globalHour);
   const [minute, setMinute] = useState<number>(existingConfig?.minute ?? globalMinute ?? 0);
+  const [dayOffset, setDayOffset] = useState<number>(existingConfig?.dayOffset ?? globalDayOffset ?? 0);
 
   // Time picker modal & custom days modal state
   const [showTimePicker, setShowTimePicker] = useState<boolean>(false);
@@ -91,6 +94,7 @@ function ReleaseReminderSheetContent({
       daysAhead,
       hour,
       minute,
+      dayOffset,
     });
     onClose();
   };
@@ -145,6 +149,13 @@ function ReleaseReminderSheetContent({
               <Text style={[styles.infoDateText, { color: colors.textSecondary }]}>
                 {dateLabel || 'Release'}: {targetDate ? formatDate(targetDate, dateFormat) : 'Upcoming'}
               </Text>
+              {originCountry ? (
+                <View style={[styles.originBadge, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                  <Text style={[styles.originBadgeText, { color: colors.textSecondary }]}>
+                    {originCountry.toUpperCase()}
+                  </Text>
+                </View>
+              ) : null}
               {countdownText ? (
                 <View style={[styles.countdownBadge, { backgroundColor: colors.primary }]}>
                   <Text style={styles.countdownBadgeText}>{countdownText}</Text>
@@ -363,6 +374,24 @@ function ReleaseReminderSheetContent({
                   <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
                 </View>
               </Pressable>
+              {/* Next-Day Timezone Offset Switch */}
+              <View style={[styles.toggleRow, { borderBottomColor: colors.divider, marginTop: 14 }]}>
+                <View style={styles.toggleTextWrap}>
+                  <Text style={[styles.toggleLabel, { color: colors.text }]}>Shift Reminder +1 Day</Text>
+                  <Text style={[styles.toggleDesc, { color: colors.textSecondary }]}>
+                    Trigger alert the day after broadcast for international timezone releases.
+                  </Text>
+                </View>
+                <Switch
+                  value={dayOffset === 1}
+                  onValueChange={(val) => {
+                    triggerHaptic('selection');
+                    setDayOffset(val ? 1 : 0);
+                  }}
+                  trackColor={{ false: colors.cardBorder, true: colors.primary }}
+                  thumbColor="#ffffff"
+                />
+              </View>
             </>
           )}
 
@@ -553,6 +582,19 @@ const styles = StyleSheet.create({
   },
   infoDateText: {
     fontSize: 12,
+  },
+  originBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  originBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   countdownBadge: {
     paddingHorizontal: 8,

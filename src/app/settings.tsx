@@ -109,6 +109,8 @@ export default function SettingsScreen() {
     setRemindersEnabled,
     deviceNotificationsEnabled,
     setDeviceNotificationsEnabled,
+    notificationDayOffset,
+    setNotificationDayOffset,
     notificationPermissionStatus,
     requestNotificationPermission,
     sendTestNotification,
@@ -2310,6 +2312,25 @@ export default function SettingsScreen() {
                   </Text>
                 </View>
 
+                {/* Global Next-Day Timezone Offset Toggle */}
+                <View style={[styles.toggleRow, { marginTop: 12 }]}>
+                  <View style={styles.toggleTextContainer}>
+                    <Text style={[styles.toggleLabel, { color: colors.text, fontSize: 13.5 * textScale }]}>Next-Day Timezone Offset (+1 Day)</Text>
+                    <Text style={[styles.toggleDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
+                      Schedule release alerts one day later by default for international releases (e.g. US evening broadcasts dropping early next morning).
+                    </Text>
+                  </View>
+                  <Switch
+                    value={notificationDayOffset === 1}
+                    onValueChange={(val) => {
+                      triggerHaptic('selection');
+                      void setNotificationDayOffset(val ? 1 : 0);
+                    }}
+                    trackColor={{ false: colors.cardBorder, true: colors.primary }}
+                    thumbColor="#ffffff"
+                  />
+                </View>
+
                 {/* Test Notification Button */}
                 <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
                   VERIFICATION & TESTING
@@ -2815,7 +2836,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.22.4 • TMDB & MAL Attributions
+                Version 0.22.5 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2915,7 +2936,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.22.4 • Build 44 • Expo SDK 57
+              Version 0.22.5 • Build 45 • Expo SDK 57
             </Text>
           </View>
         )}

@@ -327,6 +327,8 @@ export default function MyListScreen() {
             regionalReleaseType: details.regionalReleaseType || item.regionalReleaseType,
             nextAirDate: details.nextAirDate || item.nextAirDate,
             nextEpisode: details.nextEpisode || item.nextEpisode,
+            originCountry: details.originCountry || item.originCountry,
+            originCountries: details.originCountries || item.originCountries,
             lastSyncedAt: new Date().toISOString(),
           };
           updatedItems.push(updated);

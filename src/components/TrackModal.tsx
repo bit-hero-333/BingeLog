@@ -227,8 +227,10 @@ function TrackModalFormContent({
     : (item as TMDBMediaItem).vote_average;
   const overview = item.overview || '';
 
+
   // Detailed TMDB media info state
   const [detailedInfo, setDetailedInfo] = useState<DetailedMediaInfo | null>(null);
+  const displayOriginCountry = detailedInfo?.originCountry || existingRecord?.originCountry || (item as any)?.originCountry || (item as any)?.origin_country?.[0];
   const [overviewExpanded, setOverviewExpanded] = useState(false);
   const [localShowAllCast, setLocalShowAllCast] = useState(showAllCast);
 
@@ -903,6 +905,17 @@ function TrackModalFormContent({
       status,
       userScore: score,
 
+      originCountry:
+        detailedInfo?.originCountry ||
+        existingRecord?.originCountry ||
+        (item as any)?.originCountry ||
+        (item as any)?.origin_country?.[0] ||
+        (typeof (item as any)?.origin_country === 'string' ? (item as any).origin_country : undefined),
+      originCountries:
+        detailedInfo?.originCountries ||
+        existingRecord?.originCountries ||
+        (Array.isArray((item as any)?.origin_country) ? (item as any).origin_country : undefined),
+
       // TV
       currentProgress: mediaType === 'tv' ? watchedEpisodesCount : undefined,
       totalProgress: totalEpisodes || undefined,
@@ -1359,6 +1372,14 @@ function TrackModalFormContent({
                   <Text style={[styles.metaText, { color: colors.textSecondary, fontSize: 12 * textScale }]} selectable={true}>
                     ({releaseYear})
                   </Text>
+                ) : null}
+
+                {displayOriginCountry ? (
+                  <View style={[styles.originCountryTag, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                    <Text style={[styles.originCountryTagText, { color: colors.textSecondary, fontSize: 11 * textScale }]} selectable={true}>
+                      {displayOriginCountry.toUpperCase()}
+                    </Text>
+                  </View>
                 ) : null}
 
                 {voteAverage ? (
@@ -4066,6 +4087,18 @@ const styles = StyleSheet.create({
   metaText: {
     color: '#94a3b8',
     fontSize: 12,
+  },
+  originCountryTag: {
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  originCountryTagText: {
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   ratingTag: {
     flexDirection: 'row',

@@ -90,6 +90,8 @@ export interface DetailedMediaInfo {
     airDate?: string;
   };
   status?: string;
+  originCountry?: string;
+  originCountries?: string[];
   watchProviders?: AllWatchProviders;
 }
 
@@ -153,6 +155,7 @@ export interface TMDBMediaItem {
   number_of_episodes?: number;
   number_of_seasons?: number;
   popularity?: number;
+  origin_country?: string[];
 }
 
 export interface TrackedItem {
@@ -190,6 +193,8 @@ export interface TrackedItem {
   genre_ids?: number[];
   studios?: string[];
   creators?: string[];
+  originCountry?: string;
+  originCountries?: string[];
   watchProviders?: AllWatchProviders;
 
   // Dates & Timeline
@@ -564,6 +569,7 @@ export interface ItemReminderConfig {
   daysAhead: number; // e.g. 0, 1, 2, 3, 7, 14, or custom
   hour: number; // 0-23
   minute?: number; // 0-59
+  dayOffset?: number; // 0 = air date, 1 = +1 day (timezone offset)
 }
 
 export interface NotificationHourPreset {

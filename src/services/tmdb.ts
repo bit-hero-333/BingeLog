@@ -71,6 +71,8 @@ interface RawCreditsResponse {
   number_of_episodes?: number;
   number_of_seasons?: number;
   status?: string;
+  origin_country?: string[];
+  production_countries?: { iso_3166_1: string; name: string }[];
   release_date?: string;
   first_air_date?: string;
   created_by?: { id: number; name: string }[];
@@ -439,7 +441,18 @@ export const TMDBService = {
         }
       }
 
+      // Parse origin country
+      const rawOriginList: string[] = Array.isArray(data.origin_country)
+        ? data.origin_country
+        : Array.isArray(data.production_countries)
+        ? data.production_countries.map((p) => p.iso_3166_1).filter(Boolean)
+        : [];
+      const originCountry = rawOriginList[0] || (data.networks && data.networks.length > 0 ? 'US' : undefined);
+      const originCountries = rawOriginList.length > 0 ? rawOriginList : originCountry ? [originCountry] : undefined;
+
       return {
+        originCountry,
+        originCountries,
         runtime: data.runtime || undefined,
         numberOfEpisodes: data.number_of_episodes || undefined,
         numberOfSeasons: data.number_of_seasons || undefined,

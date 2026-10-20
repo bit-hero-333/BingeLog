@@ -46,6 +46,7 @@ const STORAGE_KEYS = {
   NOTIFICATION_DAYS_AHEAD: '@pmt_notification_days_ahead',
   TIME_FORMAT: '@pmt_time_format',
   NOTIFICATION_TIMING: '@pmt_notification_timing',
+  NOTIFICATION_DAY_OFFSET: '@pmt_notification_day_offset',
   STREAMING_DISPLAY_STRATEGY: '@pmt_streaming_display_strategy',
   MY_SUBSCRIBED_PROVIDERS: '@pmt_my_subscribed_providers',
   STREAMING_REGION_STRATEGY: '@pmt_streaming_region_strategy',
@@ -593,6 +594,28 @@ export const StorageService = {
   async saveNotificationTiming(timing: NotificationTimingOption): Promise<boolean> {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATION_TIMING, timing);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getNotificationDayOffset(): Promise<number> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.NOTIFICATION_DAY_OFFSET);
+      if (val !== null) {
+        const parsed = parseInt(val, 10);
+        return isNaN(parsed) ? 0 : parsed;
+      }
+      return 0;
+    } catch {
+      return 0;
+    }
+  },
+
+  async saveNotificationDayOffset(offset: number): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATION_DAY_OFFSET, String(offset));
       return true;
     } catch {
       return false;

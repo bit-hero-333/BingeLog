@@ -99,6 +99,8 @@ interface MediaContextType {
   setNotificationDaysAhead: (days: number) => Promise<boolean>;
   notificationTiming: NotificationTimingOption;
   setNotificationTiming: (timing: NotificationTimingOption) => Promise<boolean>;
+  notificationDayOffset: number;
+  setNotificationDayOffset: (offset: number) => Promise<boolean>;
   updateItemReminder: (id: number, mediaType: MediaType, reminder?: ItemReminderConfig) => Promise<void>;
   notificationPermissionStatus: 'granted' | 'denied' | 'undetermined';
   requestNotificationPermission: () => Promise<boolean>;
@@ -153,6 +155,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   const [notificationMinute, setNotificationMinuteState] = useState<number>(0);
   const [notificationDaysAhead, setNotificationDaysAheadState] = useState<number>(1);
   const [notificationTiming, setNotificationTimingState] = useState<NotificationTimingOption>('both');
+  const [notificationDayOffset, setNotificationDayOffsetState] = useState<number>(0);
   const [notificationPermissionStatus, setNotificationPermissionStatus] = useState<
     'granted' | 'denied' | 'undetermined'
   >('undetermined');
@@ -191,6 +194,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           savedNotifMinute,
           savedNotifDays,
           savedNotifTiming,
+          savedDayOffset,
           currentPerm,
           savedStreamingDisplay,
           savedSubscribedProviders,
@@ -218,6 +222,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           StorageService.getNotificationMinute(),
           StorageService.getNotificationDaysAhead(),
           StorageService.getNotificationTiming(),
+          StorageService.getNotificationDayOffset(),
           NotificationService.getPermissions(),
           StorageService.getStreamingDisplayStrategy(),
           StorageService.getMySubscribedProviders(),
@@ -244,6 +249,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setNotificationMinuteState(savedNotifMinute);
         setNotificationDaysAheadState(savedNotifDays);
         setNotificationTimingState(savedNotifTiming);
+        setNotificationDayOffsetState(savedDayOffset);
         setNotificationPermissionStatus(currentPerm);
         setStreamingDisplayStrategyState(savedStreamingDisplay);
         setMySubscribedProvidersState(savedSubscribedProviders);
@@ -293,6 +299,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
                       ...item,
                       nextAirDate: details.nextAirDate,
                       nextEpisode: details.nextEpisode,
+                      originCountry: details.originCountry || item.originCountry,
+                      originCountries: details.originCountries || item.originCountries,
                     };
                     changed = true;
                   }
@@ -327,6 +335,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
                       genre_ids: details.genres.map((g) => g.id),
                       studios: details.studios && details.studios.length > 0 ? details.studios.map((s) => s.name) : item.studios,
                       watchProviders: details.watchProviders || item.watchProviders,
+                      originCountry: details.originCountry || item.originCountry,
+                      originCountries: details.originCountries || item.originCountries,
                     };
                     changed = true;
                   }
@@ -392,6 +402,27 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     return success;
   };
 
+  const setNotificationDayOffset = async (offset: number): Promise<boolean> => {
+    const success = await StorageService.saveNotificationDayOffset(offset);
+    if (success) {
+      setNotificationDayOffsetState(offset);
+      if (deviceNotificationsEnabled) {
+        const count = await NotificationService.syncAll(trackedItems, {
+          enabled: true,
+          hour: notificationHour,
+          minute: notificationMinute,
+          daysAhead: notificationDaysAhead,
+          timing: notificationTiming,
+          dayOffset: offset,
+          timezone: selectedTimezone,
+          timeFormat,
+        });
+        setScheduledNotificationsCount(count);
+      }
+    }
+    return success;
+  };
+
   const removeApiKey = async (): Promise<boolean> => {
     const success = await StorageService.removeApiKey();
     if (success) {
@@ -412,6 +443,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         timing: notificationTiming,
         timezone: selectedTimezone,
         timeFormat,
+        dayOffset: notificationDayOffset,
       });
       const count = await NotificationService.getScheduledCount();
       setScheduledNotificationsCount(count);
@@ -430,6 +462,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         timing: notificationTiming,
         timezone: selectedTimezone,
         timeFormat,
+        dayOffset: notificationDayOffset,
       });
       setScheduledNotificationsCount(count);
     }
@@ -465,6 +498,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         timing: notificationTiming,
         timezone: selectedTimezone,
         timeFormat,
+        dayOffset: notificationDayOffset,
       });
       setScheduledNotificationsCount(count);
     }
@@ -614,6 +648,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         timing: notificationTiming,
         timezone: selectedTimezone,
         timeFormat,
+        dayOffset: notificationDayOffset,
       });
       setScheduledNotificationsCount(count);
     }
@@ -632,7 +667,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           daysAhead: notificationDaysAhead,
           timing: notificationTiming,
           timezone: selectedTimezone,
-          timeFormat,
+        timeFormat,
+        dayOffset: notificationDayOffset,
         });
         setScheduledNotificationsCount(count);
       }
@@ -652,7 +688,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           daysAhead: notificationDaysAhead,
           timing: notificationTiming,
           timezone: selectedTimezone,
-          timeFormat,
+        timeFormat,
+        dayOffset: notificationDayOffset,
         });
         setScheduledNotificationsCount(count);
       }
@@ -674,7 +711,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           daysAhead: notificationDaysAhead,
           timing: notificationTiming,
           timezone: selectedTimezone,
-          timeFormat,
+        timeFormat,
+        dayOffset: notificationDayOffset,
         });
         setScheduledNotificationsCount(count);
       }
@@ -695,7 +733,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           daysAhead: days,
           timing: notificationTiming,
           timezone: selectedTimezone,
-          timeFormat,
+        timeFormat,
+        dayOffset: notificationDayOffset,
         });
         setScheduledNotificationsCount(count);
       }
@@ -715,7 +754,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           daysAhead: notificationDaysAhead,
           timing,
           timezone: selectedTimezone,
-          timeFormat,
+        timeFormat,
+        dayOffset: notificationDayOffset,
         });
         setScheduledNotificationsCount(count);
       }
@@ -751,6 +791,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         timing: notificationTiming,
         timezone: selectedTimezone,
         timeFormat,
+        dayOffset: notificationDayOffset,
       });
       setScheduledNotificationsCount(count);
     }
@@ -774,7 +815,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
       daysAhead: notificationDaysAhead,
       timing: notificationTiming,
       timezone: selectedTimezone,
-      timeFormat,
+        timeFormat,
+        dayOffset: notificationDayOffset,
     });
     setScheduledNotificationsCount(count);
   };
@@ -962,6 +1004,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setNotificationDaysAhead,
         notificationTiming,
         setNotificationTiming,
+        notificationDayOffset,
+        setNotificationDayOffset,
         updateItemReminder,
         notificationPermissionStatus,
         requestNotificationPermission,

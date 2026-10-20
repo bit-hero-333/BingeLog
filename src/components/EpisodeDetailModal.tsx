@@ -83,6 +83,7 @@ function EpisodeDetailContent({
   const [isLoading, setIsLoading] = useState(Boolean(apiKey));
   const [details, setDetails] = useState<EpisodeDetailedInfo | null>(null);
   const [showReminderModal, setShowReminderModal] = useState<boolean>(false);
+  const originCountry = existingRecord?.originCountry || (item as any)?.originCountry || (item as any)?.origin_country?.[0];
 
   useEffect(() => {
     let isMounted = true;
@@ -203,6 +204,15 @@ function EpisodeDetailContent({
                 <Ionicons name="calendar-outline" size={13} color={colors.textSecondary} />
                 <Text style={[styles.infoBadgeText, { color: colors.textSecondary }]}>
                   {formatDateDisplay(airDate, dateFormat)}
+                </Text>
+              </View>
+            ) : null}
+
+            {originCountry ? (
+              <View style={[styles.infoBadge, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                <Ionicons name="globe-outline" size={13} color={colors.textSecondary} />
+                <Text style={[styles.infoBadgeText, { color: colors.textSecondary }]}>
+                  {originCountry.toUpperCase()}
                 </Text>
               </View>
             ) : null}

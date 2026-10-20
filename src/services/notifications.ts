@@ -15,6 +15,7 @@ export interface NotificationScheduleOptions {
   timing?: NotificationTimingOption; // 'release_day' | 'advance' | 'both', default 'both'
   timezone?: string;
   timeFormat?: TimeFormatOption;
+  dayOffset?: number;
 }
 
 /**
@@ -112,7 +113,8 @@ export function calculateTriggerDate(
   hour = 9,
   minute = 0,
   daysAhead = 0,
-  timezone?: string
+  timezone?: string,
+  dayOffset = 0
 ): Date | null {
   if (!dateStr) return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr.trim());
@@ -120,21 +122,17 @@ export function calculateTriggerDate(
 
   const year = parseInt(match[1], 10);
   const month = parseInt(match[2], 10) - 1;
-  let day = parseInt(match[3], 10);
-
-  if (daysAhead > 0) {
-    day -= daysAhead;
-  }
+  const rawDay = parseInt(match[3], 10);
+  const totalDayShift = (dayOffset || 0) - (daysAhead || 0);
 
   const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  const pad = (n: number) => String(n).padStart(2, '0');
 
   try {
-    const testDate = new Date(`${year}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00Z`);
+    const baseUtc = new Date(Date.UTC(year, month, rawDay + totalDayShift, hour, minute, 0));
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: tz,
       timeZoneName: 'longOffset',
-    }).formatToParts(testDate);
+    }).formatToParts(baseUtc);
     const tzPart = parts.find((p) => p.type === 'timeZoneName')?.value;
 
     let offsetMinutes = 0;
@@ -148,17 +146,16 @@ export function calculateTriggerDate(
       }
     }
 
-    const utcMillis = Date.UTC(year, month, day, hour, minute, 0) - offsetMinutes * 60 * 1000;
+    const utcMillis = baseUtc.getTime() - offsetMinutes * 60 * 1000;
     const targetDate = new Date(utcMillis);
 
-    // If target timestamp is strictly in the future, return it
     if (targetDate.getTime() > Date.now()) {
       return targetDate;
     }
 
     return null;
   } catch {
-    const fallback = new Date(year, month, day, hour, minute, 0);
+    const fallback = new Date(year, month, rawDay + totalDayShift, hour, minute, 0);
     if (fallback.getTime() > Date.now()) {
       return fallback;
     }
@@ -210,6 +207,7 @@ export async function scheduleReleaseNotification(
   const effectiveTiming: NotificationTimingOption =
     item.reminder?.timing ?? options.timing ?? 'both';
   const effectiveDaysAhead = item.reminder?.daysAhead ?? options.daysAhead ?? 1;
+  const effectiveDayOffset = item.reminder?.dayOffset ?? options.dayOffset ?? 0;
 
   // Always cancel any existing scheduled alerts for this item first to prevent stale duplicates
   await cancelReleaseNotification(item.mediaType, item.id);
@@ -223,7 +221,8 @@ export async function scheduleReleaseNotification(
       effectiveHour,
       effectiveMinute,
       0,
-      options.timezone
+      options.timezone,
+      effectiveDayOffset
     );
 
     if (releaseTrigger) {
@@ -231,18 +230,25 @@ export async function scheduleReleaseNotification(
       let title = '';
       let body = '';
 
+      const isNextDay = effectiveDayOffset > 0;
       if (item.mediaType === 'movie') {
-        title = `Release Reminder: ${item.title}`;
+        title = isNextDay ? `Now Available: ${item.title}` : `Release Reminder: ${item.title}`;
         const typeLabel = item.regionalReleaseType ? ` (${item.regionalReleaseType})` : '';
-        body = `"${item.title}" releases today${typeLabel}.`;
+        body = isNextDay
+          ? `"${item.title}" is now available${typeLabel}.`
+          : `"${item.title}" releases today${typeLabel}.`;
       } else {
-        title = `New Episode: ${item.title}`;
+        title = isNextDay ? `Now Available: ${item.title}` : `New Episode: ${item.title}`;
         if (item.nextEpisode) {
           const epCode = `S${item.nextEpisode.seasonNumber} E${item.nextEpisode.episodeNumber}`;
           const epName = item.nextEpisode.name ? ` "${item.nextEpisode.name}"` : '';
-          body = `${epCode}${epName} of "${item.title}" airs today.`;
+          body = isNextDay
+            ? `${epCode}${epName} of "${item.title}" is now available.`
+            : `${epCode}${epName} of "${item.title}" airs today.`;
         } else {
-          body = `A new episode of "${item.title}" airs today.`;
+          body = isNextDay
+            ? `A new episode of "${item.title}" is now available.`
+            : `A new episode of "${item.title}" airs today.`;
         }
       }
 
@@ -279,7 +285,8 @@ export async function scheduleReleaseNotification(
       effectiveHour,
       effectiveMinute,
       effectiveDaysAhead,
-      options.timezone
+      options.timezone,
+      effectiveDayOffset
     );
 
     if (advanceTrigger) {
