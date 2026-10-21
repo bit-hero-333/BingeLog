@@ -23,6 +23,7 @@ import {
 } from '@/types/media';
 import { formatDate, formatTime } from '@/utils/date';
 import { MaterialTimePickerModal } from '@/components/MaterialTimePickerModal';
+import { CountryOriginBadge } from '@/components/CountryOriginBadge';
 
 interface ReleaseReminderModalProps {
   visible: boolean;
@@ -152,11 +153,7 @@ function ReleaseReminderSheetContent({
                 {dateLabel || 'Release'}: {targetDate ? formatDate(targetDate, dateFormat) : 'Upcoming'}
               </Text>
               {originCountry ? (
-                <View style={[styles.originBadge, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                  <Text style={[styles.originBadgeText, { color: colors.textSecondary }]}>
-                    {originCountry.toUpperCase()}
-                  </Text>
-                </View>
+                <CountryOriginBadge countryCode={originCountry} />
               ) : null}
               {countdownText ? (
                 <View style={[styles.countdownBadge, { backgroundColor: colors.primary }]}>

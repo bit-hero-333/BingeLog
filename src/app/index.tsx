@@ -140,6 +140,7 @@ export default function DiscoverScreen() {
       else if (multiFilter.selectedProviders.length > 0) count++;
     }
     if (multiFilter.selectedGenres.length > 0) count++;
+    if (multiFilter.selectedCountries && multiFilter.selectedCountries.length > 0) count += multiFilter.selectedCountries.length;
     if (multiFilter.minRating > 0) count++;
     if (multiFilter.selectedPeople.length > 0) count += multiFilter.selectedPeople.length;
     if (multiFilter.selectedCompanies.length > 0) count += multiFilter.selectedCompanies.length;
@@ -851,21 +852,31 @@ export default function DiscoverScreen() {
         {activeDiscoverFilter && (
           <View style={styles.activeFilterBanner}>
             <View style={styles.activeFilterBadge}>
-              <Ionicons
-                name={
-                  activeDiscoverFilter.type === 'person'
-                    ? 'person'
-                    : activeDiscoverFilter.type === 'genre'
-                    ? 'pricetag'
-                    : activeDiscoverFilter.type === 'provider'
-                    ? 'tv'
-                    : 'business'
-                }
-                size={13 * textScale}
-                color="#38bdf8"
-              />
+              {activeDiscoverFilter.type === 'country' ? (
+                <Image
+                  source={{ uri: `https://flagcdn.com/w40/${String(activeDiscoverFilter.code || activeDiscoverFilter.id).toLowerCase()}.png` }}
+                  style={{ width: 15, height: 15, borderRadius: 2, marginRight: 6 }}
+                  contentFit="cover"
+                />
+              ) : (
+                <Ionicons
+                  name={
+                    activeDiscoverFilter.type === 'person'
+                      ? 'person'
+                      : activeDiscoverFilter.type === 'genre'
+                      ? 'pricetag'
+                      : activeDiscoverFilter.type === 'provider'
+                      ? 'tv'
+                      : 'business'
+                  }
+                  size={13 * textScale}
+                  color="#38bdf8"
+                />
+              )}
               <Text style={[styles.activeFilterText, { fontSize: 12 * textScale }]}>
-                {activeDiscoverFilter.type === 'person'
+                {activeDiscoverFilter.type === 'country'
+                  ? 'Origin:'
+                  : activeDiscoverFilter.type === 'person'
                   ? 'Person:'
                   : activeDiscoverFilter.type === 'genre'
                   ? 'Genre:'
@@ -873,8 +884,7 @@ export default function DiscoverScreen() {
                   ? 'Streaming on:'
                   : 'Studio:'}{' '}
                 <Text style={styles.activeFilterName}>{activeDiscoverFilter.name}</Text>
-              </Text>
-            </View>
+              </Text></View>
 
             <Pressable style={styles.clearFilterBtn} onPress={() => setActiveDiscoverFilter(null)}>
               <Ionicons name="close-circle" size={16} color="#94a3b8" />

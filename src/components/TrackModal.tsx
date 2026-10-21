@@ -60,6 +60,8 @@ import { DatePickerModal } from '@/components/DatePickerModal';
 import { EntityModal } from '@/components/EntityModal';
 import { EpisodeDetailModal } from '@/components/EpisodeDetailModal';
 import { ReleaseReminderModal } from '@/components/ReleaseReminderModal';
+import { CountryOriginBadge } from '@/components/CountryOriginBadge';
+import { getCountryName } from '@/utils/country';
 
 interface TrackModalProps {
   visible: boolean;
@@ -1375,11 +1377,22 @@ function TrackModalFormContent({
                 ) : null}
 
                 {displayOriginCountry ? (
-                  <View style={[styles.originCountryTag, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-                    <Text style={[styles.originCountryTagText, { color: colors.textSecondary, fontSize: 11 * textScale }]} selectable={true}>
-                      {displayOriginCountry.toUpperCase()}
-                    </Text>
-                  </View>
+                  <CountryOriginBadge
+                    countryCode={displayOriginCountry}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      const code = displayOriginCountry.toUpperCase();
+                      const name = getCountryName(code) || code;
+                      setActiveDiscoverFilter({
+                        type: 'country',
+                        id: code,
+                        name: `${name} (${code})`,
+                        code,
+                      });
+                      onClose();
+                      router.navigate('/');
+                    }}
+                  />
                 ) : null}
 
                 {voteAverage ? (

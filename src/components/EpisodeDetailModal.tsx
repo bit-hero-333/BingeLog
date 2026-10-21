@@ -22,7 +22,10 @@ import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { formatDateDisplay, getTodayFormatted } from '@/utils/date';
+import { router } from 'expo-router';
 import { ReleaseReminderModal } from '@/components/ReleaseReminderModal';
+import { CountryOriginBadge } from '@/components/CountryOriginBadge';
+import { getCountryName } from '@/utils/country';
 
 interface EpisodeDetailModalProps {
   visible: boolean;
@@ -74,6 +77,7 @@ function EpisodeDetailContent({
     showSeasonEpisodeImages,
     showActorImages,
     sizingConfig,
+    setActiveDiscoverFilter,
     dateFormat,
     triggerHaptic,
     deviceNotificationsEnabled,
@@ -209,12 +213,22 @@ function EpisodeDetailContent({
             ) : null}
 
             {originCountry ? (
-              <View style={[styles.infoBadge, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                <Ionicons name="globe-outline" size={13} color={colors.textSecondary} />
-                <Text style={[styles.infoBadgeText, { color: colors.textSecondary }]}>
-                  {originCountry.toUpperCase()}
-                </Text>
-              </View>
+              <CountryOriginBadge
+                countryCode={originCountry}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  const code = originCountry.toUpperCase();
+                  const name = getCountryName(code) || code;
+                  setActiveDiscoverFilter({
+                    type: 'country',
+                    id: code,
+                    name: `${name} (${code})`,
+                    code,
+                  });
+                  onClose();
+                  router.navigate('/');
+                }}
+              />
             ) : null}
           </View>
         </View>

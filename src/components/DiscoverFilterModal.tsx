@@ -25,6 +25,7 @@ import {
   WatchProvider,
   POPULAR_STREAMING_PROVIDERS,
   PopularProviderOption,
+  POPULAR_REGIONS,
 } from '@/types/media';
 import { getTextScale, getHeaderScale, getButtonScale } from '@/utils/sizing';
 
@@ -195,12 +196,27 @@ function DiscoverFilterModalContent({
       else if (draft.selectedProviders.length > 0) count++;
     }
     if (draft.selectedGenres.length > 0) count++;
+    if (draft.selectedCountries && draft.selectedCountries.length > 0) count += draft.selectedCountries.length;
     if (draft.minRating > 0) count++;
     if (draft.selectedPeople.length > 0) count += draft.selectedPeople.length;
     if (draft.selectedCompanies.length > 0) count += draft.selectedCompanies.length;
     if (draft.sortBy !== 'primary_release_date.asc') count++;
     return count;
   }, [draft]);
+
+  const toggleCountry = (countryCode: string) => {
+    triggerHaptic('selection');
+    setDraft((prev) => {
+      const current = prev.selectedCountries || [];
+      const exists = current.includes(countryCode);
+      return {
+        ...prev,
+        selectedCountries: exists
+          ? current.filter((c) => c !== countryCode)
+          : [...current, countryCode],
+      };
+    });
+  };
 
   const toggleGenre = (genreId: number) => {
     triggerHaptic('selection');
@@ -674,7 +690,52 @@ function DiscoverFilterModalContent({
             </View>
           </View>
 
-          {/* 5. Rating Threshold */}
+          {/* 5. Country of Origin */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary, fontSize: 13 * headerScale }]}>
+                COUNTRY OF ORIGIN
+              </Text>
+              {draft.selectedCountries && draft.selectedCountries.length > 0 && (
+                <Pressable onPress={() => setDraft((p) => ({ ...p, selectedCountries: [] }))}>
+                  <Text style={[styles.sectionClearText, { color: colors.primary, fontSize: 11 * textScale }]}>
+                    Clear
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+            <View style={styles.chipsWrap}>
+              {POPULAR_REGIONS.map((r) => {
+                const isSelected = draft.selectedCountries?.includes(r.code);
+                return (
+                  <Pressable
+                    key={r.code}
+                    style={[
+                      styles.chip,
+                      { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                      isSelected && { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                    ]}
+                    onPress={() => toggleCountry(r.code)}>
+                    <Image
+                      source={{ uri: `https://flagcdn.com/w40/${r.code.toLowerCase()}.png` }}
+                      style={{ width: 14, height: 14, borderRadius: 2 }}
+                      contentFit="cover"
+                    />
+                    <Text
+                      style={[
+                        styles.chipText,
+                        { color: isSelected ? colors.primary : colors.text, fontSize: 12 * textScale },
+                        isSelected && styles.chipTextSelected,
+                      ]}>
+                      {r.name} ({r.code})
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* 6. Rating Threshold */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary, fontSize: 13 * headerScale }]}>
               MINIMUM USER SCORE

@@ -693,7 +693,7 @@ export const TMDBService = {
 
   async discoverByEntity(
     entityType: EntityType,
-    entityId: number,
+    entityId: number | string,
     apiKey: string,
     page: number = 1,
     watchRegion?: string
@@ -703,7 +703,9 @@ export const TMDBService = {
         page,
         sort_by: 'popularity.desc',
       };
-      if (entityType === 'person') {
+      if (entityType === 'country') {
+        params.with_origin_country = String(entityId).toUpperCase();
+      } else if (entityType === 'person') {
         params.with_people = entityId;
       } else if (entityType === 'company' || entityType === 'network') {
         params.with_companies = entityId;
@@ -1011,6 +1013,11 @@ export const TMDBService = {
         // Studios / Companies
         if (filter.selectedCompanies.length > 0) {
           params.with_companies = filter.selectedCompanies.map((c) => c.id).join('|');
+        }
+
+        // Origin Country
+        if (filter.selectedCountries && filter.selectedCountries.length > 0) {
+          params.with_origin_country = filter.selectedCountries.join('|');
         }
 
         return params;

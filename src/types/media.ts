@@ -343,7 +343,7 @@ export const SIZING_PRESETS: Record<DensityPreset, SizingConfig> = {
   },
 };
 
-export type EntityType = 'person' | 'company' | 'network' | 'genre' | 'provider';
+export type EntityType = 'person' | 'company' | 'network' | 'genre' | 'provider' | 'country';
 
 export interface EntitySelection {
   type: EntityType;
@@ -384,8 +384,9 @@ export interface GenreFullDetails {
 
 export interface DiscoverFilter {
   type: EntityType;
-  id: number;
+  id: number | string;
   name: string;
+  code?: string;
 }
 
 export type DiscoverReleaseWindow =
@@ -409,6 +410,7 @@ export interface MultiDiscoverFilter {
   selectedProviders: number[];
   selectedProviderDetails?: WatchProvider[];
   selectedGenres: number[];
+  selectedCountries?: string[];
   minRating: number;
   selectedPeople: { id: number; name: string; profilePath?: string | null }[];
   selectedCompanies: { id: number; name: string; logoPath?: string | null }[];
