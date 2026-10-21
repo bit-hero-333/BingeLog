@@ -448,7 +448,13 @@ export const TMDBService = {
         ? data.production_countries.map((p) => p.iso_3166_1).filter(Boolean)
         : [];
       const networkOrigin = (data.networks?.[0] as any)?.origin_country || undefined;
-      const originCountry = rawOriginList[0] || networkOrigin || undefined;
+      let originCountry = rawOriginList[0] || networkOrigin || undefined;
+
+      // If Japan is in origin list and it is an animation or Japanese studio co-production, prioritize JP
+      if (rawOriginList.includes('JP') && ((data.genres || []).some((g: any) => g.name === 'Animation') || studios.some((s) => s.name?.toLowerCase().includes('trigger')))) {
+        originCountry = 'JP';
+      }
+
       const originCountries = rawOriginList.length > 0 ? rawOriginList : originCountry ? [originCountry] : undefined;
 
       return {

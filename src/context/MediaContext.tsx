@@ -352,9 +352,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           }
 
           // Auto-refresh missing origin countries for tracked library items
-          const missingOriginCount = activeItems.filter(
-            (i) => !i.originCountry && (!i.originCountries || i.originCountries.length === 0)
-          ).length;
+          const missingOriginCount = activeItems.filter((i) => !i.originCountry).length;
 
           if (missingOriginCount > 0) {
             try {
@@ -362,16 +360,13 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
               let changed = false;
               for (let i = 0; i < updatedItems.length; i++) {
                 const item = updatedItems[i];
-                if (!item.originCountry && (!item.originCountries || item.originCountries.length === 0)) {
+                if (!item.originCountry) {
                   try {
                     const details = await TMDBService.getMediaDetails(item.id, item.mediaType, savedKey);
-                    const originCountry = details.originCountry || (details.originCountries && details.originCountries.length > 0 ? details.originCountries[0] : undefined);
-                    const originCountries = details.originCountries || (originCountry ? [originCountry] : undefined);
-                    if (originCountry || (originCountries && originCountries.length > 0)) {
+                    if (details.originCountry) {
                       updatedItems[i] = {
                         ...item,
-                        originCountry,
-                        originCountries,
+                        originCountry: details.originCountry,
                       };
                       changed = true;
                     }
@@ -382,6 +377,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
               }
               if (changed) {
                 activeItems = updatedItems;
+                setTrackedItems(updatedItems);
                 await StorageService.saveTrackedItems(updatedItems);
               }
             } catch {

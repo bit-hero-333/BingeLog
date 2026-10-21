@@ -1001,9 +1001,7 @@ export const AchievementsEngine = {
     const nowIso = new Date().toISOString();
 
     // Retroactively ensure originCountry is resolved for all items from TMDB
-    const itemsMissingOrigin = items.filter(
-      (i) => !i.originCountry && (!i.originCountries || i.originCountries.length === 0)
-    );
+    const itemsMissingOrigin = items.filter((i) => !i.originCountry);
     if (itemsMissingOrigin.length > 0) {
       try {
         const apiKey = await StorageService.getApiKey();
@@ -1013,11 +1011,8 @@ export const AchievementsEngine = {
             itemsMissingOrigin.map(async (item) => {
               try {
                 const details = await TMDBService.getMediaDetails(item.id, item.mediaType, apiKey);
-                const originCountry = details.originCountry || (details.originCountries && details.originCountries.length > 0 ? details.originCountries[0] : undefined);
-                const originCountries = details.originCountries || (originCountry ? [originCountry] : undefined);
-                if (originCountry || (originCountries && originCountries.length > 0)) {
-                  item.originCountry = originCountry;
-                  item.originCountries = originCountries;
+                if (details.originCountry) {
+                  item.originCountry = details.originCountry;
                   updatedAny = true;
                 }
               } catch {
@@ -1806,36 +1801,24 @@ export const AchievementsEngine = {
         }
 
         case 'mr_worldwide': {
-          const countryMap = new Map<string, TrackedItem>();
+          const countryCounts = new Map<string, number>();
+          const countryRepresentative = new Map<string, TrackedItem>();
 
-          const getOriginCountries = (i: TrackedItem): string[] => {
-            if (Array.isArray(i.originCountries) && i.originCountries.length > 0) {
-              return i.originCountries.map((c) => (c || '').trim().toUpperCase()).filter(Boolean);
-            }
-            if (i.originCountry) {
-              const c = i.originCountry.trim().toUpperCase();
-              if (c) return [c];
-            }
-            if (Array.isArray((i as any).origin_country) && (i as any).origin_country.length > 0) {
-              return (i as any).origin_country.map((c: string) => (c || '').trim().toUpperCase()).filter(Boolean);
-            }
-            if (typeof (i as any).origin_country === 'string' && (i as any).origin_country.trim()) {
-              return [(i as any).origin_country.trim().toUpperCase()];
-            }
-            return [];
-          };
-
-          items.forEach((i) => {
-            const countries = getOriginCountries(i);
-            countries.forEach((code) => {
-              if (code && !countryMap.has(code)) {
-                countryMap.set(code, i);
+          items.forEach((item) => {
+            const raw = item.originCountry || (item as any).origin_country?.[0];
+            if (typeof raw === 'string') {
+              const code = raw.trim().toUpperCase();
+              if (code.length === 2) {
+                countryCounts.set(code, (countryCounts.get(code) || 0) + 1);
+                if (!countryRepresentative.has(code)) {
+                  countryRepresentative.set(code, item);
+                }
               }
-            });
+            }
           });
 
-          val = countryMap.size;
-          Array.from(countryMap.entries())
+          val = countryCounts.size;
+          Array.from(countryRepresentative.entries())
             .slice(0, 50)
             .forEach(([code, item]) => {
               contributing.push({
