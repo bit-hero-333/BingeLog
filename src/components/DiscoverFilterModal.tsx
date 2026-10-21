@@ -25,9 +25,9 @@ import {
   WatchProvider,
   POPULAR_STREAMING_PROVIDERS,
   PopularProviderOption,
-  POPULAR_REGIONS,
 } from '@/types/media';
 import { getTextScale, getHeaderScale, getButtonScale } from '@/utils/sizing';
+import { ALL_COUNTRIES, getCountryName } from '@/utils/country';
 
 interface DiscoverFilterModalProps {
   visible: boolean;
@@ -73,6 +73,15 @@ function DiscoverFilterModalContent({
 
   // Draft local filter state for the modal - initialized fresh when opened
   const [draft, setDraft] = useState<MultiDiscoverFilter>(filter);
+  const [countryQuery, setCountryQuery] = useState('');
+
+  const filteredCountries = useMemo(() => {
+    const q = countryQuery.trim().toLowerCase();
+    if (!q) return ALL_COUNTRIES;
+    return ALL_COUNTRIES.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
+    );
+  }, [countryQuery]);
 
   // Providers catalog state
   const [regionProviders, setRegionProviders] = useState<WatchProvider[]>([]);
@@ -699,42 +708,109 @@ function DiscoverFilterModalContent({
               {draft.selectedCountries && draft.selectedCountries.length > 0 && (
                 <Pressable onPress={() => setDraft((p) => ({ ...p, selectedCountries: [] }))}>
                   <Text style={[styles.sectionClearText, { color: colors.primary, fontSize: 11 * textScale }]}>
-                    Clear
+                    Clear ({draft.selectedCountries.length})
                   </Text>
                 </Pressable>
               )}
             </View>
-            <View style={styles.chipsWrap}>
-              {POPULAR_REGIONS.map((r) => {
-                const isSelected = draft.selectedCountries?.includes(r.code);
-                return (
-                  <Pressable
-                    key={r.code}
-                    style={[
-                      styles.chip,
-                      { backgroundColor: colors.card, borderColor: colors.cardBorder },
-                      isSelected && { backgroundColor: colors.primaryBg, borderColor: colors.primary },
-                    ]}
-                    onPress={() => toggleCountry(r.code)}>
-                    <Image
-                      source={{ uri: `https://flagcdn.com/w40/${r.code.toLowerCase()}.png` }}
-                      style={{ width: 14, height: 14, borderRadius: 2 }}
-                      contentFit="cover"
-                    />
-                    <Text
-                      style={[
-                        styles.chipText,
-                        { color: isSelected ? colors.primary : colors.text, fontSize: 12 * textScale },
-                        isSelected && styles.chipTextSelected,
-                      ]}>
-                      {r.name} ({r.code})
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
 
+            {/* Active Selected Country Tags */}
+            {draft.selectedCountries && draft.selectedCountries.length > 0 && (
+              <View style={styles.activeTagsWrap}>
+                {draft.selectedCountries.map((code) => {
+                  const name = getCountryName(code);
+                  return (
+                    <View
+                      key={code}
+                      style={[styles.activeTag, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
+                      <Image
+                        source={{ uri: `https://flagcdn.com/w40/${code.toLowerCase()}.png` }}
+                        style={styles.activeTagFlag}
+                        contentFit="cover"
+                      />
+                      <Text style={[styles.activeTagText, { color: colors.primary, fontSize: 11.5 * textScale }]}>
+                        {name} ({code})
+                      </Text>
+                      <Pressable onPress={() => toggleCountry(code)} hitSlop={6}>
+                        <Ionicons name="close-circle" size={15} color={colors.primary} />
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Search Country Input */}
+            <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text, fontSize: 12.5 * textScale }]}
+                placeholder="Search 250+ countries (e.g. Turkey, JP, Norway)..."
+                placeholderTextColor={colors.textMuted}
+                value={countryQuery}
+                onChangeText={setCountryQuery}
+                autoCorrect={false}
+              />
+              {countryQuery.length > 0 && (
+                <Pressable onPress={() => setCountryQuery('')} hitSlop={8}>
+                  <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+
+            {/* Searchable Country List */}
+            <View style={[styles.countryScrollContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+              <ScrollView
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+                style={styles.countryScrollView}>
+                {filteredCountries.map((c) => {
+                  const isSelected = draft.selectedCountries?.includes(c.code);
+                  return (
+                    <Pressable
+                      key={c.code}
+                      style={[
+                        styles.countryRowItem,
+                        { borderBottomColor: colors.cardBorder },
+                        isSelected && { backgroundColor: colors.primaryBg },
+                      ]}
+                      onPress={() => toggleCountry(c.code)}>
+                      <View style={styles.countryRowLeft}>
+                        <Image
+                          source={{ uri: `https://flagcdn.com/w40/${c.code.toLowerCase()}.png` }}
+                          style={styles.countryRowFlag}
+                          contentFit="cover"
+                        />
+                        <Text
+                          style={[
+                            styles.countryRowText,
+                            { color: isSelected ? colors.primary : colors.text, fontSize: 12 * textScale },
+                            isSelected && { fontWeight: '700' },
+                          ]}
+                          numberOfLines={1}>
+                          {c.name} ({c.code})
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={18}
+                        color={isSelected ? colors.primary : colors.cardBorder}
+                      />
+                    </Pressable>
+                  );
+                })}
+                {filteredCountries.length === 0 && (
+                  <View style={styles.emptyCountryWrap}>
+                    <Text style={[styles.emptyCountryText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                      No countries found matching &ldquo;{countryQuery}&rdquo;.
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+
           {/* 6. Rating Threshold */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary, fontSize: 13 * headerScale }]}>
@@ -1222,6 +1298,52 @@ const styles = StyleSheet.create({
   activeTagText: {
     fontWeight: '700',
   },
+  activeTagFlag: {
+    width: 14,
+    height: 14,
+    borderRadius: 2,
+    marginRight: 4,
+  },
+  countryScrollContainer: {
+    borderRadius: 10,
+    borderWidth: 1,
+    maxHeight: 220,
+    overflow: 'hidden',
+  },
+  countryScrollView: {
+    maxHeight: 220,
+  },
+  countryRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  countryRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  countryRowFlag: {
+    width: 18,
+    height: 18,
+    borderRadius: 2,
+    marginRight: 10,
+  },
+  countryRowText: {
+    flex: 1,
+  },
+  emptyCountryWrap: {
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyCountryText: {
+    textAlign: 'center',
+  },
   modalFooter: {
     flexDirection: 'row',
     alignItems: 'center',

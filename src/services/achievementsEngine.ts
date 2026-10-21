@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TrackedItem, TMDB_GENRE_MAP } from '@/types/media';
+import { getCountryName } from '@/utils/country';
 import {
   AchievementDefinition,
   AchievementProgress,
@@ -775,6 +776,23 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
       ruby: 500,
       emerald: 1100,
       diamond: 2500,
+    },
+  },
+  {
+    id: 'mr_worldwide',
+    name: 'Mr. Worldwide',
+    description: 'Track media originating from distinct countries across the globe.',
+    category: 'eras_cinema',
+    iconName: 'earth-outline',
+    metricLabel: 'Distinct Countries',
+    thresholds: {
+      bronze: 3,
+      silver: 7,
+      gold: 15,
+      platinum: 25,
+      ruby: 40,
+      emerald: 65,
+      diamond: 100,
     },
   },
   {
@@ -1746,6 +1764,71 @@ export const AchievementsEngine = {
           break;
         }
 
+        case 'mr_worldwide': {
+          const countryMap = new Map<string, TrackedItem>();
+          const LANG_TO_COUNTRY: Record<string, string> = {
+            ja: 'JP',
+            ko: 'KR',
+            fr: 'FR',
+            de: 'DE',
+            it: 'IT',
+            es: 'ES',
+            zh: 'CN',
+            hi: 'IN',
+            ru: 'RU',
+            pt: 'BR',
+            tr: 'TR',
+            sv: 'SE',
+            nl: 'NL',
+            da: 'DK',
+            no: 'NO',
+            fi: 'FI',
+            pl: 'PL',
+            th: 'TH',
+          };
+
+          items.forEach((i) => {
+            const rawList: string[] = Array.isArray(i.originCountries) && i.originCountries.length > 0
+              ? i.originCountries
+              : i.originCountry
+              ? [i.originCountry]
+              : Array.isArray((i as any).origin_country)
+              ? (i as any).origin_country
+              : [];
+
+            if (rawList.length === 0) {
+              const lang = (i as any).original_language || (i as any).originalLanguage;
+              if (lang && LANG_TO_COUNTRY[lang]) {
+                rawList.push(LANG_TO_COUNTRY[lang]);
+              }
+            }
+
+            rawList.forEach((c) => {
+              const code = (c || '').trim().toUpperCase();
+              if (code && !countryMap.has(code)) {
+                countryMap.set(code, i);
+              }
+            });
+          });
+
+          val = countryMap.size;
+          Array.from(countryMap.entries())
+            .slice(0, 50)
+            .forEach(([code, item]) => {
+              contributing.push({
+                id: item.id,
+                mediaType: item.mediaType,
+                title: item.title,
+                posterPath: item.posterPath,
+                releaseYear: item.releaseYear,
+                userScore: item.userScore,
+                detailText: `${getCountryName(code)} (${code})`,
+              });
+            });
+          subtext = `${val} distinct countries of origin in library`;
+          break;
+        }
+
         case 'studio_loyal': {
           const studioCounts: Record<string, number> = {};
           items.forEach((i) => {
