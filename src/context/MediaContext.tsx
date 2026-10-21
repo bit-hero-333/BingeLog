@@ -350,6 +350,44 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
               // Non-fatal background refresh
             }
           }
+
+          // Auto-refresh missing origin countries for tracked library items
+          const missingOriginCount = activeItems.filter(
+            (i) => !i.originCountry && (!i.originCountries || i.originCountries.length === 0)
+          ).length;
+
+          if (missingOriginCount > 0) {
+            try {
+              const updatedItems = [...activeItems];
+              let changed = false;
+              for (let i = 0; i < updatedItems.length; i++) {
+                const item = updatedItems[i];
+                if (!item.originCountry && (!item.originCountries || item.originCountries.length === 0)) {
+                  try {
+                    const details = await TMDBService.getMediaDetails(item.id, item.mediaType, savedKey);
+                    const originCountry = details.originCountry || (details.originCountries && details.originCountries.length > 0 ? details.originCountries[0] : undefined);
+                    const originCountries = details.originCountries || (originCountry ? [originCountry] : undefined);
+                    if (originCountry || (originCountries && originCountries.length > 0)) {
+                      updatedItems[i] = {
+                        ...item,
+                        originCountry,
+                        originCountries,
+                      };
+                      changed = true;
+                    }
+                  } catch {
+                    // Non-fatal per-item error
+                  }
+                }
+              }
+              if (changed) {
+                activeItems = updatedItems;
+                await StorageService.saveTrackedItems(updatedItems);
+              }
+            } catch {
+              // Non-fatal background refresh
+            }
+          }
         }
 
         // Retroactive backfill for existing on-hold items missing onHoldStartedAt

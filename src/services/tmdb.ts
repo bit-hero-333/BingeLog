@@ -447,7 +447,8 @@ export const TMDBService = {
         : Array.isArray(data.production_countries)
         ? data.production_countries.map((p) => p.iso_3166_1).filter(Boolean)
         : [];
-      const originCountry = rawOriginList[0] || (data.networks && data.networks.length > 0 ? 'US' : undefined);
+      const networkOrigin = (data.networks?.[0] as any)?.origin_country || undefined;
+      const originCountry = rawOriginList[0] || networkOrigin || undefined;
       const originCountries = rawOriginList.length > 0 ? rawOriginList : originCountry ? [originCountry] : undefined;
 
       return {

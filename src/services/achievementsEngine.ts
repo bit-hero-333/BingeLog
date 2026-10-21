@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TrackedItem, TMDB_GENRE_MAP } from '@/types/media';
 import { getCountryName } from '@/utils/country';
+import { StorageService } from '@/services/storage';
+import { TMDBService } from '@/services/tmdb';
 import {
   AchievementDefinition,
   AchievementProgress,
@@ -998,6 +1000,44 @@ export const AchievementsEngine = {
     let timestampsModified = false;
     const nowIso = new Date().toISOString();
 
+    // Retroactively ensure originCountry is resolved for all items from TMDB
+    const itemsMissingOrigin = items.filter(
+      (i) => !i.originCountry && (!i.originCountries || i.originCountries.length === 0)
+    );
+    if (itemsMissingOrigin.length > 0) {
+      try {
+        const apiKey = await StorageService.getApiKey();
+        if (apiKey) {
+          let updatedAny = false;
+          await Promise.all(
+            itemsMissingOrigin.map(async (item) => {
+              try {
+                const details = await TMDBService.getMediaDetails(item.id, item.mediaType, apiKey);
+                const originCountry = details.originCountry || (details.originCountries && details.originCountries.length > 0 ? details.originCountries[0] : undefined);
+                const originCountries = details.originCountries || (originCountry ? [originCountry] : undefined);
+                if (originCountry || (originCountries && originCountries.length > 0)) {
+                  item.originCountry = originCountry;
+                  item.originCountries = originCountries;
+                  updatedAny = true;
+                }
+              } catch {
+                // Non-fatal per-item error
+              }
+            })
+          );
+          if (updatedAny) {
+            try {
+              await StorageService.saveTrackedItems(items);
+            } catch {
+              // Non-fatal
+            }
+          }
+        }
+      } catch {
+        // Non-fatal
+      }
+    }
+
     // Precompute common item filters
     const completedItems = items.filter((i) => i.status === 'completed');
     const planItems = items.filter((i) => i.status === 'plan_to_watch');
@@ -1749,7 +1789,8 @@ export const AchievementsEngine = {
           const worldTitles = items.filter((i) => {
             const isAnime = getItemGenres(i).some((g) => g.toLowerCase().includes('anim'));
             const hasForeignChars = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u0400-\u04FF\u0600-\u06FF\u0900-\u097F]/.test(i.title || '');
-            return isAnime || hasForeignChars;
+            const isNonUs = Boolean(i.originCountry && i.originCountry !== 'US');
+            return isAnime || hasForeignChars || isNonUs;
           });
           val = worldTitles.length;
           worldTitles.slice(0, 40).forEach((w) => {
@@ -1767,7 +1808,7 @@ export const AchievementsEngine = {
         case 'mr_worldwide': {
           const countryMap = new Map<string, TrackedItem>();
 
-          const inferCountries = (i: TrackedItem): string[] => {
+          const getOriginCountries = (i: TrackedItem): string[] => {
             if (Array.isArray(i.originCountries) && i.originCountries.length > 0) {
               return i.originCountries.map((c) => (c || '').trim().toUpperCase()).filter(Boolean);
             }
@@ -1778,60 +1819,15 @@ export const AchievementsEngine = {
             if (Array.isArray((i as any).origin_country) && (i as any).origin_country.length > 0) {
               return (i as any).origin_country.map((c: string) => (c || '').trim().toUpperCase()).filter(Boolean);
             }
-
-            // Studio / Network detection
-            const studios = i.studios || [];
-            for (const st of studios) {
-              const sl = st.toLowerCase();
-              if (
-                sl.includes('toei') || sl.includes('mappa') || sl.includes('bones') ||
-                sl.includes('wit') || sl.includes('ufotable') || sl.includes('ghibli') ||
-                sl.includes('madhouse') || sl.includes('kyoto anim') || sl.includes('cloverworks') ||
-                sl.includes('sunrise') || sl.includes('shaft') || sl.includes('pierrot') ||
-                sl.includes('trigger') || sl.includes('a-1 pictures') || sl.includes('j.c.staff') ||
-                sl.includes('production i.g') || sl.includes('tms') || sl.includes('david prod') ||
-                sl.includes('toho') || sl.includes('shochiku') || sl.includes('kadokawa') ||
-                sl.includes('bandai') || sl.includes('pony canyon') || sl.includes('aniplex')
-              ) {
-                return ['JP'];
-              }
-              if (
-                sl.includes('studio dragon') || sl.includes('cj enm') || sl.includes('studio n') ||
-                sl.includes('showbox') || sl.includes('lotte') || sl.includes('jtbc')
-              ) {
-                return ['KR'];
-              }
-              if (
-                sl.includes('bbc') || sl.includes('itv') || sl.includes('channel 4') ||
-                sl.includes('film4') || sl.includes('working title') || sl.includes('eon prod')
-              ) {
-                return ['GB'];
-              }
-              if (sl.includes('gaumont') || sl.includes('pathé') || sl.includes('canal+')) {
-                return ['FR'];
-              }
-              if (sl.includes('babelsberg') || sl.includes('constantin') || sl.includes('zdf')) {
-                return ['DE'];
-              }
+            if (typeof (i as any).origin_country === 'string' && (i as any).origin_country.trim()) {
+              return [(i as any).origin_country.trim().toUpperCase()];
             }
-
-            // Character sets detection in title
-            const title = i.title || '';
-            if (/[\u3040-\u30ff]/.test(title)) return ['JP'];
-            if (/[\uac00-\ud7af]/.test(title)) return ['KR'];
-            if (/[\u0400-\u04ff]/.test(title)) return ['RU'];
-
-            // Genres detection
-            const genres = (i.genres || []).map((g) => g.toLowerCase());
-            if (genres.some((g) => g.includes('anime'))) return ['JP'];
-
-            // Western / Hollywood titles default
-            return ['US'];
+            return [];
           };
 
           items.forEach((i) => {
-            const detected = inferCountries(i);
-            detected.forEach((code) => {
+            const countries = getOriginCountries(i);
+            countries.forEach((code) => {
               if (code && !countryMap.has(code)) {
                 countryMap.set(code, i);
               }
@@ -1854,8 +1850,8 @@ export const AchievementsEngine = {
             });
           subtext = `${val} distinct countries of origin in library`;
           break;
-        }
-
+        }
+
         case 'studio_loyal': {
           const studioCounts: Record<string, number> = {};
           items.forEach((i) => {

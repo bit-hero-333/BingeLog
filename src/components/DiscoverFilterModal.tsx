@@ -29,7 +29,6 @@ import {
 } from '@/types/media';
 import { getTextScale, getHeaderScale, getButtonScale } from '@/utils/sizing';
 import { ALL_COUNTRIES, getCountryName } from '@/utils/country';
-import { CountryPickerModal } from '@/components/CountryPickerModal';
 
 interface DiscoverFilterModalProps {
   visible: boolean;
@@ -75,7 +74,6 @@ function DiscoverFilterModalContent({
 
   // Draft local filter state for the modal - initialized fresh when opened
   const [draft, setDraft] = useState<MultiDiscoverFilter>(filter);
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [countryQuery, setCountryQuery] = useState('');
 
   const countrySuggestions = useMemo(() => {
@@ -83,7 +81,7 @@ function DiscoverFilterModalContent({
     if (!q) return [];
     return ALL_COUNTRIES.filter(
       (c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
-    ).slice(0, 8);
+    ).slice(0, 12);
   }, [countryQuery]);
 
   // Providers catalog state
@@ -398,8 +396,9 @@ function DiscoverFilterModalContent({
   const modalSheetHeight = Math.round(height * 0.85);
 
   return (
-    <Pressable style={styles.modalBackdrop} onPress={onClose}>
-      <Pressable
+    <View style={styles.modalBackdrop}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      <View
         style={[
           styles.modalContainer,
           {
@@ -407,8 +406,7 @@ function DiscoverFilterModalContent({
             height: modalSheetHeight,
             borderColor: colors.cardBorder,
           },
-        ]}
-        onPress={(e) => e.stopPropagation()}>
+        ]}>
         {/* Header */}
         <View style={[styles.modalHeader, { borderBottomColor: colors.cardBorder }]}>
           <View style={styles.modalHeaderLeft}>
@@ -431,8 +429,10 @@ function DiscoverFilterModalContent({
         <ScrollView
           style={styles.modalBody}
           contentContainerStyle={styles.modalBodyContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
+          showsVerticalScrollIndicator={true}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled={true}
+          overScrollMode="always">
           {/* 1. Media Type Selector */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary, fontSize: 13 * headerScale }]}>
@@ -620,6 +620,7 @@ function DiscoverFilterModalContent({
                 ) : (
                   <ScrollView
                     horizontal
+                    nestedScrollEnabled={true}
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.providerHorizontalList}>
                     {availableProviders.slice(0, providerSearch.trim() ? 60 : 45).map((p: WatchProvider) => {
@@ -747,18 +748,20 @@ function DiscoverFilterModalContent({
             <View style={[styles.searchBoxFixed, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
               <TextInput
-                style={[styles.searchInputFixed, { color: colors.text, fontSize: 12.5 * textScale }]}
+                style={[styles.searchInputFixed, { color: colors.text, fontSize: 13 * textScale }]}
                 placeholder="Search countries (e.g. Turkey, JP)..."
                 placeholderTextColor={colors.textMuted}
                 value={countryQuery}
                 onChangeText={setCountryQuery}
                 autoCorrect={false}
+                autoCapitalize="none"
                 multiline={false}
                 numberOfLines={1}
+                returnKeyType="search"
               />
               {countryQuery.length > 0 && (
                 <Pressable onPress={() => setCountryQuery('')} hitSlop={8}>
-                  <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+                  <Ionicons name="close-circle" size={17} color={colors.textSecondary} />
                 </Pressable>
               )}
             </View>
@@ -784,7 +787,7 @@ function DiscoverFilterModalContent({
                       <Text
                         style={[
                           styles.suggestionText,
-                          { color: isSelected ? colors.primary : colors.text, fontSize: 12 * textScale },
+                          { color: isSelected ? colors.primary : colors.text, fontSize: 12.5 * textScale },
                           isSelected && { fontWeight: '700' },
                         ]}>
                         {c.name} ({c.code})
@@ -805,57 +808,39 @@ function DiscoverFilterModalContent({
                 </Text>
               </View>
             ) : (
-              <>
-                {/* Browse All 252 Countries Button */}
-                <Pressable
-                  style={[styles.browseAllBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                  onPress={() => {
-                    triggerHaptic('selection');
-                    setShowCountryPicker(true);
-                  }}>
-                  <View style={styles.browseAllLeft}>
-                    <Ionicons name="globe-outline" size={16} color={colors.primary} />
-                    <Text style={[styles.browseAllText, { color: colors.text, fontSize: 12 * textScale }]}>
-                      Browse All 252 Countries & Territories...
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={15} color={colors.textSecondary} />
-                </Pressable>
-
-                {/* Quick Popular Country Chips */}
-                <View style={styles.chipsWrap}>
-                  {POPULAR_REGIONS.map((r) => {
-                    const isSelected = draft.selectedCountries?.includes(r.code);
-                    return (
-                      <Pressable
-                        key={r.code}
+              /* Quick Popular Country Chips */
+              <View style={styles.chipsWrap}>
+                {POPULAR_REGIONS.map((r) => {
+                  const isSelected = draft.selectedCountries?.includes(r.code);
+                  return (
+                    <Pressable
+                      key={r.code}
+                      style={[
+                        styles.chip,
+                        { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                        isSelected && { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                      ]}
+                      onPress={() => toggleCountry(r.code)}>
+                      <Image
+                        source={{ uri: `https://flagcdn.com/w40/${r.code.toLowerCase()}.png` }}
+                        style={{ width: 14, height: 14, borderRadius: 2 }}
+                        contentFit="cover"
+                      />
+                      <Text
                         style={[
-                          styles.chip,
-                          { backgroundColor: colors.card, borderColor: colors.cardBorder },
-                          isSelected && { backgroundColor: colors.primaryBg, borderColor: colors.primary },
-                        ]}
-                        onPress={() => toggleCountry(r.code)}>
-                        <Image
-                          source={{ uri: `https://flagcdn.com/w40/${r.code.toLowerCase()}.png` }}
-                          style={{ width: 14, height: 14, borderRadius: 2 }}
-                          contentFit="cover"
-                        />
-                        <Text
-                          style={[
-                            styles.chipText,
-                            { color: isSelected ? colors.primary : colors.text, fontSize: 12 * textScale },
-                            isSelected && styles.chipTextSelected,
-                          ]}>
-                          {r.name} ({r.code})
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </>
+                          styles.chipText,
+                          { color: isSelected ? colors.primary : colors.text, fontSize: 12 * textScale },
+                          isSelected && styles.chipTextSelected,
+                        ]}>
+                        {r.name} ({r.code})
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             )}
-          </View>
-
+          </View>
+
           {/* 6. Rating Threshold */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary, fontSize: 13 * headerScale }]}>
@@ -1092,15 +1077,8 @@ function DiscoverFilterModalContent({
             </Text>
           </Pressable>
         </View>
-
-        <CountryPickerModal
-          visible={showCountryPicker}
-          selectedCountries={draft.selectedCountries || []}
-          onToggleCountry={toggleCountry}
-          onClose={() => setShowCountryPicker(false)}
-        />
-      </Pressable>
-    </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -1154,6 +1132,7 @@ const styles = StyleSheet.create({
   modalBodyContent: {
     paddingHorizontal: 18,
     paddingVertical: 14,
+    paddingBottom: 60,
     gap: 20,
   },
   section: {
@@ -1361,7 +1340,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 12,
-    height: 42,
+    height: 44,
     borderRadius: 10,
     borderWidth: 1,
   },
@@ -1369,34 +1348,16 @@ const styles = StyleSheet.create({
     flex: 1,
     height: '100%',
     paddingVertical: 0,
+    margin: 0,
     textAlignVertical: 'center',
     includeFontPadding: false,
-  },
-  browseAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginTop: 2,
-    marginBottom: 4,
-  },
-  browseAllLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  browseAllText: {
-    fontWeight: '600',
   },
   countryRowFlag: {
     width: 18,
     height: 18,
     borderRadius: 2,
     marginRight: 8,
-  },
+  },
   modalFooter: {
     flexDirection: 'row',
     alignItems: 'center',
