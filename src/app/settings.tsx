@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Switch,
   Linking,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -41,6 +42,7 @@ import {
   StreamingRegionStrategy,
   EntitySelection,
   WatchProvider,
+  NOTIFICATION_TIMING_CONFIGS,
 } from '@/types/media';
 import {
   getTextScale,
@@ -109,8 +111,8 @@ export default function SettingsScreen() {
     setRemindersEnabled,
     deviceNotificationsEnabled,
     setDeviceNotificationsEnabled,
-    notificationDayOffset,
-    setNotificationDayOffset,
+    notificationTiming,
+    setNotificationTiming,
     notificationPermissionStatus,
     requestNotificationPermission,
     sendTestNotification,
@@ -270,6 +272,10 @@ export default function SettingsScreen() {
   }, [fetchedProviders, providerSearchQuery]);
 
   const [isSendingTestNotif, setIsSendingTestNotif] = useState(false);
+  const [showTimingStrategyModal, setShowTimingStrategyModal] = useState(false);
+  const currentGlobalTimingConfig =
+    NOTIFICATION_TIMING_CONFIGS.find((c) => c.id === (notificationTiming === 'both' ? 'release_and_advance' : notificationTiming)) ||
+    NOTIFICATION_TIMING_CONFIGS[0];
 
   const handleSendTestNotification = async (delaySeconds = 10) => {
     triggerHaptic('selection');
@@ -929,7 +935,7 @@ export default function SettingsScreen() {
               </Pressable>
             );
           })}
-        </ScrollView>
+          </ScrollView>
 
         {/* Manual Hex Input */}
         <View style={styles.hexInputRow}>
@@ -2312,24 +2318,26 @@ export default function SettingsScreen() {
                   </Text>
                 </View>
 
-                {/* Global Next-Day Timezone Offset Toggle */}
-                <View style={[styles.toggleRow, { marginTop: 12 }]}>
-                  <View style={styles.toggleTextContainer}>
-                    <Text style={[styles.toggleLabel, { color: colors.text, fontSize: 13.5 * textScale }]}>Next-Day Timezone Offset (+1 Day)</Text>
-                    <Text style={[styles.toggleDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
-                      Schedule release alerts one day later by default for international releases (e.g. US evening broadcasts dropping early next morning).
+                {/* Default Alert Timing Strategy */}
+                <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+                  DEFAULT ALERT STRATEGY
+                </Text>
+                <Pressable
+                  style={[styles.dropdownTrigger, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setShowTimingStrategyModal(true);
+                  }}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={[styles.dropdownTriggerTitle, { color: colors.text, fontSize: 13.5 * textScale }]}>
+                      {currentGlobalTimingConfig.label}
+                    </Text>
+                    <Text style={[styles.dropdownTriggerDesc, dynTypography.cardDescription, { color: colors.textSecondary }]}>
+                      {currentGlobalTimingConfig.description}
                     </Text>
                   </View>
-                  <Switch
-                    value={notificationDayOffset === 1}
-                    onValueChange={(val) => {
-                      triggerHaptic('selection');
-                      void setNotificationDayOffset(val ? 1 : 0);
-                    }}
-                    trackColor={{ false: colors.cardBorder, true: colors.primary }}
-                    thumbColor="#ffffff"
-                  />
-                </View>
+                  <Ionicons name="chevron-down" size={Math.round(18 * buttonScale)} color={colors.textSecondary} />
+                </Pressable>
 
                 {/* Test Notification Button */}
                 <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 16 }]}>
@@ -2836,7 +2844,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.22.5 • TMDB & MAL Attributions
+                Version 0.22.6 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2936,7 +2944,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.22.5 • Build 45 • Expo SDK 57
+              Version 0.22.6 • Build 46 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -2975,11 +2983,121 @@ export default function SettingsScreen() {
         visible={showInsightsCustomizer}
         onClose={() => setShowInsightsCustomizer(false)}
       />
+
+      {/* Global Strategy Selection Modal */}
+      <Modal
+        visible={showTimingStrategyModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowTimingStrategyModal(false)}>
+        <View style={styles.dialogOverlay}>
+          <Pressable style={styles.backdrop} onPress={() => setShowTimingStrategyModal(false)} />
+          <View style={[styles.strategySheet, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={[styles.strategyHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.strategyHeaderTitle, { color: colors.text }]}>Default Alert Strategy</Text>
+              <Pressable onPress={() => setShowTimingStrategyModal(false)} hitSlop={8}>
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <ScrollView style={styles.strategyScroll} showsVerticalScrollIndicator={false}>
+              {NOTIFICATION_TIMING_CONFIGS.map((config) => {
+                const isSelected = currentGlobalTimingConfig.id === config.id;
+                return (
+                  <Pressable
+                    key={config.id}
+                    style={[
+                      styles.strategyOptionItem,
+                      { borderBottomColor: colors.divider },
+                      isSelected && { backgroundColor: colors.cardSelected },
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      void setNotificationTiming(config.id);
+                      setShowTimingStrategyModal(false);
+                    }}>
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={[styles.strategyOptionTitle, { color: isSelected ? colors.primary : colors.text }]}>
+                        {config.label}
+                      </Text>
+                      <Text style={[styles.strategyOptionDesc, { color: colors.textSecondary }]}>
+                        {config.description}
+                      </Text>
+                    </View>
+                    {isSelected ? (
+                      <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                    ) : (
+                      <Ionicons name="ellipse-outline" size={20} color={colors.cardBorder} />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 6,
+  },
+  dropdownTriggerTitle: {
+    fontWeight: '700',
+  },
+  dropdownTriggerDesc: {
+    fontSize: 11.5,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  strategyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  strategyHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  strategySheet: {
+    width: '90%',
+    maxHeight: '80%',
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingBottom: 16,
+    overflow: 'hidden',
+  },
+  strategyScroll: {
+    maxHeight: 460,
+  },
+  strategyOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  strategyOptionTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  strategyOptionDesc: {
+    fontSize: 11.5,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+
   container: {
     flex: 1,
   },

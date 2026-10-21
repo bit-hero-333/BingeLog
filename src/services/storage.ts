@@ -584,10 +584,11 @@ export const StorageService = {
   async getNotificationTiming(): Promise<NotificationTimingOption> {
     try {
       const val = await AsyncStorage.getItem(STORAGE_KEYS.NOTIFICATION_TIMING);
-      if (val === 'release_day' || val === 'advance' || val === 'both') return val;
-      return 'both'; // Default: notify both in advance and on release day!
+      if (val === 'release_day' || val === 'next_day' || val === 'advance' || val === 'release_and_advance' || val === 'next_day_and_advance' || val === 'release_and_next_day' || val === 'all_three') return val;
+      if (val === 'both') return 'release_and_advance';
+      return 'release_and_advance';
     } catch {
-      return 'both';
+      return 'release_and_advance';
     }
   },
 

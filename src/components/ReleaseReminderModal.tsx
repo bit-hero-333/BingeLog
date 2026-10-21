@@ -17,8 +17,9 @@ import {
   TMDBMediaItem,
   ItemReminderConfig,
   NotificationTimingOption,
-  NOTIFICATION_HOUR_PRESETS,
   NOTIFICATION_DAYS_ADVANCE_OPTIONS,
+  NOTIFICATION_TIMING_CONFIGS,
+
 } from '@/types/media';
 import { formatDate, formatTime } from '@/utils/date';
 import { MaterialTimePickerModal } from '@/components/MaterialTimePickerModal';
@@ -51,7 +52,6 @@ function ReleaseReminderSheetContent({
     notificationMinute: globalMinute,
     notificationDaysAhead: globalDaysAhead,
     notificationTiming: globalTiming,
-    notificationDayOffset: globalDayOffset,
     timeFormat,
     dateFormat,
     selectedTimezone,
@@ -77,13 +77,16 @@ function ReleaseReminderSheetContent({
   );
   const [hour, setHour] = useState<number>(existingConfig?.hour ?? globalHour);
   const [minute, setMinute] = useState<number>(existingConfig?.minute ?? globalMinute ?? 0);
-  const [dayOffset, setDayOffset] = useState<number>(existingConfig?.dayOffset ?? globalDayOffset ?? 0);
+  const [showStrategyModal, setShowStrategyModal] = useState<boolean>(false);
 
   // Time picker modal & custom days modal state
   const [showTimePicker, setShowTimePicker] = useState<boolean>(false);
   const [showCustomDaysModal, setShowCustomDaysModal] = useState<boolean>(false);
   const [customDaysInput, setCustomDaysInput] = useState<string>(String(daysAhead));
 
+  const currentTimingConfig =
+    NOTIFICATION_TIMING_CONFIGS.find((c) => c.id === (timing === 'both' ? 'release_and_advance' : timing)) ||
+    NOTIFICATION_TIMING_CONFIGS[0];
   const isPresetDays = NOTIFICATION_DAYS_ADVANCE_OPTIONS.some((o) => o.days === daysAhead);
 
   const handleSave = () => {
@@ -94,7 +97,6 @@ function ReleaseReminderSheetContent({
       daysAhead,
       hour,
       minute,
-      dayOffset,
     });
     onClose();
   };
@@ -185,68 +187,32 @@ function ReleaseReminderSheetContent({
 
           {enabled && (
             <>
-              {/* Alert Strategy */}
+              {/* Alert Strategy Dropdown Trigger */}
               <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
                 ALERT TIMING STRATEGY
               </Text>
-              <View style={[styles.strategyContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-                <Pressable
-                  style={[
-                    styles.strategyBtn,
-                    timing === 'release_day' && [styles.strategyBtnActive, { backgroundColor: colors.primary }],
-                  ]}
-                  onPress={() => {
-                    triggerHaptic('selection');
-                    setTiming('release_day');
-                  }}>
-                  <Text
-                    style={[
-                      styles.strategyBtnText,
-                      { color: timing === 'release_day' ? '#ffffff' : colors.textSecondary },
-                    ]}>
-                    On Release Day
+              <Pressable
+                style={[
+                  styles.dropdownTrigger,
+                  { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setShowStrategyModal(true);
+                }}>
+                <View style={styles.dropdownTriggerLeft}>
+                  <Text style={[styles.dropdownTriggerTitle, { color: colors.text }]}>
+                    {currentTimingConfig.label}
                   </Text>
-                </Pressable>
-
-                <Pressable
-                  style={[
-                    styles.strategyBtn,
-                    timing === 'advance' && [styles.strategyBtnActive, { backgroundColor: colors.primary }],
-                  ]}
-                  onPress={() => {
-                    triggerHaptic('selection');
-                    setTiming('advance');
-                  }}>
-                  <Text
-                    style={[
-                      styles.strategyBtnText,
-                      { color: timing === 'advance' ? '#ffffff' : colors.textSecondary },
-                    ]}>
-                    In Advance
+                  <Text style={[styles.dropdownTriggerDesc, { color: colors.textSecondary }]}>
+                    {currentTimingConfig.description}
                   </Text>
-                </Pressable>
+                </View>
+                <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+              </Pressable>
 
-                <Pressable
-                  style={[
-                    styles.strategyBtn,
-                    timing === 'both' && [styles.strategyBtnActive, { backgroundColor: colors.primary }],
-                  ]}
-                  onPress={() => {
-                    triggerHaptic('selection');
-                    setTiming('both');
-                  }}>
-                  <Text
-                    style={[
-                      styles.strategyBtnText,
-                      { color: timing === 'both' ? '#ffffff' : colors.textSecondary },
-                    ]}>
-                    Both
-                  </Text>
-                </Pressable>
-              </View>
-
-              {/* Advance Days Selection (if 'advance' or 'both') */}
-              {(timing === 'advance' || timing === 'both') && (
+              {/* Advance Days Selection (only if strategy includes advance notice) */}
+              {currentTimingConfig.hasAdvance && (
                 <>
                   <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 14 }]}>
                     ADVANCE NOTICE
@@ -307,59 +273,23 @@ function ReleaseReminderSheetContent({
                 </>
               )}
 
-              {/* Alert Time of Day */}
+              {/* Alert Time of Day - Google Keep Dynamic Clock Dial */}
               <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 14 }]}>
-                ALERT TIME OF DAY ({tzShort})
+                ALERT TIME ({tzShort})
               </Text>
-              <View style={styles.hourGrid}>
-                {NOTIFICATION_HOUR_PRESETS.map((preset) => {
-                  const isSelected = hour === preset.hour && minute === 0;
-                  const label = timeFormat === '24h' ? preset.label24 : preset.label12;
-                  return (
-                    <Pressable
-                      key={preset.hour}
-                      style={[
-                        styles.hourChip,
-                        { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-                        isSelected && [styles.hourChipActive, { backgroundColor: colors.primaryBg, borderColor: colors.primary }],
-                      ]}
-                      onPress={() => {
-                        triggerHaptic('selection');
-                        setHour(preset.hour);
-                        setMinute(0);
-                      }}>
-                      <Text
-                        style={[
-                          styles.hourChipText,
-                          { color: isSelected ? colors.primary : colors.text },
-                        ]}>
-                        {label}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.hourChipSub,
-                          { color: isSelected ? colors.primary : colors.textSecondary },
-                        ]}>
-                        {preset.desc.split('/')[0].trim()}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              {/* Google Keep Material Design 3 Clock Picker Launcher */}
               <Pressable
                 style={[
                   styles.customTimeRow,
                   { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-                  minute !== 0 && [styles.customTimeRowActive, { borderColor: colors.primary, backgroundColor: colors.primaryBg }],
                 ]}
                 onPress={() => {
                   triggerHaptic('selection');
                   setShowTimePicker(true);
                 }}>
                 <View style={styles.customTimeInfo}>
-                  <Ionicons name="time-outline" size={18} color={colors.primary} />
+                  <View style={[styles.clockIconWrap, { backgroundColor: colors.primaryBg }]}>
+                    <Ionicons name="time" size={18} color={colors.primary} />
+                  </View>
                   <View>
                     <Text style={[styles.customTimeLabel, { color: colors.text }]}>Selected Exact Time</Text>
                     <Text style={[styles.customTimeSub, { color: colors.textSecondary }]}>
@@ -374,24 +304,6 @@ function ReleaseReminderSheetContent({
                   <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
                 </View>
               </Pressable>
-              {/* Next-Day Timezone Offset Switch */}
-              <View style={[styles.toggleRow, { borderBottomColor: colors.divider, marginTop: 14 }]}>
-                <View style={styles.toggleTextWrap}>
-                  <Text style={[styles.toggleLabel, { color: colors.text }]}>Shift Reminder +1 Day</Text>
-                  <Text style={[styles.toggleDesc, { color: colors.textSecondary }]}>
-                    Trigger alert the day after broadcast for international timezone releases.
-                  </Text>
-                </View>
-                <Switch
-                  value={dayOffset === 1}
-                  onValueChange={(val) => {
-                    triggerHaptic('selection');
-                    setDayOffset(val ? 1 : 0);
-                  }}
-                  trackColor={{ false: colors.cardBorder, true: colors.primary }}
-                  thumbColor="#ffffff"
-                />
-              </View>
             </>
           )}
 
@@ -422,7 +334,59 @@ function ReleaseReminderSheetContent({
         </View>
 
         {/* Material Design 3 Time Picker Modal */}
-        <MaterialTimePickerModal
+              {/* Strategy Selector Sheet Modal */}
+      <Modal
+        visible={showStrategyModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowStrategyModal(false)}>
+        <View style={styles.pickerOverlay}>
+          <Pressable style={styles.pickerBackdrop} onPress={() => setShowStrategyModal(false)} />
+          <View style={[styles.strategySheet, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={[styles.pickerHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.pickerHeaderTitle, { color: colors.text }]}>Alert Timing Strategy</Text>
+              <Pressable onPress={() => setShowStrategyModal(false)} hitSlop={8}>
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <ScrollView style={styles.strategyScroll} showsVerticalScrollIndicator={false}>
+              {NOTIFICATION_TIMING_CONFIGS.map((config) => {
+                const isSelected = currentTimingConfig.id === config.id;
+                return (
+                  <Pressable
+                    key={config.id}
+                    style={[
+                      styles.strategyOptionItem,
+                      { borderBottomColor: colors.divider },
+                      isSelected && { backgroundColor: colors.primaryBg },
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setTiming(config.id);
+                      setShowStrategyModal(false);
+                    }}>
+                    <View style={styles.strategyOptionLeft}>
+                      <Text style={[styles.strategyOptionTitle, { color: isSelected ? colors.primary : colors.text }]}>
+                        {config.label}
+                      </Text>
+                      <Text style={[styles.strategyOptionDesc, { color: colors.textSecondary }]}>
+                        {config.description}
+                      </Text>
+                    </View>
+                    {isSelected ? (
+                      <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                    ) : (
+                      <Ionicons name="ellipse-outline" size={20} color={colors.cardBorder} />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <MaterialTimePickerModal
           visible={showTimePicker}
           initialHour={hour}
           initialMinute={minute}
@@ -512,6 +476,90 @@ export function ReleaseReminderModal(props: ReleaseReminderModalProps) {
 }
 
 const styles = StyleSheet.create({
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 6,
+  },
+  dropdownTriggerLeft: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  dropdownTriggerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  dropdownTriggerDesc: {
+    fontSize: 11.5,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  clockIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  strategySheet: {
+    width: '90%',
+    maxHeight: '80%',
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingBottom: 16,
+    overflow: 'hidden',
+  },
+  strategyScroll: {
+    maxHeight: 460,
+  },
+  strategyOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  strategyOptionLeft: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  strategyOptionTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  strategyOptionDesc: {
+    fontSize: 11.5,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  pickerOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickerBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  pickerHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.65)',

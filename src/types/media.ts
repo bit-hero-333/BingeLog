@@ -561,7 +561,91 @@ export type TimeFormatOption = '12h' | '24h';
 
 export const DEFAULT_TIME_FORMAT: TimeFormatOption = '24h';
 
-export type NotificationTimingOption = 'release_day' | 'advance' | 'both';
+export type NotificationTimingOption =
+  | 'release_day'
+  | 'next_day'
+  | 'advance'
+  | 'release_and_advance'
+  | 'next_day_and_advance'
+  | 'release_and_next_day'
+  | 'all_three'
+  | 'both'; // legacy alias for release_and_advance
+
+export interface NotificationTimingConfig {
+  id: NotificationTimingOption;
+  label: string;
+  shortLabel: string;
+  description: string;
+  hasAdvance: boolean;
+  hasReleaseDay: boolean;
+  hasNextDay: boolean;
+}
+
+export const NOTIFICATION_TIMING_CONFIGS: NotificationTimingConfig[] = [
+  {
+    id: 'release_day',
+    label: 'On Release Day',
+    shortLabel: 'Release Day',
+    description: 'Fires on the broadcast air date at your chosen time.',
+    hasAdvance: false,
+    hasReleaseDay: true,
+    hasNextDay: false,
+  },
+  {
+    id: 'next_day',
+    label: 'Next Day (+1d Timezone Offset)',
+    shortLabel: 'Next Day (+1d)',
+    description: 'Fires 1 day after broadcast (when available in your timezone).',
+    hasAdvance: false,
+    hasReleaseDay: false,
+    hasNextDay: true,
+  },
+  {
+    id: 'advance',
+    label: 'In Advance Only',
+    shortLabel: 'In Advance',
+    description: 'Fires ahead of time before the broadcast.',
+    hasAdvance: true,
+    hasReleaseDay: false,
+    hasNextDay: false,
+  },
+  {
+    id: 'release_and_advance',
+    label: 'Release Day & In Advance',
+    shortLabel: 'Release & Advance',
+    description: 'Fires both ahead of time and on the broadcast date.',
+    hasAdvance: true,
+    hasReleaseDay: true,
+    hasNextDay: false,
+  },
+  {
+    id: 'next_day_and_advance',
+    label: 'Next Day (+1d) & In Advance',
+    shortLabel: 'Next Day & Advance',
+    description: 'Fires both ahead of time and 1 day after broadcast.',
+    hasAdvance: true,
+    hasReleaseDay: false,
+    hasNextDay: true,
+  },
+  {
+    id: 'release_and_next_day',
+    label: 'Release Day & Next Day (+1d)',
+    shortLabel: 'Release & Next Day',
+    description: 'Fires on broadcast day (when airing abroad) and next day (when available to watch).',
+    hasAdvance: false,
+    hasReleaseDay: true,
+    hasNextDay: true,
+  },
+  {
+    id: 'all_three',
+    label: 'All Three: In Advance, Release Day & Next Day',
+    shortLabel: 'All Three',
+    description: 'Complete coverage: fires ahead of time, on broadcast day, and on next-day availability.',
+    hasAdvance: true,
+    hasReleaseDay: true,
+    hasNextDay: true,
+  },
+];
 
 export interface ItemReminderConfig {
   enabled: boolean;

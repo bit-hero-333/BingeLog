@@ -5,6 +5,7 @@ import {
   MediaType,
   NotificationTimingOption,
   TimeFormatOption,
+  NOTIFICATION_TIMING_CONFIGS,
 } from '@/types/media';
 
 export interface NotificationScheduleOptions {
@@ -95,6 +96,13 @@ export function getReleaseNotificationIdentifier(mediaType: MediaType, id: numbe
  */
 export function getAdvanceNotificationIdentifier(mediaType: MediaType, id: number): string {
   return `pmt_adv_${mediaType}_${id}`;
+}
+
+/**
+ * Deterministic identifier for an item's next-day (+1d) notification.
+ */
+export function getNextDayNotificationIdentifier(mediaType: MediaType, id: number): string {
+  return `pmt_next_${mediaType}_${id}`;
 }
 
 /**
@@ -204,25 +212,29 @@ export async function scheduleReleaseNotification(
   // Resolve effective settings: item override takes priority over global settings
   const effectiveHour = item.reminder?.hour ?? options.hour ?? 9;
   const effectiveMinute = item.reminder?.minute ?? options.minute ?? 0;
-  const effectiveTiming: NotificationTimingOption =
-    item.reminder?.timing ?? options.timing ?? 'both';
   const effectiveDaysAhead = item.reminder?.daysAhead ?? options.daysAhead ?? 1;
-  const effectiveDayOffset = item.reminder?.dayOffset ?? options.dayOffset ?? 0;
 
   // Always cancel any existing scheduled alerts for this item first to prevent stale duplicates
   await cancelReleaseNotification(item.mediaType, item.id);
 
   const scheduledIds: string[] = [];
 
-  // 1. Release Day Reminder
-  if (effectiveTiming === 'release_day' || effectiveTiming === 'both') {
+// Resolve timing configuration
+  const timing = item.reminder?.timing ?? options.timing ?? 'release_and_advance';
+  const effectiveTiming = timing === 'both' ? 'release_and_advance' : timing;
+  const timingConfig =
+    NOTIFICATION_TIMING_CONFIGS.find((c) => c.id === effectiveTiming) ||
+    NOTIFICATION_TIMING_CONFIGS[0];
+
+  // 1. Release Day Reminder (air date)
+  if (timingConfig.hasReleaseDay) {
     const releaseTrigger = calculateTriggerDate(
       dateStr,
       effectiveHour,
       effectiveMinute,
       0,
       options.timezone,
-      effectiveDayOffset
+      0
     );
 
     if (releaseTrigger) {
@@ -230,25 +242,18 @@ export async function scheduleReleaseNotification(
       let title = '';
       let body = '';
 
-      const isNextDay = effectiveDayOffset > 0;
       if (item.mediaType === 'movie') {
-        title = isNextDay ? `Now Available: ${item.title}` : `Release Reminder: ${item.title}`;
+        title = `Release Reminder: ${item.title}`;
         const typeLabel = item.regionalReleaseType ? ` (${item.regionalReleaseType})` : '';
-        body = isNextDay
-          ? `"${item.title}" is now available${typeLabel}.`
-          : `"${item.title}" releases today${typeLabel}.`;
+        body = `"${item.title}" releases today${typeLabel}.`;
       } else {
-        title = isNextDay ? `Now Available: ${item.title}` : `New Episode: ${item.title}`;
+        title = `New Episode: ${item.title}`;
         if (item.nextEpisode) {
           const epCode = `S${item.nextEpisode.seasonNumber} E${item.nextEpisode.episodeNumber}`;
           const epName = item.nextEpisode.name ? ` "${item.nextEpisode.name}"` : '';
-          body = isNextDay
-            ? `${epCode}${epName} of "${item.title}" is now available.`
-            : `${epCode}${epName} of "${item.title}" airs today.`;
+          body = `${epCode}${epName} of "${item.title}" airs today.`;
         } else {
-          body = isNextDay
-            ? `A new episode of "${item.title}" is now available.`
-            : `A new episode of "${item.title}" airs today.`;
+          body = `A new episode of "${item.title}" airs today.`;
         }
       }
 
@@ -278,15 +283,72 @@ export async function scheduleReleaseNotification(
     }
   }
 
-  // 2. Advance Reminder
-  if ((effectiveTiming === 'advance' || effectiveTiming === 'both') && effectiveDaysAhead > 0) {
+  // 2. Next Day (+1 Day Timezone Offset) Reminder
+  if (timingConfig.hasNextDay) {
+    const nextDayTrigger = calculateTriggerDate(
+      dateStr,
+      effectiveHour,
+      effectiveMinute,
+      0,
+      options.timezone,
+      1
+    );
+
+    if (nextDayTrigger) {
+      const nextId = getNextDayNotificationIdentifier(item.mediaType, item.id);
+      let title = '';
+      let body = '';
+
+      if (item.mediaType === 'movie') {
+        title = `Now Available: ${item.title}`;
+        const typeLabel = item.regionalReleaseType ? ` (${item.regionalReleaseType})` : '';
+        body = `"${item.title}" is now available${typeLabel}.`;
+      } else {
+        title = `Now Available: ${item.title}`;
+        if (item.nextEpisode) {
+          const epCode = `S${item.nextEpisode.seasonNumber} E${item.nextEpisode.episodeNumber}`;
+          const epName = item.nextEpisode.name ? ` "${item.nextEpisode.name}"` : '';
+          body = `${epCode}${epName} of "${item.title}" is now available.`;
+        } else {
+          body = `A new episode of "${item.title}" is now available.`;
+        }
+      }
+
+      try {
+        await Notifications.scheduleNotificationAsync({
+          identifier: nextId,
+          content: {
+            title,
+            body,
+            data: {
+              mediaId: item.id,
+              mediaType: item.mediaType,
+              alertType: 'next_day',
+            },
+            sound: 'default',
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: nextDayTrigger,
+            channelId: 'releases',
+          },
+        });
+        scheduledIds.push(nextId);
+      } catch (err) {
+        console.warn(`Failed to schedule next-day notification for ${item.title}`, err);
+      }
+    }
+  }
+
+  // 3. Advance Reminder
+  if (timingConfig.hasAdvance && effectiveDaysAhead > 0) {
     const advanceTrigger = calculateTriggerDate(
       dateStr,
       effectiveHour,
       effectiveMinute,
       effectiveDaysAhead,
       options.timezone,
-      effectiveDayOffset
+      0
     );
 
     if (advanceTrigger) {
@@ -344,7 +406,7 @@ export async function scheduleReleaseNotification(
     }
   }
 
-  return scheduledIds.length > 0 ? scheduledIds : null;
+    return scheduledIds.length > 0 ? scheduledIds : null;
 }
 
 /**
@@ -356,12 +418,14 @@ export async function cancelReleaseNotification(
 ): Promise<void> {
   const relId = getReleaseNotificationIdentifier(mediaType, id);
   const advId = getAdvanceNotificationIdentifier(mediaType, id);
+  const nextId = getNextDayNotificationIdentifier(mediaType, id);
   const legacyId = getLegacyNotificationIdentifier(mediaType, id);
 
   try {
     await Promise.all([
       Notifications.cancelScheduledNotificationAsync(relId).catch(() => {}),
       Notifications.cancelScheduledNotificationAsync(advId).catch(() => {}),
+      Notifications.cancelScheduledNotificationAsync(nextId).catch(() => {}),
       Notifications.cancelScheduledNotificationAsync(legacyId).catch(() => {}),
     ]);
   } catch {
