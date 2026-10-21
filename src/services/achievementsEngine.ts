@@ -1766,45 +1766,72 @@ export const AchievementsEngine = {
 
         case 'mr_worldwide': {
           const countryMap = new Map<string, TrackedItem>();
-          const LANG_TO_COUNTRY: Record<string, string> = {
-            ja: 'JP',
-            ko: 'KR',
-            fr: 'FR',
-            de: 'DE',
-            it: 'IT',
-            es: 'ES',
-            zh: 'CN',
-            hi: 'IN',
-            ru: 'RU',
-            pt: 'BR',
-            tr: 'TR',
-            sv: 'SE',
-            nl: 'NL',
-            da: 'DK',
-            no: 'NO',
-            fi: 'FI',
-            pl: 'PL',
-            th: 'TH',
-          };
 
-          items.forEach((i) => {
-            const rawList: string[] = Array.isArray(i.originCountries) && i.originCountries.length > 0
-              ? i.originCountries
-              : i.originCountry
-              ? [i.originCountry]
-              : Array.isArray((i as any).origin_country)
-              ? (i as any).origin_country
-              : [];
+          const inferCountries = (i: TrackedItem): string[] => {
+            if (Array.isArray(i.originCountries) && i.originCountries.length > 0) {
+              return i.originCountries.map((c) => (c || '').trim().toUpperCase()).filter(Boolean);
+            }
+            if (i.originCountry) {
+              const c = i.originCountry.trim().toUpperCase();
+              if (c) return [c];
+            }
+            if (Array.isArray((i as any).origin_country) && (i as any).origin_country.length > 0) {
+              return (i as any).origin_country.map((c: string) => (c || '').trim().toUpperCase()).filter(Boolean);
+            }
 
-            if (rawList.length === 0) {
-              const lang = (i as any).original_language || (i as any).originalLanguage;
-              if (lang && LANG_TO_COUNTRY[lang]) {
-                rawList.push(LANG_TO_COUNTRY[lang]);
+            // Studio / Network detection
+            const studios = i.studios || [];
+            for (const st of studios) {
+              const sl = st.toLowerCase();
+              if (
+                sl.includes('toei') || sl.includes('mappa') || sl.includes('bones') ||
+                sl.includes('wit') || sl.includes('ufotable') || sl.includes('ghibli') ||
+                sl.includes('madhouse') || sl.includes('kyoto anim') || sl.includes('cloverworks') ||
+                sl.includes('sunrise') || sl.includes('shaft') || sl.includes('pierrot') ||
+                sl.includes('trigger') || sl.includes('a-1 pictures') || sl.includes('j.c.staff') ||
+                sl.includes('production i.g') || sl.includes('tms') || sl.includes('david prod') ||
+                sl.includes('toho') || sl.includes('shochiku') || sl.includes('kadokawa') ||
+                sl.includes('bandai') || sl.includes('pony canyon') || sl.includes('aniplex')
+              ) {
+                return ['JP'];
+              }
+              if (
+                sl.includes('studio dragon') || sl.includes('cj enm') || sl.includes('studio n') ||
+                sl.includes('showbox') || sl.includes('lotte') || sl.includes('jtbc')
+              ) {
+                return ['KR'];
+              }
+              if (
+                sl.includes('bbc') || sl.includes('itv') || sl.includes('channel 4') ||
+                sl.includes('film4') || sl.includes('working title') || sl.includes('eon prod')
+              ) {
+                return ['GB'];
+              }
+              if (sl.includes('gaumont') || sl.includes('pathé') || sl.includes('canal+')) {
+                return ['FR'];
+              }
+              if (sl.includes('babelsberg') || sl.includes('constantin') || sl.includes('zdf')) {
+                return ['DE'];
               }
             }
 
-            rawList.forEach((c) => {
-              const code = (c || '').trim().toUpperCase();
+            // Character sets detection in title
+            const title = i.title || '';
+            if (/[\u3040-\u30ff]/.test(title)) return ['JP'];
+            if (/[\uac00-\ud7af]/.test(title)) return ['KR'];
+            if (/[\u0400-\u04ff]/.test(title)) return ['RU'];
+
+            // Genres detection
+            const genres = (i.genres || []).map((g) => g.toLowerCase());
+            if (genres.some((g) => g.includes('anime'))) return ['JP'];
+
+            // Western / Hollywood titles default
+            return ['US'];
+          };
+
+          items.forEach((i) => {
+            const detected = inferCountries(i);
+            detected.forEach((code) => {
               if (code && !countryMap.has(code)) {
                 countryMap.set(code, i);
               }

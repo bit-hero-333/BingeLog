@@ -25,9 +25,11 @@ import {
   WatchProvider,
   POPULAR_STREAMING_PROVIDERS,
   PopularProviderOption,
+  POPULAR_REGIONS,
 } from '@/types/media';
 import { getTextScale, getHeaderScale, getButtonScale } from '@/utils/sizing';
 import { ALL_COUNTRIES, getCountryName } from '@/utils/country';
+import { CountryPickerModal } from '@/components/CountryPickerModal';
 
 interface DiscoverFilterModalProps {
   visible: boolean;
@@ -73,14 +75,15 @@ function DiscoverFilterModalContent({
 
   // Draft local filter state for the modal - initialized fresh when opened
   const [draft, setDraft] = useState<MultiDiscoverFilter>(filter);
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [countryQuery, setCountryQuery] = useState('');
 
-  const filteredCountries = useMemo(() => {
+  const countrySuggestions = useMemo(() => {
     const q = countryQuery.trim().toLowerCase();
-    if (!q) return ALL_COUNTRIES;
+    if (!q) return [];
     return ALL_COUNTRIES.filter(
       (c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
-    );
+    ).slice(0, 8);
   }, [countryQuery]);
 
   // Providers catalog state
@@ -741,15 +744,17 @@ function DiscoverFilterModalContent({
             )}
 
             {/* Search Country Input */}
-            <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={[styles.searchBoxFixed, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
               <TextInput
-                style={[styles.searchInput, { color: colors.text, fontSize: 12.5 * textScale }]}
-                placeholder="Search 250+ countries (e.g. Turkey, JP, Norway)..."
+                style={[styles.searchInputFixed, { color: colors.text, fontSize: 12.5 * textScale }]}
+                placeholder="Search countries (e.g. Turkey, JP)..."
                 placeholderTextColor={colors.textMuted}
                 value={countryQuery}
                 onChangeText={setCountryQuery}
                 autoCorrect={false}
+                multiline={false}
+                numberOfLines={1}
               />
               {countryQuery.length > 0 && (
                 <Pressable onPress={() => setCountryQuery('')} hitSlop={8}>
@@ -758,57 +763,97 @@ function DiscoverFilterModalContent({
               )}
             </View>
 
-            {/* Searchable Country List */}
-            <View style={[styles.countryScrollContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-              <ScrollView
-                nestedScrollEnabled={true}
-                showsVerticalScrollIndicator={true}
-                keyboardShouldPersistTaps="handled"
-                style={styles.countryScrollView}>
-                {filteredCountries.map((c) => {
+            {/* Country Suggestions Dropdown (Inline, Zero Nested Scroll) */}
+            {countrySuggestions.length > 0 ? (
+              <View style={[styles.suggestionBox, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                {countrySuggestions.map((c) => {
                   const isSelected = draft.selectedCountries?.includes(c.code);
                   return (
                     <Pressable
                       key={c.code}
-                      style={[
-                        styles.countryRowItem,
-                        { borderBottomColor: colors.cardBorder },
-                        isSelected && { backgroundColor: colors.primaryBg },
-                      ]}
-                      onPress={() => toggleCountry(c.code)}>
-                      <View style={styles.countryRowLeft}>
-                        <Image
-                          source={{ uri: `https://flagcdn.com/w40/${c.code.toLowerCase()}.png` }}
-                          style={styles.countryRowFlag}
-                          contentFit="cover"
-                        />
-                        <Text
-                          style={[
-                            styles.countryRowText,
-                            { color: isSelected ? colors.primary : colors.text, fontSize: 12 * textScale },
-                            isSelected && { fontWeight: '700' },
-                          ]}
-                          numberOfLines={1}>
-                          {c.name} ({c.code})
-                        </Text>
-                      </View>
+                      style={[styles.suggestionItem, { borderBottomColor: colors.cardBorder }, isSelected && { backgroundColor: colors.primaryBg }]}
+                      onPress={() => {
+                        toggleCountry(c.code);
+                        setCountryQuery('');
+                      }}>
+                      <Image
+                        source={{ uri: `https://flagcdn.com/w40/${c.code.toLowerCase()}.png` }}
+                        style={styles.countryRowFlag}
+                        contentFit="cover"
+                      />
+                      <Text
+                        style={[
+                          styles.suggestionText,
+                          { color: isSelected ? colors.primary : colors.text, fontSize: 12 * textScale },
+                          isSelected && { fontWeight: '700' },
+                        ]}>
+                        {c.name} ({c.code})
+                      </Text>
                       <Ionicons
-                        name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                        name={isSelected ? 'checkmark-circle' : 'add-circle-outline'}
                         size={18}
-                        color={isSelected ? colors.primary : colors.cardBorder}
+                        color={isSelected ? colors.primary : colors.textSecondary}
                       />
                     </Pressable>
                   );
                 })}
-                {filteredCountries.length === 0 && (
-                  <View style={styles.emptyCountryWrap}>
-                    <Text style={[styles.emptyCountryText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
-                      No countries found matching &ldquo;{countryQuery}&rdquo;.
+              </View>
+            ) : countryQuery.trim().length > 0 ? (
+              <View style={[styles.suggestionBox, { backgroundColor: colors.card, borderColor: colors.cardBorder, padding: 12, alignItems: 'center' }]}>
+                <Text style={{ color: colors.textSecondary, fontSize: 12 * textScale }}>
+                  No countries found matching &ldquo;{countryQuery}&rdquo;.
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Browse All 252 Countries Button */}
+                <Pressable
+                  style={[styles.browseAllBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setShowCountryPicker(true);
+                  }}>
+                  <View style={styles.browseAllLeft}>
+                    <Ionicons name="globe-outline" size={16} color={colors.primary} />
+                    <Text style={[styles.browseAllText, { color: colors.text, fontSize: 12 * textScale }]}>
+                      Browse All 252 Countries & Territories...
                     </Text>
                   </View>
-                )}
-              </ScrollView>
-            </View>
+                  <Ionicons name="chevron-forward" size={15} color={colors.textSecondary} />
+                </Pressable>
+
+                {/* Quick Popular Country Chips */}
+                <View style={styles.chipsWrap}>
+                  {POPULAR_REGIONS.map((r) => {
+                    const isSelected = draft.selectedCountries?.includes(r.code);
+                    return (
+                      <Pressable
+                        key={r.code}
+                        style={[
+                          styles.chip,
+                          { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                          isSelected && { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                        ]}
+                        onPress={() => toggleCountry(r.code)}>
+                        <Image
+                          source={{ uri: `https://flagcdn.com/w40/${r.code.toLowerCase()}.png` }}
+                          style={{ width: 14, height: 14, borderRadius: 2 }}
+                          contentFit="cover"
+                        />
+                        <Text
+                          style={[
+                            styles.chipText,
+                            { color: isSelected ? colors.primary : colors.text, fontSize: 12 * textScale },
+                            isSelected && styles.chipTextSelected,
+                          ]}>
+                          {r.name} ({r.code})
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            )}
           </View>
 
           {/* 6. Rating Threshold */}
@@ -1047,6 +1092,13 @@ function DiscoverFilterModalContent({
             </Text>
           </Pressable>
         </View>
+
+        <CountryPickerModal
+          visible={showCountryPicker}
+          selectedCountries={draft.selectedCountries || []}
+          onToggleCountry={toggleCountry}
+          onClose={() => setShowCountryPicker(false)}
+        />
       </Pressable>
     </Pressable>
   );
@@ -1304,45 +1356,46 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     marginRight: 4,
   },
-  countryScrollContainer: {
+  searchBoxFixed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    height: 42,
     borderRadius: 10,
     borderWidth: 1,
-    maxHeight: 220,
-    overflow: 'hidden',
   },
-  countryScrollView: {
-    maxHeight: 220,
+  searchInputFixed: {
+    flex: 1,
+    height: '100%',
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
-  countryRowItem: {
+  browseAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 2,
+    marginBottom: 4,
   },
-  countryRowLeft: {
+  browseAllLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    marginRight: 10,
+    gap: 8,
+  },
+  browseAllText: {
+    fontWeight: '600',
   },
   countryRowFlag: {
     width: 18,
     height: 18,
     borderRadius: 2,
-    marginRight: 10,
-  },
-  countryRowText: {
-    flex: 1,
-  },
-  emptyCountryWrap: {
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyCountryText: {
-    textAlign: 'center',
+    marginRight: 8,
   },
   modalFooter: {
     flexDirection: 'row',
