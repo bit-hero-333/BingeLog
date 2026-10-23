@@ -154,7 +154,7 @@ function EpisodeDetailContent({
           <Text style={[styles.headerSub, { color: colors.primary }]}>
             SEASON {seasonNumber} • EPISODE {episodeNumber}
           </Text>
-          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1} selectable={true}>
+          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
             {episodeName}
           </Text>
         </View>
@@ -233,6 +233,8 @@ function EpisodeDetailContent({
             {originCountry ? (
               <CountryOriginBadge
                 countryCode={originCountry}
+                size="medium"
+                style={styles.countryBadge}
                 onPress={() => {
                   triggerHaptic('selection');
                   const code = originCountry.toUpperCase();
@@ -732,6 +734,10 @@ const styles = StyleSheet.create({
   infoBadgeText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  countryBadge: {
+    alignSelf: 'center',
+    borderRadius: 10,
   },
   sectionCard: {
     padding: 16,

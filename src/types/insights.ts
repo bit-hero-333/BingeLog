@@ -53,6 +53,7 @@ export type InsightWidgetId =
   | 'milestones_ahead'
   | 'library_health'
   | 'season_anticipation'
+  | 'watch_timeline'
   // Streaming
   | 'streaming_mileage'
   | 'subscription_value';
@@ -502,6 +503,17 @@ export const INSIGHT_WIDGET_DEFINITIONS: Record<InsightWidgetId, InsightWidgetDe
     defaultEnabled: true,
     allowedSizes: ['half', 'full', 'compact'],
   },
+  watch_timeline: {
+    id: 'watch_timeline',
+    title: 'Watch Milestones Timeline',
+    subtitle: 'Chronological stream of completed episodes, seasons, and titles',
+    category: 'habits_loyalty',
+    icon: 'git-commit-outline',
+    color: '#10b981',
+    defaultSize: 'full',
+    defaultEnabled: true,
+    allowedSizes: ['full', 'half', 'compact'],
+  },
 
   // Streaming Mileage
   streaming_mileage: {
@@ -551,6 +563,7 @@ export const DEFAULT_INSIGHTS_LAYOUT: InsightWidgetConfig[] = [
   { id: 'time_equivalents', enabled: true, size: 'full', order: 19 },
   { id: 'milestones_ahead', enabled: true, size: 'full', order: 20 },
   { id: 'season_anticipation', enabled: true, size: 'half', order: 21 },
+  { id: 'watch_timeline', enabled: true, size: 'full', order: 22 },
   // Available but off by default for clean start
   { id: 'avg_runtimes', enabled: false, size: 'half', order: 22 },
   { id: 'binge_velocity', enabled: false, size: 'half', order: 23 },

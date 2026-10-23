@@ -125,10 +125,10 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 1,
     overflow: 'hidden',
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
   },
   containerMedium: {
-    borderRadius: 6,
+    borderRadius: 10,
   },
   snugRow: {
     flexDirection: 'row',
@@ -141,8 +141,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   codeCompartmentMedium: {
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4.5,
   },
   codeText: {
     fontWeight: '700',
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   flagCompartmentMedium: {
-    paddingHorizontal: 5,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 4.5,
   },
 });

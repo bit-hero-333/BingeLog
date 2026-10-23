@@ -814,6 +814,82 @@ export const InsightsEngine = {
         };
       }
 
+      // 40. Watch Milestones Timeline
+      case 'watch_timeline': {
+        interface MilestoneEntry {
+          title: string;
+          itemTitle: string;
+          iso: string;
+          posterPath: string | null;
+          id: number;
+        }
+        const milestones: MilestoneEntry[] = [];
+        for (const item of items) {
+          if (item.watchedEpisodesHistory) {
+            for (const epKey of Object.keys(item.watchedEpisodesHistory)) {
+              const rec = item.watchedEpisodesHistory[epKey];
+              if (rec && rec.completedAt) {
+                const m = epKey.match(/^s(\d+)_e(\d+)$/);
+                const sNum = m ? m[1] : '1';
+                const epNum = m ? m[2] : '1';
+                milestones.push({
+                  title: `S${sNum} E${epNum}`,
+                  itemTitle: item.title,
+                  iso: rec.completedAt,
+                  posterPath: item.posterPath,
+                  id: item.id,
+                });
+              }
+            }
+          }
+          if (item.watchedSeasonsHistory) {
+            for (const sNum of Object.keys(item.watchedSeasonsHistory)) {
+              const rec = (item.watchedSeasonsHistory as any)[sNum];
+              if (rec && rec.completedAt) {
+                milestones.push({
+                  title: sNum === '0' ? 'Specials Completed' : `Season ${sNum} Completed`,
+                  itemTitle: item.title,
+                  iso: rec.completedAt,
+                  posterPath: item.posterPath,
+                  id: item.id,
+                });
+              }
+            }
+          }
+          if (item.finishedAt) {
+            milestones.push({
+              title: item.mediaType === 'movie' ? 'Movie Completed' : 'Series Completed',
+              itemTitle: item.title,
+              iso: item.finishedAt,
+              posterPath: item.posterPath,
+              id: item.id,
+            });
+          }
+        }
+
+        milestones.sort((a, b) => new Date(b.iso).getTime() - new Date(a.iso).getTime());
+
+        const latest = milestones[0];
+        const secondary = latest
+          ? `Latest: ${latest.itemTitle} (${latest.title})`
+          : 'Log episode or title completions to record your timeline';
+
+        return {
+          widgetId,
+          primaryValue: `${milestones.length.toLocaleString()}`,
+          primaryLabel: 'Watch Milestones Logged',
+          secondaryValue: secondary,
+          badgeText: `${milestones.length} logged`,
+          badgeType: 'success',
+          highlightItems: milestones.slice(0, 3).map((m) => ({
+            id: m.id,
+            title: m.itemTitle,
+            subtitle: `${m.title} • ${formatSimpleDate(m.iso)}`,
+            posterPath: m.posterPath,
+          })),
+        };
+      }
+
       default: {
         return {
           widgetId,
@@ -2530,6 +2606,102 @@ export const InsightsEngine = {
           ],
           items: list,
           notes: 'Completed TV shows kept in Plan to Watch for upcoming seasons or scheduled rewatches.',
+        };
+      }
+
+      // 40. Watch Milestones Timeline
+      case 'watch_timeline': {
+        interface MilestoneDrillEntry {
+          title: string;
+          item: TrackedItem;
+          iso: string;
+          type: 'episode' | 'season' | 'title';
+        }
+        const milestones: MilestoneDrillEntry[] = [];
+        let epCount = 0;
+        let seasonCount = 0;
+        let fullCount = 0;
+
+        for (const item of items) {
+          if (item.watchedEpisodesHistory) {
+            for (const epKey of Object.keys(item.watchedEpisodesHistory)) {
+              const rec = item.watchedEpisodesHistory[epKey];
+              if (rec && rec.completedAt) {
+                const m = epKey.match(/^s(\d+)_e(\d+)$/);
+                const sNum = m ? m[1] : '1';
+                const epNum = m ? m[2] : '1';
+                milestones.push({
+                  title: `S${sNum} E${epNum}`,
+                  item,
+                  iso: rec.completedAt,
+                  type: 'episode',
+                });
+                epCount++;
+              }
+            }
+          }
+          if (item.watchedSeasonsHistory) {
+            for (const sNum of Object.keys(item.watchedSeasonsHistory)) {
+              const rec = (item.watchedSeasonsHistory as any)[sNum];
+              if (rec && rec.completedAt) {
+                milestones.push({
+                  title: sNum === '0' ? 'Specials Completed' : `Season ${sNum} Completed`,
+                  item,
+                  iso: rec.completedAt,
+                  type: 'season',
+                });
+                seasonCount++;
+              }
+            }
+          }
+          if (item.finishedAt) {
+            milestones.push({
+              title: item.mediaType === 'movie' ? 'Movie Completed' : 'Series Completed',
+              item,
+              iso: item.finishedAt,
+              type: 'title',
+            });
+            fullCount++;
+          }
+        }
+
+        milestones.sort((a, b) => new Date(b.iso).getTime() - new Date(a.iso).getTime());
+
+        const contributing: DrillDownContributingItem[] = milestones.slice(0, 100).map((m) => {
+          let timeStr = '';
+          try {
+            const d = new Date(m.iso);
+            if (!isNaN(d.getTime())) {
+              timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+          } catch {}
+          return {
+            id: m.item.id,
+            title: m.item.title,
+            mediaType: m.item.mediaType,
+            posterPath: m.item.posterPath,
+            releaseYear: m.item.releaseYear,
+            status: m.item.status,
+            userScore: m.item.userScore,
+            voteAverage: m.item.voteAverage,
+            highlightMetric: m.title,
+            extraInfo: timeStr ? `${formatSimpleDate(m.iso)} • ${timeStr}` : formatSimpleDate(m.iso),
+          };
+        });
+
+        return {
+          widgetId,
+          title: def.title,
+          subtitle: def.subtitle,
+          icon: def.icon,
+          color: def.color,
+          summaryHighlights: [
+            { label: 'Total Milestones', value: String(milestones.length) },
+            { label: 'Episodes Logged', value: String(epCount) },
+            { label: 'Seasons & Titles', value: String(seasonCount + fullCount) },
+          ],
+          items: contributing,
+          notes: 'Chronological timeline of all recorded episode, season, and media completions.',
         };
       }
 

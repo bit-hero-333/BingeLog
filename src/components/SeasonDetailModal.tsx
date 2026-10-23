@@ -135,7 +135,7 @@ function SeasonDetailContent({
           <Text style={[styles.headerSub, { color: colors.primary }]}>
             {seasonNumber === 0 ? 'BONUS CONTENT' : `SEASON ${seasonNumber}`}
           </Text>
-          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1} selectable={true}>
+          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
             {seasonName}
           </Text>
         </View>
@@ -150,13 +150,15 @@ function SeasonDetailContent({
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Season Poster Preview */}
         {showSeasonEpisodeImages && posterUrl ? (
-          <View style={[styles.posterWrapper, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
-            <Image
-              source={{ uri: posterUrl }}
-              style={styles.posterImage}
-              contentFit="cover"
-              transition={200}
-            />
+          <View style={styles.posterContainer}>
+            <View style={[styles.posterWrapper, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+              <Image
+                source={{ uri: posterUrl }}
+                style={styles.posterImage}
+                contentFit="contain"
+                transition={200}
+              />
+            </View>
           </View>
         ) : null}
 
@@ -505,15 +507,24 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  posterWrapper: {
+  posterContainer: {
     width: '100%',
-    height: 220,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  posterWrapper: {
+    width: 200,
+    aspectRatio: 2 / 3,
     borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
-    marginBottom: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   posterImage: {
     width: '100%',
