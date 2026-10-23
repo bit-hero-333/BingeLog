@@ -21,7 +21,16 @@ import {
 import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { formatDateDisplay, getTodayFormatted } from '@/utils/date';
+import {
+  formatDateDisplay,
+  formatDateInput,
+  formatTimeWithSeconds,
+  getTodayFormatted,
+  updateIsoDate,
+  updateIsoTime,
+} from '@/utils/date';
+import { DatePickerModal } from '@/components/DatePickerModal';
+import { MaterialTimePickerModal } from '@/components/MaterialTimePickerModal';
 import { router } from 'expo-router';
 import { ReleaseReminderModal } from '@/components/ReleaseReminderModal';
 import { CountryOriginBadge } from '@/components/CountryOriginBadge';
@@ -35,6 +44,8 @@ interface EpisodeDetailModalProps {
   episodeNumber: number;
   baseEpisodeInfo?: EpisodeInfo;
   isWatched: boolean;
+  completedAt?: string | null;
+  onUpdateCompletedAt?: (newIso: string | null) => void;
   onToggleWatched: () => void;
   onSelectEntity: (entity: EntitySelection) => void;
   item?: TrackedItem | TMDBMediaItem | null;
@@ -49,6 +60,8 @@ interface EpisodeDetailContentProps {
   episodeNumber: number;
   baseEpisodeInfo?: EpisodeInfo;
   isWatched: boolean;
+  completedAt?: string | null;
+  onUpdateCompletedAt?: (newIso: string | null) => void;
   onClose: () => void;
   onToggleWatched: () => void;
   onSelectEntity: (entity: EntitySelection) => void;
@@ -64,6 +77,8 @@ function EpisodeDetailContent({
   episodeNumber,
   baseEpisodeInfo,
   isWatched,
+  completedAt,
+  onUpdateCompletedAt,
   onClose,
   onToggleWatched,
   onSelectEntity,
@@ -79,6 +94,7 @@ function EpisodeDetailContent({
     sizingConfig,
     setActiveDiscoverFilter,
     dateFormat,
+    timeFormat,
     triggerHaptic,
     deviceNotificationsEnabled,
   } = useMedia();
@@ -87,6 +103,8 @@ function EpisodeDetailContent({
   const [isLoading, setIsLoading] = useState(Boolean(apiKey));
   const [details, setDetails] = useState<EpisodeDetailedInfo | null>(null);
   const [showReminderModal, setShowReminderModal] = useState<boolean>(false);
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [showTimePicker, setShowTimePicker] = useState<boolean>(false);
   const originCountry = existingRecord?.originCountry || (item as any)?.originCountry || (item as any)?.origin_country?.[0];
 
   useEffect(() => {
@@ -232,6 +250,106 @@ function EpisodeDetailContent({
             ) : null}
           </View>
         </View>
+
+        {/* Completion Date & Time Status Card (Granular Watch Tracking) */}
+        {isWatched && (
+          <View
+            style={[
+              styles.completionCard,
+              { backgroundColor: colors.card, borderColor: colors.cardBorder },
+            ]}>
+            <View style={styles.completionHeaderRow}>
+              <View style={styles.completionTitleRow}>
+                <Ionicons name="time" size={14} color={colors.primary} />
+                <Text style={[styles.completionCardTitle, { color: colors.textSecondary }]}>
+                  COMPLETION TIMESTAMP
+                </Text>
+              </View>
+              {completedAt ? (
+                <Pressable
+                  style={styles.clearTimestampBtn}
+                  hitSlop={8}
+                  onPress={() => {
+                    triggerHaptic('warning');
+                    onUpdateCompletedAt?.(null);
+                  }}>
+                  <Ionicons name="trash-outline" size={15} color={colors.danger} />
+                </Pressable>
+              ) : null}
+            </View>
+
+            {completedAt ? (
+              <View style={styles.timestampValuesRow}>
+                <Pressable
+                  style={[
+                    styles.timestampChip,
+                    { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setShowDatePicker(true);
+                  }}>
+                  <Ionicons
+                    name="calendar-outline"
+                    size={14}
+                    color={colors.primary}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[styles.timestampChipText, { color: colors.text }]}>
+                    {formatDateDisplay(completedAt, dateFormat)}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.timestampChip,
+                    { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setShowTimePicker(true);
+                  }}>
+                  <Ionicons
+                    name="time-outline"
+                    size={14}
+                    color={colors.primary}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[styles.timestampChipText, { color: colors.text }]}>
+                    {formatTimeWithSeconds(completedAt, timeFormat)}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.nowBtn,
+                    { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    onUpdateCompletedAt?.(new Date().toISOString());
+                  }}>
+                  <Text style={[styles.nowBtnText, { color: colors.primary }]}>Now</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.unrecordedRow}>
+                <Text style={[styles.unrecordedText, { color: colors.textMuted }]}>
+                  Date & time not recorded yet
+                </Text>
+                <Pressable
+                  style={[styles.setNowBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    onUpdateCompletedAt?.(new Date().toISOString());
+                  }}>
+                  <Ionicons name="time" size={14} color="#ffffff" style={{ marginRight: 5 }} />
+                  <Text style={styles.setNowBtnText}>Set to Now</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Release Alert Configuration for Unreleased Episodes */}
         {isUnreleased && (
@@ -418,6 +536,40 @@ function EpisodeDetailContent({
         onRemoveReminder={() => {
           onRemoveReminder?.();
           setShowReminderModal(false);
+        }}
+      />
+
+      <DatePickerModal
+        visible={showDatePicker}
+        title="Episode Completion Date"
+        initialDate={
+          completedAt
+            ? formatDateInput(completedAt, dateFormat)
+            : getTodayFormatted(dateFormat)
+        }
+        dateFormat={dateFormat}
+        onClose={() => setShowDatePicker(false)}
+        onSelectDate={(newDate) => {
+          const nextIso = updateIsoDate(completedAt, newDate, dateFormat);
+          onUpdateCompletedAt?.(nextIso);
+          setShowDatePicker(false);
+        }}
+        onClearDate={() => {
+          onUpdateCompletedAt?.(null);
+          setShowDatePicker(false);
+        }}
+      />
+
+      <MaterialTimePickerModal
+        visible={showTimePicker}
+        initialHour={completedAt ? new Date(completedAt).getHours() : new Date().getHours()}
+        initialMinute={completedAt ? new Date(completedAt).getMinutes() : new Date().getMinutes()}
+        timeFormat={timeFormat}
+        onClose={() => setShowTimePicker(false)}
+        onConfirm={(hour, minute) => {
+          const nextIso = updateIsoTime(completedAt, hour, minute, 0);
+          onUpdateCompletedAt?.(nextIso);
+          setShowTimePicker(false);
         }}
       />
     </View>
@@ -673,5 +825,79 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 2,
     lineHeight: 13,
+  },
+  completionCard: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  completionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  completionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  completionCardTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  clearTimestampBtn: {
+    padding: 4,
+  },
+  timestampValuesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  timestampChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  timestampChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  nowBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  nowBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  unrecordedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  unrecordedText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  setNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  setNowBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

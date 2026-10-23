@@ -49,6 +49,10 @@ export interface EpisodeDetailedInfo extends EpisodeInfo {
   writers?: PersonSummary[];
 }
 
+export interface WatchedHistoryRecord {
+  completedAt: string; // ISO 8601 string: YYYY-MM-DDTHH:MM:SS.sssZ
+}
+
 export interface SeasonInfo {
   seasonNumber: number;
   episodeCount: number;
@@ -176,6 +180,8 @@ export interface TrackedItem {
   totalSeasons?: number | null;
   seasons?: SeasonInfo[];
   watchedEpisodeKeys?: string[]; // Keys like "s1_e1", "s2_e14" for granular episode tracking
+  watchedEpisodesHistory?: Record<string, WatchedHistoryRecord>; // Episode key -> { completedAt }
+  watchedSeasonsHistory?: Record<number, WatchedHistoryRecord>; // Season number -> { completedAt }
 
   // Viewing Progress & Rewatch Tracking (Movies & TV Shows)
   rewatchCount?: number;

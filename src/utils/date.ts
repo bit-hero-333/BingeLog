@@ -330,6 +330,69 @@ export function formatHour(
 }
 
 /**
+ * Formats a Date or ISO date string into a time string including seconds (HH:MM:SS), respecting 24h vs 12h.
+ */
+export function formatTimeWithSeconds(
+  dateInput?: Date | string | null,
+  format: TimeFormatOption = DEFAULT_TIME_FORMAT
+): string {
+  if (!dateInput) return '';
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return '';
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const s = d.getSeconds();
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  if (format === '24h') {
+    return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  }
+  const period = h >= 12 ? 'PM' : 'AM';
+  const displayHour = h % 12 === 0 ? 12 : h % 12;
+  return `${pad(displayHour)}:${pad(m)}:${pad(s)} ${period}`;
+}
+
+/**
+ * Merges a newly chosen formatted date into an existing ISO string, preserving existing time components.
+ */
+export function updateIsoDate(
+  existingIso: string | null | undefined,
+  newDateFormatted: string,
+  dateFormat: DateFormatOption = DEFAULT_DATE_FORMAT
+): string {
+  const parsedIso = parseFormattedDateToIso(newDateFormatted, dateFormat);
+  if (!parsedIso) return new Date().toISOString();
+  const newDate = new Date(parsedIso);
+  if (existingIso) {
+    const oldDate = new Date(existingIso);
+    if (!isNaN(oldDate.getTime())) {
+      newDate.setHours(
+        oldDate.getHours(),
+        oldDate.getMinutes(),
+        oldDate.getSeconds(),
+        oldDate.getMilliseconds()
+      );
+    }
+  }
+  return newDate.toISOString();
+}
+
+/**
+ * Updates the hour and minute (and optional second) of an existing ISO string, preserving date components.
+ */
+export function updateIsoTime(
+  existingIso: string | null | undefined,
+  hour: number,
+  minute: number,
+  second: number = 0
+): string {
+  const base = existingIso ? new Date(existingIso) : new Date();
+  const d = isNaN(base.getTime()) ? new Date() : base;
+  d.setHours(hour, minute, second, 0);
+  return d.toISOString();
+}
+
+/**
  * Calculates countdown information for unreleased titles or upcoming broadcast episodes.
  * Strictly text-based (no emojis).
  */

@@ -34,6 +34,7 @@ import {
   ItemReminderConfig,
   WatchProvider,
   TMDB_GENRE_MAP,
+  WatchedHistoryRecord,
 } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
 import { useMedia } from '@/context/MediaContext';
@@ -48,6 +49,7 @@ import {
   formatDate,
   formatDateDisplay,
   formatDateInput,
+  formatTimeWithSeconds,
   parseFormattedDateToIso,
   getTodayFormatted,
   getRelativeTime,
@@ -59,6 +61,8 @@ import {
 import { DatePickerModal } from '@/components/DatePickerModal';
 import { EntityModal } from '@/components/EntityModal';
 import { EpisodeDetailModal } from '@/components/EpisodeDetailModal';
+import { MaterialTimePickerModal } from '@/components/MaterialTimePickerModal';
+import { SeasonDetailModal } from '@/components/SeasonDetailModal';
 import { ReleaseReminderModal } from '@/components/ReleaseReminderModal';
 import { CountryOriginBadge } from '@/components/CountryOriginBadge';
 import { getCountryName } from '@/utils/country';
@@ -115,6 +119,7 @@ function TrackModalFormContent({
     setActiveDiscoverFilter,
     triggerHaptic,
     dateFormat,
+    timeFormat,
     selectedRegion,
     selectedTimezone,
     remindersEnabled,
@@ -325,6 +330,34 @@ function TrackModalFormContent({
       ? formatDateInput(existingRecord.finishedAt, dateFormat)
       : ''
   );
+  const [finishedTime, setFinishedTime] = useState<string>(() => {
+    if (existingRecord?.finishedAt) {
+      const d = new Date(existingRecord.finishedAt);
+      if (!isNaN(d.getTime())) {
+        return formatTimeWithSeconds(d, timeFormat);
+      }
+    }
+    return '';
+  });
+  const [showFinishedTimePicker, setShowFinishedTimePicker] = useState<boolean>(false);
+
+  // Granular episode & season completion history
+  const [watchedEpisodesHistory, setWatchedEpisodesHistory] = useState<Record<string, WatchedHistoryRecord>>(
+    existingRecord?.watchedEpisodesHistory || {}
+  );
+  const [watchedSeasonsHistory, setWatchedSeasonsHistory] = useState<Record<number, WatchedHistoryRecord>>(
+    existingRecord?.watchedSeasonsHistory || {}
+  );
+
+  // Selected season for details sheet
+  const [selectedSeasonForDetail, setSelectedSeasonForDetail] = useState<{
+    sNum: number;
+    season: SeasonInfo;
+  } | null>(null);
+
+  // Watch timeline expansion
+  const [timelineExpanded, setTimelineExpanded] = useState<boolean>(false);
+
   const [onHoldDays, setOnHoldDays] = useState<number>(existingRecord?.onHoldDays || 0);
   const [onHoldStartedAt, setOnHoldStartedAt] = useState<string | null>(
     existingRecord?.onHoldStartedAt ||
@@ -574,6 +607,9 @@ function TrackModalFormContent({
   const handleToggleEpisode = (seasonNum: number, episodeNum: number) => {
     triggerHaptic('impact');
     const key = `s${seasonNum}_e${episodeNum}`;
+    const willBeWatched = !watchedKeys.has(key);
+    const nowIso = new Date().toISOString();
+
     setWatchedKeys((prev) => {
       const next = new Set(prev);
       if (next.has(key)) {
@@ -586,6 +622,7 @@ function TrackModalFormContent({
       if (totalEpisodes && next.size >= totalEpisodes && status !== 'completed') {
         setStatus('completed');
         if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+        if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
       } else if (next.size > 0 && (!status || status === 'plan_to_watch')) {
         setStatus('watching');
         if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
@@ -593,21 +630,61 @@ function TrackModalFormContent({
 
       return next;
     });
+
+    if (willBeWatched) {
+      setWatchedEpisodesHistory((prev) => ({
+        ...prev,
+        [key]: { completedAt: nowIso },
+      }));
+
+      // Check if all episodes of this season are now complete
+      const sObj = seasons.find((s) => s.seasonNumber === seasonNum);
+      const epCount = sObj?.episodeCount || 0;
+      if (epCount > 0) {
+        let allWatched = true;
+        for (let i = 1; i <= epCount; i++) {
+          const k = `s${seasonNum}_e${i}`;
+          if (k !== key && !watchedKeys.has(k)) {
+            allWatched = false;
+            break;
+          }
+        }
+        if (allWatched) {
+          setWatchedSeasonsHistory((prev) => ({
+            ...prev,
+            [seasonNum]: { completedAt: nowIso },
+          }));
+        }
+      }
+    } else {
+      setWatchedEpisodesHistory((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setWatchedSeasonsHistory((prev) => {
+        const next = { ...prev };
+        delete next[seasonNum];
+        return next;
+      });
+    }
   };
 
   // Mark all episodes of a season as watched or clear
   const handleToggleWholeSeason = (seasonNum: number, episodeCount: number) => {
     triggerHaptic('impact');
+    let allWatched = true;
+    for (let i = 1; i <= episodeCount; i++) {
+      if (!watchedKeys.has(`s${seasonNum}_e${i}`)) {
+        allWatched = false;
+        break;
+      }
+    }
+
+    const nowIso = new Date().toISOString();
+
     setWatchedKeys((prev) => {
       const next = new Set(prev);
-      let allWatched = true;
-      for (let i = 1; i <= episodeCount; i++) {
-        if (!next.has(`s${seasonNum}_e${i}`)) {
-          allWatched = false;
-          break;
-        }
-      }
-
       for (let i = 1; i <= episodeCount; i++) {
         const key = `s${seasonNum}_e${i}`;
         if (allWatched) {
@@ -621,6 +698,7 @@ function TrackModalFormContent({
       if (totalEpisodes && next.size >= totalEpisodes && status !== 'completed') {
         setStatus('completed');
         if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+        if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
       } else if (next.size > 0 && (!status || status === 'plan_to_watch')) {
         setStatus('watching');
         if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
@@ -628,6 +706,36 @@ function TrackModalFormContent({
 
       return next;
     });
+
+    if (allWatched) {
+      setWatchedEpisodesHistory((prev) => {
+        const next = { ...prev };
+        for (let i = 1; i <= episodeCount; i++) {
+          delete next[`s${seasonNum}_e${i}`];
+        }
+        return next;
+      });
+      setWatchedSeasonsHistory((prev) => {
+        const next = { ...prev };
+        delete next[seasonNum];
+        return next;
+      });
+    } else {
+      setWatchedEpisodesHistory((prev) => {
+        const next = { ...prev };
+        for (let i = 1; i <= episodeCount; i++) {
+          const k = `s${seasonNum}_e${i}`;
+          if (!next[k]) {
+            next[k] = { completedAt: nowIso };
+          }
+        }
+        return next;
+      });
+      setWatchedSeasonsHistory((prev) => ({
+        ...prev,
+        [seasonNum]: { completedAt: nowIso },
+      }));
+    }
   };
 
   // Master episode counter: increment next unwatched episode
@@ -635,6 +743,7 @@ function TrackModalFormContent({
     triggerHaptic('impact');
     const regularList = seasons.filter((s) => s.seasonNumber > 0);
     const targetSeasons = regularList.length > 0 ? regularList : (seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }]);
+    const nowIso = new Date().toISOString();
     setWatchedKeys((prev) => {
       const next = new Set(prev);
       for (const s of targetSeasons) {
@@ -642,6 +751,7 @@ function TrackModalFormContent({
           const key = `s${s.seasonNumber}_e${e}`;
           if (!next.has(key)) {
             next.add(key);
+            setWatchedEpisodesHistory((h) => ({ ...h, [key]: { completedAt: nowIso } }));
             let regularWatched = 0;
             next.forEach((k) => {
               if (!k.startsWith('s0_')) regularWatched++;
@@ -649,6 +759,7 @@ function TrackModalFormContent({
             if (totalEpisodes && regularWatched >= totalEpisodes && status !== 'completed') {
               setStatus('completed');
               if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+              if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
             } else if (!status || status === 'plan_to_watch') {
               setStatus('watching');
               if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
@@ -674,6 +785,16 @@ function TrackModalFormContent({
           const key = `s${s.seasonNumber}_e${e}`;
           if (next.has(key)) {
             next.delete(key);
+            setWatchedEpisodesHistory((h) => {
+              const nh = { ...h };
+              delete nh[key];
+              return nh;
+            });
+            setWatchedSeasonsHistory((sh) => {
+              const nsh = { ...sh };
+              delete nsh[s.seasonNumber];
+              return nsh;
+            });
             return next;
           }
         }
@@ -688,6 +809,7 @@ function TrackModalFormContent({
     const regularList = seasons.filter((s) => s.seasonNumber > 0);
     const targetSeasons = regularList.length > 0 ? regularList : (seasons.length > 0 ? seasons : [{ seasonNumber: 1, episodeCount: totalEpisodes || 999, name: 'Season 1' }]);
     const next = new Set<string>();
+    const nowIso = new Date().toISOString();
     // Preserve any existing specials that were already marked watched
     watchedKeys.forEach((k) => {
       if (k.startsWith('s0_')) next.add(k);
@@ -698,17 +820,38 @@ function TrackModalFormContent({
       }
     }
     setWatchedKeys(next);
+    setWatchedEpisodesHistory((prev) => {
+      const nh = { ...prev };
+      for (const s of targetSeasons) {
+        for (let e = 1; e <= s.episodeCount; e++) {
+          const k = `s${s.seasonNumber}_e${e}`;
+          if (!nh[k]) nh[k] = { completedAt: nowIso };
+        }
+      }
+      return nh;
+    });
+    setWatchedSeasonsHistory((prev) => {
+      const nsh = { ...prev };
+      for (const s of targetSeasons) {
+        if (!nsh[s.seasonNumber]) nsh[s.seasonNumber] = { completedAt: nowIso };
+      }
+      return nsh;
+    });
     setStatus('completed');
     if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+    if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
   };
 
   // Reset all watched episodes
   const handleResetAllEpisodes = () => {
     triggerHaptic('warning');
     setWatchedKeys(new Set<string>());
+    setWatchedEpisodesHistory({});
+    setWatchedSeasonsHistory({});
     if (status === 'completed') {
       setStatus('watching');
       setFinishedAt('');
+      setFinishedTime('');
     }
   };
 
@@ -727,8 +870,11 @@ function TrackModalFormContent({
             setRewatchCount((c) => c + 1);
             setStatus('watching');
             setWatchedKeys(new Set<string>());
+            setWatchedEpisodesHistory({});
+            setWatchedSeasonsHistory({});
             setStartedAt(getTodayFormatted(dateFormat));
             setFinishedAt('');
+            setFinishedTime('');
           },
         },
       ]
@@ -752,6 +898,7 @@ function TrackModalFormContent({
             setMinutesWatched(0);
             setStartedAt(getTodayFormatted(dateFormat));
             setFinishedAt('');
+            setFinishedTime('');
           },
         },
       ]
@@ -784,6 +931,7 @@ function TrackModalFormContent({
 
     if (newStatus === 'completed') {
       if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+      if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
       if (mediaType === 'tv') {
         handleMarkEntireShowWatched();
       } else if (mediaType === 'movie' && runtimeMinutes) {
@@ -793,9 +941,15 @@ function TrackModalFormContent({
       setIsAlsoPlanned(false);
       if (newStatus === 'watching') {
         if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
-        if (prevStatus === 'completed') setFinishedAt('');
+        if (prevStatus === 'completed') {
+          setFinishedAt('');
+          setFinishedTime('');
+        }
       } else {
-        if (prevStatus === 'completed') setFinishedAt('');
+        if (prevStatus === 'completed') {
+          setFinishedAt('');
+          setFinishedTime('');
+        }
       }
     }
   };
@@ -813,6 +967,7 @@ function TrackModalFormContent({
           setStatus('plan_to_watch');
           setIsAlsoPlanned(false);
           setFinishedAt('');
+          setFinishedTime('');
           return;
         }
         if (st === 'plan_to_watch') {
@@ -850,6 +1005,7 @@ function TrackModalFormContent({
           setStatus('completed');
           setIsAlsoPlanned(true);
           if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+          if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
           handleMarkEntireShowWatched();
           return;
         }
@@ -894,7 +1050,32 @@ function TrackModalFormContent({
     }
 
     const startedIso = parseFormattedDateToIso(startedAt, dateFormat);
-    const finishedIso = parseFormattedDateToIso(finishedAt, dateFormat);
+    let finishedIso: string | null = null;
+    if (finishedAt) {
+      const baseIso = parseFormattedDateToIso(finishedAt, dateFormat);
+      if (baseIso) {
+        const d = new Date(baseIso);
+        if (finishedTime) {
+          const match24 = finishedTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+          const match12 = finishedTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+          if (match12) {
+            let h = parseInt(match12[1], 10);
+            const m = parseInt(match12[2], 10);
+            const s = match12[3] ? parseInt(match12[3], 10) : 0;
+            const period = match12[4].toUpperCase();
+            if (period === 'PM' && h < 12) h += 12;
+            if (period === 'AM' && h === 12) h = 0;
+            d.setHours(h, m, s, 0);
+          } else if (match24) {
+            const h = parseInt(match24[1], 10);
+            const m = parseInt(match24[2], 10);
+            const s = match24[3] ? parseInt(match24[3], 10) : 0;
+            d.setHours(h, m, s, 0);
+          }
+        }
+        finishedIso = d.toISOString();
+      }
+    }
 
     const record: TrackedItem = {
       id,
@@ -925,6 +1106,14 @@ function TrackModalFormContent({
       totalSeasons,
       seasons: seasons.length > 0 ? seasons : undefined,
       watchedEpisodeKeys: mediaType === 'tv' ? Array.from(watchedKeys) : undefined,
+      watchedEpisodesHistory:
+        mediaType === 'tv' && Object.keys(watchedEpisodesHistory).length > 0
+          ? watchedEpisodesHistory
+          : undefined,
+      watchedSeasonsHistory:
+        mediaType === 'tv' && Object.keys(watchedSeasonsHistory).length > 0
+          ? watchedSeasonsHistory
+          : undefined,
       isAlsoPlanned: mediaType === 'tv' && status === 'completed' ? Boolean(isAlsoPlanned) : undefined,
 
       // Movie
@@ -2713,6 +2902,7 @@ function TrackModalFormContent({
                 setStatus('completed');
                 setIsAlsoPlanned(true);
                 if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+          if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
                 handleMarkEntireShowWatched();
               }}>
               <Ionicons name="checkmark-done-circle-outline" size={20} color="#3b82f6" />
@@ -2946,6 +3136,24 @@ function TrackModalFormContent({
                         </View>
 
                         <View style={styles.seasonHeaderRight}>
+                          <Pressable
+                            style={[
+                              styles.seasonInfoBtn,
+                              { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                            ]}
+                            hitSlop={6}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              triggerHaptic('selection');
+                              setSelectedSeasonForDetail({ sNum, season });
+                            }}>
+                            <Ionicons
+                              name="information-circle-outline"
+                              size={18}
+                              color={colors.primary}
+                            />
+                          </Pressable>
+
                           <Pressable
                             style={[
                               styles.seasonCompleteBtn,
@@ -3349,13 +3557,14 @@ function TrackModalFormContent({
                   </View>
                 </View>
 
-                {/* Finished Watching Date Picker Button */}
+                {/* Finished Watching Date and Time Pickers */}
                 <View style={styles.dateRow}>
                   <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Finished Watching:</Text>
                   <View style={styles.dateButtonGroup}>
                     <Pressable
                       style={[styles.datePickerTriggerBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                       onPress={() => setDatePickerTarget('finished')}>
+                      <Ionicons name="calendar-outline" size={13} color={colors.primary} style={{ marginRight: 4 }} />
                       <Text
                         style={[
                           styles.datePickerTriggerText,
@@ -3367,15 +3576,36 @@ function TrackModalFormContent({
                     </Pressable>
 
                     <Pressable
-                      style={[styles.dateQuickBtn, { backgroundColor: colors.card }]}
-                      onPress={() => setFinishedAt(getTodayFormatted(dateFormat))}>
-                      <Text style={[styles.dateQuickText, { color: colors.primary }]}>Today</Text>
+                      style={[styles.datePickerTriggerBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder, minWidth: 78 }]}
+                      onPress={() => setShowFinishedTimePicker(true)}>
+                      <Ionicons name="time-outline" size={13} color={colors.primary} style={{ marginRight: 4 }} />
+                      <Text
+                        style={[
+                          styles.datePickerTriggerText,
+                          { color: colors.text },
+                          !finishedTime && styles.datePickerTriggerPlaceholder,
+                        ]}>
+                        {finishedTime || 'Time'}
+                      </Text>
                     </Pressable>
 
-                    {finishedAt ? (
+                    <Pressable
+                      style={[styles.dateQuickBtn, { backgroundColor: colors.card }]}
+                      onPress={() => {
+                        const now = new Date();
+                        setFinishedAt(getTodayFormatted(dateFormat));
+                        setFinishedTime(formatTimeWithSeconds(now, timeFormat));
+                      }}>
+                      <Text style={[styles.dateQuickText, { color: colors.primary }]}>Now</Text>
+                    </Pressable>
+
+                    {(finishedAt || finishedTime) ? (
                       <Pressable
                         style={styles.dateClearBtn}
-                        onPress={() => setFinishedAt('')}>
+                        onPress={() => {
+                          setFinishedAt('');
+                          setFinishedTime('');
+                        }}>
                         <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
                       </Pressable>
                     ) : null}
@@ -3671,6 +3901,231 @@ function TrackModalFormContent({
     </>
   );
 
+  // 7b. Chronological Watch Timeline Module
+  const renderTimelineSection = () => {
+    interface TimelineItem {
+      id: string;
+      type: 'added' | 'started' | 'episode' | 'season' | 'finished';
+      title: string;
+      subtitle?: string;
+      iso: string;
+      icon: keyof typeof Ionicons.glyphMap;
+      color: any;
+      onPress?: () => void;
+    }
+
+    const events: TimelineItem[] = [];
+
+    // Added to library
+    if (addedAt) {
+      events.push({
+        id: 'added',
+        type: 'added',
+        title: 'Added to Watchlist',
+        subtitle: 'Watchlist Entry Created',
+        iso: addedAt,
+        icon: 'bookmark-outline',
+        color: colors.primary,
+      });
+    }
+
+    // Started watching
+    const sIso = parseFormattedDateToIso(startedAt, dateFormat);
+    if (sIso) {
+      events.push({
+        id: 'started',
+        type: 'started',
+        title: 'Started Watching',
+        subtitle: 'Watch Journey Began',
+        iso: sIso,
+        icon: 'play-circle-outline',
+        color: colors.primary,
+      });
+    }
+
+    // Granular episode completions
+    if (watchedEpisodesHistory) {
+      for (const [epKey, rec] of Object.entries(watchedEpisodesHistory)) {
+        if (rec && rec.completedAt) {
+          const m = epKey.match(/^s(\d+)_e(\d+)$/);
+          const sNum = m ? parseInt(m[1], 10) : 1;
+          const epNum = m ? parseInt(m[2], 10) : 1;
+          events.push({
+            id: `ep-${epKey}`,
+            type: 'episode',
+            title: `S${sNum} E${epNum} Completed`,
+            subtitle: `Episode ${epNum}`,
+            iso: rec.completedAt,
+            icon: 'checkmark-circle-outline',
+            color: colors.success,
+            onPress: () => {
+              const epList = episodesBySeason[sNum] || [];
+              const epDetail = epList.find((e) => e.episodeNumber === epNum);
+              setSelectedEpisodeForDetail({
+                sNum,
+                epNum,
+                detail: epDetail,
+                isWatched: watchedKeys.has(epKey),
+              });
+            },
+          });
+        }
+      }
+    }
+
+    // Granular season completions
+    if (watchedSeasonsHistory) {
+      for (const [sNumStr, rec] of Object.entries(watchedSeasonsHistory)) {
+        if (rec && rec.completedAt) {
+          const sNum = parseInt(sNumStr, 10);
+          const seasonObj = seasons.find((s) => s.seasonNumber === sNum) || {
+            seasonNumber: sNum,
+            episodeCount: 0,
+            name: sNum === 0 ? 'Specials' : `Season ${sNum}`,
+          };
+          events.push({
+            id: `season-${sNum}`,
+            type: 'season',
+            title: sNum === 0 ? 'Specials Completed' : `Season ${sNum} Completed`,
+            subtitle: `${seasonObj.episodeCount || ''} Episodes`,
+            iso: rec.completedAt,
+            icon: 'layers-outline',
+            color: colors.primary,
+            onPress: () => {
+              setSelectedSeasonForDetail({ sNum, season: seasonObj });
+            },
+          });
+        }
+      }
+    }
+
+    // Finished watching
+    const fIso = parseFormattedDateToIso(finishedAt, dateFormat);
+    if (fIso) {
+      let finWithTime = fIso;
+      if (finishedTime) {
+        const d = new Date(fIso);
+        const match24 = finishedTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+        const match12 = finishedTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+        if (match12) {
+          let h = parseInt(match12[1], 10);
+          const m = parseInt(match12[2], 10);
+          const s = match12[3] ? parseInt(match12[3], 10) : 0;
+          const period = match12[4].toUpperCase();
+          if (period === 'PM' && h < 12) h += 12;
+          if (period === 'AM' && h === 12) h = 0;
+          d.setHours(h, m, s, 0);
+          finWithTime = d.toISOString();
+        } else if (match24) {
+          const h = parseInt(match24[1], 10);
+          const m = parseInt(match24[2], 10);
+          const s = match24[3] ? parseInt(match24[3], 10) : 0;
+          d.setHours(h, m, s, 0);
+          finWithTime = d.toISOString();
+        }
+      }
+      events.push({
+        id: 'finished',
+        type: 'finished',
+        title: mediaType === 'movie' ? 'Movie Completed' : 'Series Completed',
+        subtitle: 'Final Completion',
+        iso: finWithTime,
+        icon: 'trophy-outline',
+        color: '#eab308',
+      });
+    }
+
+    // Sort chronologically ascending
+    events.sort((a, b) => new Date(a.iso).getTime() - new Date(b.iso).getTime());
+
+    // If only added event exists and nothing else has been logged, omit
+    if (events.length <= 1) return null;
+
+    const visibleEvents = timelineExpanded ? events : events.slice(-5);
+
+    return (
+      <View style={[styles.timelineSectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <View style={styles.timelineHeaderRow}>
+          <View style={styles.timelineTitleGroup}>
+            <Ionicons name="git-commit-outline" size={16} color={colors.primary} />
+            <Text style={[styles.timelineSectionTitle, { color: colors.text }]}>
+              WATCH TIMELINE
+            </Text>
+            <View style={[styles.timelineCountBadge, { backgroundColor: colors.inputBg }]}>
+              <Text style={[styles.timelineCountText, { color: colors.textSecondary }]}>
+                {events.length}
+              </Text>
+            </View>
+          </View>
+
+          {events.length > 5 && (
+            <Pressable
+              style={[styles.timelineToggleBtn, { backgroundColor: colors.inputBg }]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setTimelineExpanded(!timelineExpanded);
+              }}>
+              <Text style={[styles.timelineToggleBtnText, { color: colors.primary }]}>
+                {timelineExpanded ? 'Show Recent' : `Show All (${events.length})`}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+
+        <View style={styles.timelineList}>
+          {visibleEvents.map((evt, idx) => {
+            const isLast = idx === visibleEvents.length - 1;
+            return (
+              <Pressable
+                key={evt.id}
+                style={styles.timelineItemRow}
+                onPress={evt.onPress}
+                disabled={!evt.onPress}>
+                {/* Node & Connecting Line Column */}
+                <View style={styles.timelineNodeCol}>
+                  <View style={[styles.timelineNodeDot, { backgroundColor: evt.color }]}>
+                    <Ionicons name={evt.icon} size={11} color="#ffffff" />
+                  </View>
+                  {!isLast && (
+                    <View style={[styles.timelineConnectingLine, { backgroundColor: colors.cardBorder }]} />
+                  )}
+                </View>
+
+                {/* Content Column */}
+                <View style={[styles.timelineContentCol, !isLast && { paddingBottom: 14 }]}>
+                  <View style={styles.timelineContentHeader}>
+                    <Text style={[styles.timelineItemTitle, { color: colors.text }]}>
+                      {evt.title}
+                    </Text>
+                    {evt.onPress ? (
+                      <Ionicons name="chevron-forward" size={12} color={colors.textSecondary} />
+                    ) : null}
+                  </View>
+
+                  <View style={styles.timelineTimeBadgesRow}>
+                    <View style={[styles.timelineTimeBadge, { backgroundColor: colors.inputBg }]}>
+                      <Ionicons name="calendar-outline" size={11} color={colors.textSecondary} />
+                      <Text style={[styles.timelineTimeBadgeText, { color: colors.textSecondary }]}>
+                        {formatDateDisplay(evt.iso, dateFormat)}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.timelineTimeBadge, { backgroundColor: colors.inputBg }]}>
+                      <Ionicons name="time-outline" size={11} color={colors.textSecondary} />
+                      <Text style={[styles.timelineTimeBadgeText, { color: colors.textSecondary }]}>
+                        {formatTimeWithSeconds(evt.iso, timeFormat)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
   // 8. Personal Notes & Action Buttons
   const renderNotesAndActions = () => (
     <>
@@ -3786,6 +4241,7 @@ function TrackModalFormContent({
               {renderScoreSelector()}
               {mediaType === 'movie' && renderMovieSection()}
               {renderDatesSection()}
+              {renderTimelineSection()}
               {renderNotesAndActions()}
             </ScrollView>
 
@@ -3817,6 +4273,7 @@ function TrackModalFormContent({
             {mediaType === 'movie' && renderMovieSection()}
             {renderScoreSelector()}
             {renderDatesSection()}
+            {renderTimelineSection()}
             {renderNotesAndActions()}
           </ScrollView>
         )}
@@ -3915,6 +4372,26 @@ function TrackModalFormContent({
           isWatched={watchedKeys.has(
             `s${selectedEpisodeForDetail.sNum}_e${selectedEpisodeForDetail.epNum}`
           )}
+          completedAt={
+            watchedEpisodesHistory[
+              `s${selectedEpisodeForDetail.sNum}_e${selectedEpisodeForDetail.epNum}`
+            ]?.completedAt || null
+          }
+          onUpdateCompletedAt={(newIso) => {
+            const epKey = `s${selectedEpisodeForDetail.sNum}_e${selectedEpisodeForDetail.epNum}`;
+            if (newIso) {
+              setWatchedEpisodesHistory((prev) => ({
+                ...prev,
+                [epKey]: { completedAt: newIso },
+              }));
+            } else {
+              setWatchedEpisodesHistory((prev) => {
+                const next = { ...prev };
+                delete next[epKey];
+                return next;
+              });
+            }
+          }}
           onToggleWatched={() => {
             handleToggleEpisode(
               selectedEpisodeForDetail.sNum,
@@ -3932,6 +4409,95 @@ function TrackModalFormContent({
           onRemoveReminder={handleRemoveReminder}
         />
       )}
+
+      {/* Season Detail Modal */}
+      {selectedSeasonForDetail && (
+        <SeasonDetailModal
+          visible={Boolean(selectedSeasonForDetail)}
+          tvId={id}
+          seasonNumber={selectedSeasonForDetail.sNum}
+          seasonInfo={selectedSeasonForDetail.season}
+          isWatched={Boolean(
+            selectedSeasonForDetail.season.episodeCount > 0 &&
+              Array.from({
+                length: selectedSeasonForDetail.season.episodeCount,
+              }).every((_, i) =>
+                watchedKeys.has(`s${selectedSeasonForDetail.sNum}_e${i + 1}`)
+              )
+          )}
+          completedAt={
+            watchedSeasonsHistory[selectedSeasonForDetail.sNum]?.completedAt || null
+          }
+          onUpdateCompletedAt={(newIso) => {
+            const sNum = selectedSeasonForDetail.sNum;
+            if (newIso) {
+              setWatchedSeasonsHistory((prev) => ({
+                ...prev,
+                [sNum]: { completedAt: newIso },
+              }));
+            } else {
+              setWatchedSeasonsHistory((prev) => {
+                const next = { ...prev };
+                delete next[sNum];
+                return next;
+              });
+            }
+          }}
+          onToggleWatched={() => {
+            handleToggleWholeSeason(
+              selectedSeasonForDetail.sNum,
+              selectedSeasonForDetail.season.episodeCount
+            );
+          }}
+          onSelectEpisode={(epNum, epDetail) => {
+            const sNum = selectedSeasonForDetail.sNum;
+            setSelectedSeasonForDetail(null);
+            setSelectedEpisodeForDetail({
+              sNum,
+              epNum,
+              detail: epDetail,
+              isWatched: watchedKeys.has(`s${sNum}_e${epNum}`),
+            });
+          }}
+          watchedEpisodeKeys={watchedKeys}
+          onToggleEpisodeWatched={(epNum) => {
+            handleToggleEpisode(selectedSeasonForDetail.sNum, epNum);
+          }}
+          onClose={() => setSelectedSeasonForDetail(null)}
+          item={item}
+          existingRecord={existingRecord}
+        />
+      )}
+
+      {/* Interactive TimePicker Modal for Whole Title Finished Watching */}
+      <MaterialTimePickerModal
+        visible={showFinishedTimePicker}
+        initialHour={(() => {
+          if (finishedTime) {
+            const m = finishedTime.match(/^(\d{1,2}):/);
+            if (m) return parseInt(m[1], 10);
+          }
+          return new Date().getHours();
+        })()}
+        initialMinute={(() => {
+          if (finishedTime) {
+            const m = finishedTime.match(/:(\d{2})/);
+            if (m) return parseInt(m[1], 10);
+          }
+          return new Date().getMinutes();
+        })()}
+        timeFormat={timeFormat}
+        onClose={() => setShowFinishedTimePicker(false)}
+        onConfirm={(hour, minute) => {
+          const d = new Date();
+          d.setHours(hour, minute, 0, 0);
+          setFinishedTime(formatTimeWithSeconds(d, timeFormat));
+          if (!finishedAt) {
+            setFinishedAt(getTodayFormatted(dateFormat));
+          }
+          setShowFinishedTimePicker(false);
+        }}
+      />
 
       {/* Release Reminder Configuration Modal */}
       <ReleaseReminderModal
@@ -5476,6 +6042,108 @@ const styles = StyleSheet.create({
   dualStatusPromptDesc: {
     fontSize: 11,
     marginTop: 2,
+  },
+  seasonInfoBtn: {
+    padding: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timelineSectionCard: {
+    marginTop: 14,
+    marginBottom: 16,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  timelineHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  timelineTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timelineSectionTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  timelineCountBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  timelineCountText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  timelineToggleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  timelineToggleBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  timelineList: {
+    paddingLeft: 4,
+  },
+  timelineItemRow: {
+    flexDirection: 'row',
+  },
+  timelineNodeCol: {
+    alignItems: 'center',
+    width: 24,
+    marginRight: 10,
+  },
+  timelineNodeDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timelineConnectingLine: {
+    width: 2,
+    flex: 1,
+    marginVertical: 2,
+  },
+  timelineContentCol: {
+    flex: 1,
+  },
+  timelineContentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  timelineItemTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  timelineTimeBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  timelineTimeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  timelineTimeBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '600',
   },
 });
 

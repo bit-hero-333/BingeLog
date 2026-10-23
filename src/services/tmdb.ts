@@ -520,6 +520,59 @@ export const TMDBService = {
     }
   },
 
+  async getSeasonDetails(
+    tvId: number,
+    seasonNumber: number,
+    apiKey: string
+  ): Promise<{
+    seasonNumber: number;
+    name: string;
+    overview?: string;
+    posterPath?: string | null;
+    airDate?: string | null;
+    episodes: EpisodeInfo[];
+  } | null> {
+    try {
+      const endpoint = `/tv/${tvId}/season/${seasonNumber}`;
+      interface RawSeasonDetailResponse {
+        season_number: number;
+        name: string;
+        overview?: string;
+        poster_path?: string | null;
+        air_date?: string | null;
+        episodes: {
+          episode_number: number;
+          name: string;
+          overview?: string;
+          air_date?: string | null;
+          runtime?: number | null;
+          still_path?: string | null;
+          vote_average?: number;
+        }[];
+      }
+      const data = await this.request<RawSeasonDetailResponse>(endpoint, apiKey);
+      return {
+        seasonNumber: data.season_number ?? seasonNumber,
+        name: data.name || (seasonNumber === 0 ? 'Specials' : `Season ${seasonNumber}`),
+        overview: data.overview,
+        posterPath: data.poster_path,
+        airDate: data.air_date,
+        episodes: (data.episodes || []).map((ep) => ({
+          episodeNumber: ep.episode_number,
+          name: ep.name || `Episode ${ep.episode_number}`,
+          overview: ep.overview,
+          airDate: ep.air_date,
+          runtime: ep.runtime,
+          stillPath: ep.still_path,
+          voteAverage: ep.vote_average,
+        })),
+      };
+    } catch (e) {
+      console.warn(`Failed to fetch season ${seasonNumber} details`, e);
+      return null;
+    }
+  },
+
   async getEpisodeDetails(
     tvId: number,
     seasonNumber: number,

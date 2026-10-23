@@ -245,6 +245,8 @@ export function compressPayloadForQr(payload: SyncPayload): string {
       iap: item.isAlsoPlanned ? 1 : 0,
       ohd: item.onHoldDays,
       ohs: item.onHoldStartedAt,
+      eh: item.watchedEpisodesHistory,
+      sh: item.watchedSeasonsHistory,
     })),
     s: payload.settings,
   };
@@ -291,6 +293,8 @@ export function decompressQrPayload(compressedStr: string): SyncPayload | null {
         isAlsoPlanned: (item as any).iap === 1,
         onHoldDays: (item as any).ohd,
         onHoldStartedAt: (item as any).ohs,
+        watchedEpisodesHistory: (item as any).eh,
+        watchedSeasonsHistory: (item as any).sh,
       }));
 
       return {
@@ -420,11 +424,21 @@ export function mergeLibraries(
     if (!existing) {
       map.set(key, { ...inc, updatedAt: inc.updatedAt || new Date().toISOString() });
     } else {
-      // Merge watched episode keys
+      // Merge watched episode keys and timestamps
       const mergedWatchedKeys = new Set<string>([
         ...(existing.watchedEpisodeKeys || []),
         ...(inc.watchedEpisodeKeys || []),
       ]);
+
+      const mergedEpisodesHistory = {
+        ...(existing.watchedEpisodesHistory || {}),
+        ...(inc.watchedEpisodesHistory || {}),
+      };
+
+      const mergedSeasonsHistory = {
+        ...(existing.watchedSeasonsHistory || {}),
+        ...(inc.watchedSeasonsHistory || {}),
+      };
 
       const progress = Math.max(
         existing.currentProgress || 0,
@@ -457,6 +471,8 @@ export function mergeLibraries(
         notes,
         currentProgress: progress > 0 ? progress : undefined,
         watchedEpisodeKeys: mergedWatchedKeys.size > 0 ? Array.from(mergedWatchedKeys) : undefined,
+        watchedEpisodesHistory: Object.keys(mergedEpisodesHistory).length > 0 ? mergedEpisodesHistory : undefined,
+        watchedSeasonsHistory: Object.keys(mergedSeasonsHistory).length > 0 ? mergedSeasonsHistory : undefined,
         minutesWatched: minutes > 0 ? minutes : undefined,
         rewatchCount: rewatch > 0 ? rewatch : undefined,
         startedAt: inc.startedAt || existing.startedAt,

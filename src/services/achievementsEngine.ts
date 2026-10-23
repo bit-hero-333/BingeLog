@@ -318,7 +318,7 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
     id: 'night_owl',
     name: 'Night Owl',
-    description: 'Finish movies or episodes late at night (22:00 to 03:00).',
+    description: 'Finish movies, episodes, or seasons late at night (22 to 4).',
     category: 'habits',
     iconName: 'moon-outline',
     metricLabel: 'Late Finishes',
@@ -335,7 +335,7 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
     id: 'early_bird',
     name: 'Early Bird',
-    description: 'Finish movies or episodes early in the morning (05:00 to 09:00).',
+    description: 'Finish movies, episodes, or seasons early in the morning (5 to 10).',
     category: 'habits',
     iconName: 'sunny-outline',
     metricLabel: 'Morning Finishes',
@@ -1196,19 +1196,42 @@ export const AchievementsEngine = {
         }
 
         case 'marathon_master': {
-          // Derived from highest watched episodes on single TV shows or daily velocity
+          // Calculate true daily max from granular watchedEpisodesHistory
+          const dailyEpisodeCounts: Record<string, number> = {};
+          for (const i of items) {
+            const epHist = i.watchedEpisodesHistory;
+            if (epHist) {
+              const keys = Object.keys(epHist);
+              for (let k = 0; k < keys.length; k++) {
+                const epKey = keys[k];
+                const rec = epHist[epKey];
+                if (rec && rec.completedAt) {
+                  const day = rec.completedAt.slice(0, 10);
+                  dailyEpisodeCounts[day] = (dailyEpisodeCounts[day] || 0) + 1;
+                }
+              }
+            }
+          }
+          let trueDailyMax = 0;
+          for (const day of Object.keys(dailyEpisodeCounts)) {
+            if (dailyEpisodeCounts[day] > trueDailyMax) {
+              trueDailyMax = dailyEpisodeCounts[day];
+            }
+          }
+
+          // Derived fallback from single TV show progress so existing progress is preserved
           let maxSingleDay = 0;
           for (const i of items) {
             if (i.mediaType === 'tv') {
               const progress = i.currentProgress || 0;
               if (progress > maxSingleDay) {
-                // Realistic proxy cap for single day
                 const estimatedDaily = Math.min(progress, 30);
                 if (estimatedDaily > maxSingleDay) maxSingleDay = estimatedDaily;
               }
             }
           }
-          val = Math.max(maxSingleDay, extraStats.drillDownCount > 0 ? 5 : 0);
+          const proxyVal = Math.max(maxSingleDay, extraStats.drillDownCount > 0 ? 5 : 0);
+          val = Math.max(trueDailyMax, proxyVal);
           subtext = `${val} max daily episodes logged`;
           break;
         }
@@ -1271,19 +1294,42 @@ export const AchievementsEngine = {
         case 'weekend_warrior': {
           let weekendCount = 0;
           for (const i of items) {
-            const dateStr = i.finishedAt || i.lastWatchedAt || i.addedAt;
-            if (dateStr) {
-              const day = new Date(dateStr).getDay();
-              if (day === 0 || day === 6) {
-                weekendCount++;
-                if (contributing.length < 30) {
-                  contributing.push({
-                    id: i.id,
-                    mediaType: i.mediaType,
-                    title: i.title,
-                    posterPath: i.posterPath,
-                  });
+            let itemWeekend = 0;
+            if (i.watchedEpisodesHistory) {
+              for (const epKey of Object.keys(i.watchedEpisodesHistory)) {
+                const completedAt = i.watchedEpisodesHistory[epKey]?.completedAt;
+                if (completedAt) {
+                  const day = new Date(completedAt).getDay();
+                  if (day === 0 || day === 6) itemWeekend++;
                 }
+              }
+            }
+            if (i.watchedSeasonsHistory) {
+              for (const sNum of Object.keys(i.watchedSeasonsHistory)) {
+                const completedAt = (i.watchedSeasonsHistory as any)[sNum]?.completedAt;
+                if (completedAt) {
+                  const day = new Date(completedAt).getDay();
+                  if (day === 0 || day === 6) itemWeekend++;
+                }
+              }
+            }
+            if (itemWeekend === 0) {
+              const dateStr = i.finishedAt || i.lastWatchedAt || i.addedAt;
+              if (dateStr) {
+                const day = new Date(dateStr).getDay();
+                if (day === 0 || day === 6) itemWeekend = 1;
+              }
+            }
+            if (itemWeekend > 0) {
+              weekendCount += itemWeekend;
+              if (contributing.length < 30) {
+                contributing.push({
+                  id: i.id,
+                  mediaType: i.mediaType,
+                  title: i.title,
+                  posterPath: i.posterPath,
+                  detailText: `${itemWeekend} weekend session${itemWeekend > 1 ? 's' : ''}`,
+                });
               }
             }
           }
@@ -1312,6 +1358,18 @@ export const AchievementsEngine = {
             if (i.finishedAt) uniqueDates.add(i.finishedAt.substring(0, 10));
             if (i.lastWatchedAt) uniqueDates.add(i.lastWatchedAt.substring(0, 10));
             if (i.addedAt) uniqueDates.add(i.addedAt.substring(0, 10));
+            if (i.watchedEpisodesHistory) {
+              for (const epKey of Object.keys(i.watchedEpisodesHistory)) {
+                const c = i.watchedEpisodesHistory[epKey]?.completedAt;
+                if (c) uniqueDates.add(c.substring(0, 10));
+              }
+            }
+            if (i.watchedSeasonsHistory) {
+              for (const sNum of Object.keys(i.watchedSeasonsHistory)) {
+                const c = (i.watchedSeasonsHistory as any)[sNum]?.completedAt;
+                if (c) uniqueDates.add(c.substring(0, 10));
+              }
+            }
           }
           val = Math.max(uniqueDates.size, items.length > 0 ? 3 : 0);
           subtext = `${val} distinct active days logged`;
@@ -1319,52 +1377,108 @@ export const AchievementsEngine = {
         }
 
         case 'night_owl': {
-          const nightFinishes = completedItems.filter((i) => {
-            const dateStr = i.finishedAt || i.lastWatchedAt;
-            if (!dateStr) return false;
-            try {
-              const hour = new Date(dateStr).getHours();
-              return hour >= 22 || hour < 3;
-            } catch {
-              return false;
+          let totalNightCount = 0;
+          for (const i of items) {
+            let itemNightCount = 0;
+            // Check granular episode completions: 22:00 to 04:59 (hour >= 22 || hour < 5)
+            if (i.watchedEpisodesHistory) {
+              for (const epKey of Object.keys(i.watchedEpisodesHistory)) {
+                const completedAt = i.watchedEpisodesHistory[epKey]?.completedAt;
+                if (completedAt) {
+                  const hour = new Date(completedAt).getHours();
+                  if (hour >= 22 || hour < 5) itemNightCount++;
+                }
+              }
             }
-          });
-          val = nightFinishes.length;
-          nightFinishes.slice(0, 30).forEach((n) => {
-            contributing.push({
-              id: n.id,
-              mediaType: n.mediaType,
-              title: n.title,
-              posterPath: n.posterPath,
-              detailText: 'Finished late night',
-            });
-          });
-          subtext = `${val} titles finished between 22:00 and 03:00`;
+            // Check granular season completions
+            if (i.watchedSeasonsHistory) {
+              for (const sNum of Object.keys(i.watchedSeasonsHistory)) {
+                const completedAt = (i.watchedSeasonsHistory as any)[sNum]?.completedAt;
+                if (completedAt) {
+                  const hour = new Date(completedAt).getHours();
+                  if (hour >= 22 || hour < 5) itemNightCount++;
+                }
+              }
+            }
+            // Check whole title completion
+            const titleDateStr = i.finishedAt || i.lastWatchedAt;
+            if (titleDateStr) {
+              const hour = new Date(titleDateStr).getHours();
+              if (hour >= 22 || hour < 5) {
+                if (itemNightCount === 0 || i.mediaType === 'movie') {
+                  itemNightCount++;
+                }
+              }
+            }
+
+            if (itemNightCount > 0) {
+              totalNightCount += itemNightCount;
+              if (contributing.length < 30) {
+                contributing.push({
+                  id: i.id,
+                  mediaType: i.mediaType,
+                  title: i.title,
+                  posterPath: i.posterPath,
+                  detailText: `${itemNightCount} late night completion${itemNightCount > 1 ? 's' : ''}`,
+                });
+              }
+            }
+          }
+          val = totalNightCount;
+          subtext = `${val} completions logged between 22 and 4 (including through 04:59)`;
           break;
         }
 
         case 'early_bird': {
-          const morningFinishes = completedItems.filter((i) => {
-            const dateStr = i.finishedAt || i.lastWatchedAt;
-            if (!dateStr) return false;
-            try {
-              const hour = new Date(dateStr).getHours();
-              return hour >= 5 && hour < 9;
-            } catch {
-              return false;
+          let totalMorningCount = 0;
+          for (const i of items) {
+            let itemMorningCount = 0;
+            // Check granular episode completions: 05:00 to 10:59 (hour >= 5 && hour < 11)
+            if (i.watchedEpisodesHistory) {
+              for (const epKey of Object.keys(i.watchedEpisodesHistory)) {
+                const completedAt = i.watchedEpisodesHistory[epKey]?.completedAt;
+                if (completedAt) {
+                  const hour = new Date(completedAt).getHours();
+                  if (hour >= 5 && hour < 11) itemMorningCount++;
+                }
+              }
             }
-          });
-          val = morningFinishes.length;
-          morningFinishes.slice(0, 30).forEach((m) => {
-            contributing.push({
-              id: m.id,
-              mediaType: m.mediaType,
-              title: m.title,
-              posterPath: m.posterPath,
-              detailText: 'Finished early morning',
-            });
-          });
-          subtext = `${val} titles finished between 05:00 and 09:00`;
+            // Check granular season completions
+            if (i.watchedSeasonsHistory) {
+              for (const sNum of Object.keys(i.watchedSeasonsHistory)) {
+                const completedAt = (i.watchedSeasonsHistory as any)[sNum]?.completedAt;
+                if (completedAt) {
+                  const hour = new Date(completedAt).getHours();
+                  if (hour >= 5 && hour < 11) itemMorningCount++;
+                }
+              }
+            }
+            // Check whole title completion
+            const titleDateStr = i.finishedAt || i.lastWatchedAt;
+            if (titleDateStr) {
+              const hour = new Date(titleDateStr).getHours();
+              if (hour >= 5 && hour < 11) {
+                if (itemMorningCount === 0 || i.mediaType === 'movie') {
+                  itemMorningCount++;
+                }
+              }
+            }
+
+            if (itemMorningCount > 0) {
+              totalMorningCount += itemMorningCount;
+              if (contributing.length < 30) {
+                contributing.push({
+                  id: i.id,
+                  mediaType: i.mediaType,
+                  title: i.title,
+                  posterPath: i.posterPath,
+                  detailText: `${itemMorningCount} morning completion${itemMorningCount > 1 ? 's' : ''}`,
+                });
+              }
+            }
+          }
+          val = totalMorningCount;
+          subtext = `${val} completions logged between 5 and 10 (including through 10:59)`;
           break;
         }
 
