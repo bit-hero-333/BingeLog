@@ -291,12 +291,6 @@ function EpisodeDetailContent({
                     triggerHaptic('selection');
                     setShowDatePicker(true);
                   }}>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={14}
-                    color={colors.primary}
-                    style={{ marginRight: 6 }}
-                  />
                   <Text style={[styles.timestampChipText, { color: colors.text }]}>
                     {formatDateDisplay(completedAt, dateFormat)}
                   </Text>
@@ -311,12 +305,6 @@ function EpisodeDetailContent({
                     triggerHaptic('selection');
                     setShowTimePicker(true);
                   }}>
-                  <Ionicons
-                    name="time-outline"
-                    size={14}
-                    color={colors.primary}
-                    style={{ marginRight: 6 }}
-                  />
                   <Text style={[styles.timestampChipText, { color: colors.text }]}>
                     {formatTimeWithSeconds(completedAt, timeFormat)}
                   </Text>

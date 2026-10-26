@@ -3268,7 +3268,7 @@ function TrackModalFormContent({
                                         <Text style={[styles.episodeSubInfoText, { color: colors.textMuted }]} selectable={true}>
                                           {detail?.runtime ? `${detail.runtime}m` : ''}
                                           {detail?.runtime && detail?.airDate ? ' • ' : ''}
-                                          {detail?.airDate ? formatDateDisplay(detail.airDate) : ''}
+                                          {detail?.airDate ? formatDateDisplay(detail.airDate, dateFormat) : ''}
                                         </Text>
                                       ) : null}
                                     </View>
@@ -3481,7 +3481,7 @@ function TrackModalFormContent({
     </>
   );
 
-  // 7. Dates & Timeline
+  // 7. Watch Dates
   const renderDatesSection = () => (
     <>
           <View style={[styles.datesCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
@@ -3491,7 +3491,7 @@ function TrackModalFormContent({
               <View style={styles.datesHeaderLeft}>
                 <Ionicons name="calendar" size={18} color={colors.primary} />
                 <View>
-                  <Text style={[styles.datesCardTitle, { color: colors.text }]}>Dates & Timeline ({dateFormat})</Text>
+                  <Text style={[styles.datesCardTitle, { color: colors.text }]}>Watch Dates ({dateFormat})</Text>
                   {durationLabel ? (
                     <Text style={[styles.durationSummaryText, { color: colors.primary }]}>{durationLabel}</Text>
                   ) : (
@@ -3561,7 +3561,6 @@ function TrackModalFormContent({
                     <Pressable
                       style={[styles.datePickerTriggerBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                       onPress={() => setDatePickerTarget('finished')}>
-                      <Ionicons name="calendar-outline" size={13} color={colors.primary} style={{ marginRight: 4 }} />
                       <Text
                         style={[
                           styles.datePickerTriggerText,
@@ -3573,9 +3572,8 @@ function TrackModalFormContent({
                     </Pressable>
 
                     <Pressable
-                      style={[styles.datePickerTriggerBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder, minWidth: 78 }]}
+                      style={[styles.datePickerTriggerBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                       onPress={() => setShowFinishedTimePicker(true)}>
-                      <Ionicons name="time-outline" size={13} color={colors.primary} style={{ marginRight: 4 }} />
                       <Text
                         style={[
                           styles.datePickerTriggerText,
@@ -5135,6 +5133,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   datePickerTriggerBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#0d0f15',
