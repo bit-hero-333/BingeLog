@@ -3,6 +3,7 @@ import { StorageService } from '@/services/storage';
 import { HapticsService, HapticIntensity } from '@/services/haptics';
 import { NotificationService } from '@/services/notifications';
 import { TMDBService } from '@/services/tmdb';
+import { JellyfinConfig } from '@/services/jellyfin';
 import {
   TrackedItem,
   MediaType,
@@ -130,6 +131,11 @@ interface MediaContextType {
   setInsightWidgetSize: (widgetId: InsightWidgetId, size: InsightWidgetSize) => Promise<boolean>;
   reorderInsightWidget: (fromIndex: number, toIndex: number) => Promise<boolean>;
   resetInsightsLayout: () => Promise<boolean>;
+
+  // Jellyfin Server Integration
+  jellyfinConfig: JellyfinConfig | null;
+  saveJellyfinConfig: (config: JellyfinConfig) => Promise<boolean>;
+  removeJellyfinConfig: () => Promise<boolean>;
 }
 
 const MediaContext = createContext<MediaContextType | undefined>(undefined);
@@ -166,6 +172,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   const [streamingRegionStrategy, setStreamingRegionStrategyState] = useState<StreamingRegionStrategy>('match_region');
   const [customStreamingRegion, setCustomStreamingRegionState] = useState<string>('US');
   const [insightsLayout, setInsightsLayoutState] = useState<InsightWidgetConfig[]>(DEFAULT_INSIGHTS_LAYOUT);
+  const [jellyfinConfig, setJellyfinConfigState] = useState<JellyfinConfig | null>(null);
   const [isLoadingStorage, setIsLoadingStorage] = useState(true);
 
   useEffect(() => {
@@ -201,6 +208,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           savedStreamingRegionStrategy,
           savedCustomStreamingRegion,
           savedInsightsLayout,
+          savedJellyfin,
         ] = await Promise.all([
           StorageService.getApiKey(),
           StorageService.getTrackedItems(),
@@ -229,8 +237,10 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           StorageService.getStreamingRegionStrategy(),
           StorageService.getCustomStreamingRegion(),
           StorageService.getInsightsLayout(),
+          StorageService.getJellyfinConfig(),
         ]);
         if (savedKey) setApiKeyState(savedKey);
+        if (savedJellyfin) setJellyfinConfigState(savedJellyfin);
         setShowSeasonEpisodeImagesState(savedSeasonEpImages);
         setShowActorImagesState(savedActorImages);
         setShowAllCastState(savedAllCast);
@@ -985,6 +995,22 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     };
   }, [trackedItems]);
 
+  const saveJellyfinConfig = async (config: JellyfinConfig): Promise<boolean> => {
+    const success = await StorageService.saveJellyfinConfig(config);
+    if (success) {
+      setJellyfinConfigState(config);
+    }
+    return success;
+  };
+
+  const removeJellyfinConfig = async (): Promise<boolean> => {
+    const success = await StorageService.removeJellyfinConfig();
+    if (success) {
+      setJellyfinConfigState(null);
+    }
+    return success;
+  };
+
   return (
     <MediaContext.Provider
       value={{
@@ -1063,6 +1089,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setInsightWidgetSize,
         reorderInsightWidget,
         resetInsightsLayout,
+        jellyfinConfig,
+        saveJellyfinConfig,
+        removeJellyfinConfig,
       }}>
       {children}
     </MediaContext.Provider>

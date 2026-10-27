@@ -17,6 +17,7 @@ import { Image } from 'expo-image';
 import { useMedia } from '@/context/MediaContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { TMDBService } from '@/services/tmdb';
+import { JellyfinService, JellyfinConfig, JellyfinTestResult } from '@/services/jellyfin';
 import {
   getStorageMetrics,
   formatBytes,
@@ -129,6 +130,9 @@ export default function SettingsScreen() {
     setCustomStreamingRegion,
     insightsLayout,
     resetInsightsLayout,
+    jellyfinConfig,
+    saveJellyfinConfig,
+    removeJellyfinConfig,
   } = useMedia();
 
   // Collapsible Accordion Sections State
@@ -334,6 +338,100 @@ export default function SettingsScreen() {
   const [showKey, setShowKey] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ valid: boolean; message: string } | null>(null);
+
+  // API Integrations Sub-Tab
+  const [activeApiTab, setActiveApiTab] = useState<'tmdb' | 'jellyfin'>('tmdb');
+
+  // Jellyfin Connection State
+  const [customJellyfinServerUrl, setCustomJellyfinServerUrl] = useState<string | null>(null);
+  const jellyfinServerUrl = customJellyfinServerUrl !== null ? customJellyfinServerUrl : (jellyfinConfig?.serverUrl || '');
+
+  const [customJellyfinAuthType, setCustomJellyfinAuthType] = useState<'api_key' | 'credentials' | null>(null);
+  const jellyfinAuthType = customJellyfinAuthType !== null ? customJellyfinAuthType : (jellyfinConfig?.authType || 'api_key');
+
+  const [customJellyfinApiKey, setCustomJellyfinApiKey] = useState<string | null>(null);
+  const jellyfinApiKey = customJellyfinApiKey !== null ? customJellyfinApiKey : (jellyfinConfig?.apiKey || '');
+
+  const [customJellyfinUsername, setCustomJellyfinUsername] = useState<string | null>(null);
+  const jellyfinUsername = customJellyfinUsername !== null ? customJellyfinUsername : (jellyfinConfig?.username || '');
+
+  const [jellyfinPassword, setJellyfinPassword] = useState<string>('');
+  const [showJellyfinPassword, setShowJellyfinPassword] = useState<boolean>(false);
+  const [showJellyfinApiKey, setShowJellyfinApiKey] = useState<boolean>(false);
+  const [isTestingJellyfin, setIsTestingJellyfin] = useState<boolean>(false);
+  const [jellyfinTestResult, setJellyfinTestResult] = useState<JellyfinTestResult | null>(null);
+
+  const handleConnectJellyfin = async () => {
+    if (!jellyfinServerUrl.trim()) {
+      Alert.alert('Missing URL', 'Please enter your Jellyfin server URL (e.g. http://192.168.1.100:8096 or https://jellyfin.example.com).');
+      return;
+    }
+    if (jellyfinAuthType === 'api_key' && !jellyfinApiKey.trim()) {
+      Alert.alert('Missing API Key', 'Please enter your Jellyfin API key.');
+      return;
+    }
+    if (jellyfinAuthType === 'credentials' && !jellyfinUsername.trim()) {
+      Alert.alert('Missing Username', 'Please enter your Jellyfin username.');
+      return;
+    }
+
+    setIsTestingJellyfin(true);
+    setJellyfinTestResult(null);
+
+    const result = await JellyfinService.testConnection(
+      jellyfinServerUrl.trim(),
+      jellyfinAuthType,
+      jellyfinApiKey.trim(),
+      jellyfinUsername.trim(),
+      jellyfinPassword
+    );
+
+    setIsTestingJellyfin(false);
+    setJellyfinTestResult(result);
+
+    if (result.valid) {
+      const newConfig: JellyfinConfig = {
+        serverUrl: JellyfinService.normalizeServerUrl(jellyfinServerUrl),
+        authType: jellyfinAuthType,
+        apiKey: jellyfinAuthType === 'api_key' ? result.apiKey || jellyfinApiKey.trim() : undefined,
+        accessToken: jellyfinAuthType === 'credentials' ? result.accessToken : undefined,
+        username: result.userName || jellyfinUsername.trim(),
+        userId: result.userId,
+        serverName: result.serverName,
+        serverVersion: result.serverVersion,
+        isConnected: true,
+        lastConnectedAt: new Date().toISOString(),
+      };
+      await saveJellyfinConfig(newConfig);
+      setJellyfinPassword('');
+      Alert.alert('Connection Successful', result.message);
+    } else {
+      Alert.alert('Connection Failed', result.message);
+    }
+  };
+
+  const handleDisconnectJellyfin = () => {
+    Alert.alert(
+      'Disconnect Jellyfin',
+      'Are you sure you want to disconnect from this Jellyfin server? Your saved connection will be cleared.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            await removeJellyfinConfig();
+            setCustomJellyfinServerUrl('');
+            setCustomJellyfinApiKey('');
+            setCustomJellyfinUsername('');
+            setCustomJellyfinAuthType('api_key');
+            setJellyfinTestResult(null);
+            setJellyfinPassword('');
+          },
+        },
+      ]
+    );
+  };
 
   // Storage Metrics & Backup State
   const [storageMetrics, setStorageMetrics] = useState<StorageMetrics | null>(null);
@@ -2372,7 +2470,7 @@ export default function SettingsScreen() {
       </View>
 
       {/* ============================================================== */}
-      {/* 7. TMDB API KEY SECTION */}
+      {/* 7. API INTEGRATIONS SECTION */}
       {/* ============================================================== */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <Pressable
@@ -2381,9 +2479,9 @@ export default function SettingsScreen() {
           <View style={styles.accordionLeft}>
             <Ionicons name="key" size={Math.round(20 * headerScale)} color={colors.primary} />
             <View style={styles.accordionTextGroup}>
-              <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>TMDB API Configuration</Text>
+              <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>API Integrations</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Status: {apiKey ? 'Configured & Active' : 'API Key Missing'}
+                TMDB: {apiKey ? 'Active' : 'Missing'} • Jellyfin: {jellyfinConfig?.isConnected ? `Connected (${jellyfinConfig.serverName || 'Server'})` : 'Disconnected'}
               </Text>
             </View>
           </View>
@@ -2396,121 +2494,455 @@ export default function SettingsScreen() {
 
         {expandedSections.api && (
           <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
-            <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
-              Enter your TMDB API Key (v3) or API Read Access Token (v4). It is saved locally on your device and never shared.
-            </Text>
-
-            <View style={[styles.inputContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-              <TextInput
-                style={[styles.input, { color: colors.text, fontSize: 13 * textScale }]}
-                placeholder="Paste your TMDB key or token here..."
-                placeholderTextColor={colors.textMuted}
-                value={inputKey}
-                onChangeText={(text) => {
-                  setCustomKey(text);
-                  setTestResult(null);
-                }}
-                secureTextEntry={!showKey}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+            {/* Service Selector Tabs */}
+            <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, marginBottom: 14 }]}>
               <Pressable
-                style={styles.eyeBtn}
-                onPress={() => setShowKey(!showKey)}>
-                <Ionicons
-                  name={showKey ? 'eye-off-outline' : 'eye-outline'}
-                  size={Math.round(18 * buttonScale)}
-                  color={colors.textSecondary}
-                />
-              </Pressable>
-            </View>
-
-            {testResult && (
-              <View
                 style={[
-                  styles.testResultBox,
-                  testResult.valid ? styles.testResultSuccess : styles.testResultError,
-                ]}>
+                  styles.modeSegmentBtn,
+                  dynTypography.modeSegmentBtn,
+                  activeApiTab === 'tmdb' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setActiveApiTab('tmdb');
+                }}>
                 <Ionicons
-                  name={testResult.valid ? 'checkmark-circle' : 'alert-circle'}
-                  size={Math.round(16 * textScale)}
-                  color={testResult.valid ? '#22c55e' : '#ef4444'}
+                  name="film-outline"
+                  size={Math.round(15 * buttonScale)}
+                  color={activeApiTab === 'tmdb' ? '#ffffff' : colors.textSecondary}
+                  style={{ marginRight: 6 }}
                 />
                 <Text
                   style={[
-                    styles.testResultText,
-                    { fontSize: 12 * textScale },
-                    testResult.valid ? styles.testResultSuccessText : styles.testResultErrorText,
+                    styles.modeSegmentText,
+                    dynTypography.modeSegmentText,
+                    { color: activeApiTab === 'tmdb' ? '#ffffff' : colors.textSecondary },
                   ]}>
-                  {testResult.message}
+                  TMDB (Metadata)
                 </Text>
-              </View>
-            )}
-
-            <View style={styles.buttonRow}>
-              <Pressable
-                style={[styles.saveBtn, dynTypography.presetBtn, { backgroundColor: colors.primary }, isTesting && styles.btnDisabled]}
-                onPress={handleSaveKey}
-                disabled={isTesting}>
-                {isTesting ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark-sharp" size={Math.round(16 * buttonScale)} color="#ffffff" />
-                    <Text style={[styles.saveBtnText, dynTypography.presetBtnText]}>Verify & Save Key</Text>
-                  </>
-                )}
               </Pressable>
 
-              {apiKey && (
-                <Pressable
-                  style={[styles.removeBtn, dynTypography.presetBtn]}
-                  onPress={handleRemoveKey}>
-                  <Ionicons name="trash-outline" size={Math.round(16 * buttonScale)} color="#ef4444" />
-                  <Text style={[styles.removeBtnText, dynTypography.presetBtnText]}>Remove</Text>
-                </Pressable>
-              )}
+              <Pressable
+                style={[
+                  styles.modeSegmentBtn,
+                  dynTypography.modeSegmentBtn,
+                  activeApiTab === 'jellyfin' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setActiveApiTab('jellyfin');
+                }}>
+                <Ionicons
+                  name="server-outline"
+                  size={Math.round(15 * buttonScale)}
+                  color={activeApiTab === 'jellyfin' ? '#ffffff' : colors.textSecondary}
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={[
+                    styles.modeSegmentText,
+                    dynTypography.modeSegmentText,
+                    { color: activeApiTab === 'jellyfin' ? '#ffffff' : colors.textSecondary },
+                  ]}>
+                  Jellyfin Server
+                </Text>
+              </Pressable>
             </View>
 
-            {/* Guide: How to get TMDB Key */}
-            <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
-            <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary }]}>HOW TO GET A FREE KEY</Text>
-            <View style={styles.stepList}>
-              <View style={styles.stepItem}>
-                <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>1</Text>
-                <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
-                  Go to{' '}
-                  <Text
-                    style={[styles.bold, { color: colors.primary, textDecorationLine: 'underline' }]}
-                    onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
-                    themoviedb.org
-                  </Text>{' '}
-                  and sign up for a free account.
+            {/* TAB 1: TMDB API Configuration */}
+            {activeApiTab === 'tmdb' && (
+              <>
+                <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
+                  Enter your TMDB API Key (v3) or API Read Access Token (v4). It is saved locally on your device and never shared.
                 </Text>
-              </View>
 
-              <View style={styles.stepItem}>
-                <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>2</Text>
-                <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
-                  Click your avatar in the top-right corner → <Text style={[styles.bold, { color: colors.text }]}>Settings</Text> →{' '}
-                  <Text style={[styles.bold, { color: colors.text }]}>API</Text>.
-                </Text>
-              </View>
+                <View style={[styles.inputContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                  <TextInput
+                    style={[styles.input, { color: colors.text, fontSize: 13 * textScale }]}
+                    placeholder="Paste your TMDB key or token here..."
+                    placeholderTextColor={colors.textMuted}
+                    value={inputKey}
+                    onChangeText={(text) => {
+                      setCustomKey(text);
+                      setTestResult(null);
+                    }}
+                    secureTextEntry={!showKey}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Pressable
+                    style={styles.eyeBtn}
+                    onPress={() => setShowKey(!showKey)}>
+                    <Ionicons
+                      name={showKey ? 'eye-off-outline' : 'eye-outline'}
+                      size={Math.round(18 * buttonScale)}
+                      color={colors.textSecondary}
+                    />
+                  </Pressable>
+                </View>
 
-              <View style={styles.stepItem}>
-                <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>3</Text>
-                <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
-                  Click <Text style={[styles.bold, { color: colors.text }]}>Create</Text> (choose Developer) and accept the terms.
-                </Text>
-              </View>
+                {testResult && (
+                  <View
+                    style={[
+                      styles.testResultBox,
+                      testResult.valid ? styles.testResultSuccess : styles.testResultError,
+                    ]}>
+                    <Ionicons
+                      name={testResult.valid ? 'checkmark-circle' : 'alert-circle'}
+                      size={Math.round(16 * textScale)}
+                      color={testResult.valid ? '#22c55e' : '#ef4444'}
+                    />
+                    <Text
+                      style={[
+                        styles.testResultText,
+                        { fontSize: 12 * textScale },
+                        testResult.valid ? styles.testResultSuccessText : styles.testResultErrorText,
+                      ]}>
+                      {testResult.message}
+                    </Text>
+                  </View>
+                )}
 
-              <View style={styles.stepItem}>
-                <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>4</Text>
-                <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
-                  Copy your <Text style={[styles.bold, { color: colors.text }]}>API Key (v3)</Text> or <Text style={[styles.bold, { color: colors.text }]}>API Read Access Token</Text> and paste it above.
+                <View style={styles.buttonRow}>
+                  <Pressable
+                    style={[styles.saveBtn, dynTypography.presetBtn, { backgroundColor: colors.primary }, isTesting && styles.btnDisabled]}
+                    onPress={handleSaveKey}
+                    disabled={isTesting}>
+                    {isTesting ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <>
+                        <Ionicons name="checkmark-sharp" size={Math.round(16 * buttonScale)} color="#ffffff" />
+                        <Text style={[styles.saveBtnText, dynTypography.presetBtnText]}>Verify & Save Key</Text>
+                      </>
+                    )}
+                  </Pressable>
+
+                  {apiKey && (
+                    <Pressable
+                      style={[styles.removeBtn, dynTypography.presetBtn]}
+                      onPress={handleRemoveKey}>
+                      <Ionicons name="trash-outline" size={Math.round(16 * buttonScale)} color="#ef4444" />
+                      <Text style={[styles.removeBtnText, dynTypography.presetBtnText]}>Remove</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                {/* Guide: How to get TMDB Key */}
+                <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
+                <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary }]}>HOW TO GET A FREE KEY</Text>
+                <View style={styles.stepList}>
+                  <View style={styles.stepItem}>
+                    <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>1</Text>
+                    <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                      Go to{' '}
+                      <Text
+                        style={[styles.bold, { color: colors.primary, textDecorationLine: 'underline' }]}
+                        onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
+                        themoviedb.org
+                      </Text>{' '}
+                      and sign up for a free account.
+                    </Text>
+                  </View>
+
+                  <View style={styles.stepItem}>
+                    <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>2</Text>
+                    <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                      Click your avatar in the top-right corner → <Text style={[styles.bold, { color: colors.text }]}>Settings</Text> →{' '}
+                      <Text style={[styles.bold, { color: colors.text }]}>API</Text>.
+                    </Text>
+                  </View>
+
+                  <View style={styles.stepItem}>
+                    <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>3</Text>
+                    <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                      Click <Text style={[styles.bold, { color: colors.text }]}>Create</Text> (choose Developer) and accept the terms.
+                    </Text>
+                  </View>
+
+                  <View style={styles.stepItem}>
+                    <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>4</Text>
+                    <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                      Copy your <Text style={[styles.bold, { color: colors.text }]}>API Key (v3)</Text> or <Text style={[styles.bold, { color: colors.text }]}>API Read Access Token</Text> and paste it above.
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
+
+            {/* TAB 2: Jellyfin Media Server Configuration */}
+            {activeApiTab === 'jellyfin' && (
+              <>
+                <View style={styles.jellyfinSectionHeader}>
+                  <Image
+                    source={require('@/assets/images/jellyfin/jellyfin-horizontal--color-on-dark.png')}
+                    style={styles.jellyfinLogoSmall}
+                    contentFit="contain"
+                  />
+                  <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary }]}>
+                    Connect directly to your self-hosted Jellyfin media server. BingeLog verifies server reachability and saves authorization securely on your device.
+                  </Text>
+                </View>
+
+                {/* Connected Server Card */}
+                {jellyfinConfig?.isConnected && (
+                  <View style={[styles.jfConnectedCard, { backgroundColor: colors.inputBg, borderColor: '#10b981' }]}>
+                    <View style={styles.jfConnectedHeader}>
+                      <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                      <Text style={[styles.jfConnectedTitle, { color: colors.text }]}>
+                        Connected to {jellyfinConfig.serverName || 'Jellyfin Server'}
+                      </Text>
+                    </View>
+                    <Text style={[styles.jfConnectedDetail, { color: colors.textSecondary }]}>
+                      Server Version: {jellyfinConfig.serverVersion || 'Unknown'} • URL: {jellyfinConfig.serverUrl}
+                    </Text>
+                    {jellyfinConfig.username ? (
+                      <Text style={[styles.jfConnectedDetail, { color: colors.textSecondary }]}>
+                        Authenticated User: {jellyfinConfig.username}
+                      </Text>
+                    ) : null}
+                  </View>
+                )}
+
+                {/* Server URL Input */}
+                <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 4 }]}>
+                  SERVER URL
                 </Text>
-              </View>
-            </View>
+                <View style={[styles.inputContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                  <TextInput
+                    style={[styles.input, { color: colors.text, fontSize: 13 * textScale }]}
+                    placeholder="e.g. http://192.168.1.100:8096 or https://jellyfin.example.com"
+                    placeholderTextColor={colors.textMuted}
+                    value={jellyfinServerUrl}
+                    onChangeText={(text) => {
+                      setCustomJellyfinServerUrl(text);
+                      setJellyfinTestResult(null);
+                    }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+
+                {/* Auth Method Selector */}
+                <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 12 }]}>
+                  AUTHENTICATION METHOD
+                </Text>
+                <View style={[styles.modeSegmentContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder, marginBottom: 10 }]}>
+                  <Pressable
+                    style={[
+                      styles.modeSegmentBtn,
+                      dynTypography.modeSegmentBtn,
+                      jellyfinAuthType === 'api_key' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setCustomJellyfinAuthType('api_key');
+                      setJellyfinTestResult(null);
+                    }}>
+                    <Ionicons
+                      name="key-outline"
+                      size={Math.round(14 * buttonScale)}
+                      color={jellyfinAuthType === 'api_key' ? '#ffffff' : colors.textSecondary}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text
+                      style={[
+                        styles.modeSegmentText,
+                        dynTypography.modeSegmentText,
+                        { color: jellyfinAuthType === 'api_key' ? '#ffffff' : colors.textSecondary },
+                      ]}>
+                      API Key
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.modeSegmentBtn,
+                      dynTypography.modeSegmentBtn,
+                      jellyfinAuthType === 'credentials' && [styles.modeSegmentBtnActive, { backgroundColor: colors.primary }],
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setCustomJellyfinAuthType('credentials');
+                      setJellyfinTestResult(null);
+                    }}>
+                    <Ionicons
+                      name="person-outline"
+                      size={Math.round(14 * buttonScale)}
+                      color={jellyfinAuthType === 'credentials' ? '#ffffff' : colors.textSecondary}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text
+                      style={[
+                        styles.modeSegmentText,
+                        dynTypography.modeSegmentText,
+                        { color: jellyfinAuthType === 'credentials' ? '#ffffff' : colors.textSecondary },
+                      ]}>
+                      Username & Password
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {/* API Key Input */}
+                {jellyfinAuthType === 'api_key' && (
+                  <>
+                    <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 4 }]}>
+                      JELLYFIN API KEY
+                    </Text>
+                    <View style={[styles.inputContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                      <TextInput
+                        style={[styles.input, { color: colors.text, fontSize: 13 * textScale }]}
+                        placeholder="Paste your Jellyfin API token here..."
+                        placeholderTextColor={colors.textMuted}
+                        value={jellyfinApiKey}
+                        onChangeText={(text) => {
+                          setCustomJellyfinApiKey(text);
+                          setJellyfinTestResult(null);
+                        }}
+                        secureTextEntry={!showJellyfinApiKey}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      <Pressable
+                        style={styles.eyeBtn}
+                        onPress={() => setShowJellyfinApiKey(!showJellyfinApiKey)}>
+                        <Ionicons
+                          name={showJellyfinApiKey ? 'eye-off-outline' : 'eye-outline'}
+                          size={Math.round(18 * buttonScale)}
+                          color={colors.textSecondary}
+                        />
+                      </Pressable>
+                    </View>
+                  </>
+                )}
+
+                {/* Username & Password Inputs */}
+                {jellyfinAuthType === 'credentials' && (
+                  <>
+                    <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 4 }]}>
+                      USERNAME
+                    </Text>
+                    <View style={[styles.inputContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                      <TextInput
+                        style={[styles.input, { color: colors.text, fontSize: 13 * textScale }]}
+                        placeholder="Enter your Jellyfin username..."
+                        placeholderTextColor={colors.textMuted}
+                        value={jellyfinUsername}
+                        onChangeText={(text) => {
+                          setCustomJellyfinUsername(text);
+                          setJellyfinTestResult(null);
+                        }}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                    </View>
+
+                    <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 8 }]}>
+                      PASSWORD
+                    </Text>
+                    <View style={[styles.inputContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+                      <TextInput
+                        style={[styles.input, { color: colors.text, fontSize: 13 * textScale }]}
+                        placeholder="Enter your Jellyfin password..."
+                        placeholderTextColor={colors.textMuted}
+                        value={jellyfinPassword}
+                        onChangeText={(text) => {
+                          setJellyfinPassword(text);
+                          setJellyfinTestResult(null);
+                        }}
+                        secureTextEntry={!showJellyfinPassword}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      <Pressable
+                        style={styles.eyeBtn}
+                        onPress={() => setShowJellyfinPassword(!showJellyfinPassword)}>
+                        <Ionicons
+                          name={showJellyfinPassword ? 'eye-off-outline' : 'eye-outline'}
+                          size={Math.round(18 * buttonScale)}
+                          color={colors.textSecondary}
+                        />
+                      </Pressable>
+                    </View>
+                  </>
+                )}
+
+                {/* Diagnostic Test Result Box */}
+                {jellyfinTestResult && (
+                  <View
+                    style={[
+                      styles.testResultBox,
+                      jellyfinTestResult.valid ? styles.testResultSuccess : styles.testResultError,
+                    ]}>
+                    <Ionicons
+                      name={jellyfinTestResult.valid ? 'checkmark-circle' : 'alert-circle'}
+                      size={Math.round(16 * textScale)}
+                      color={jellyfinTestResult.valid ? '#22c55e' : '#ef4444'}
+                    />
+                    <Text
+                      style={[
+                        styles.testResultText,
+                        { fontSize: 12 * textScale },
+                        jellyfinTestResult.valid ? styles.testResultSuccessText : styles.testResultErrorText,
+                      ]}>
+                      {jellyfinTestResult.message}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Action Buttons */}
+                <View style={styles.buttonRow}>
+                  <Pressable
+                    style={[styles.saveBtn, dynTypography.presetBtn, { backgroundColor: colors.primary }, isTestingJellyfin && styles.btnDisabled]}
+                    onPress={handleConnectJellyfin}
+                    disabled={isTestingJellyfin}>
+                    {isTestingJellyfin ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <>
+                        <Ionicons name="link-sharp" size={Math.round(16 * buttonScale)} color="#ffffff" />
+                        <Text style={[styles.saveBtnText, dynTypography.presetBtnText]}>Test & Connect Server</Text>
+                      </>
+                    )}
+                  </Pressable>
+
+                  {jellyfinConfig?.isConnected && (
+                    <Pressable
+                      style={[styles.removeBtn, dynTypography.presetBtn]}
+                      onPress={handleDisconnectJellyfin}>
+                      <Ionicons name="trash-outline" size={Math.round(16 * buttonScale)} color="#ef4444" />
+                      <Text style={[styles.removeBtnText, dynTypography.presetBtnText]}>Disconnect</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                {/* Guide: How to connect Jellyfin */}
+                <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
+                <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary }]}>HOW TO CONNECT JELLYFIN</Text>
+                <View style={styles.stepList}>
+                  <View style={styles.stepItem}>
+                    <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>1</Text>
+                    <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                      Ensure your Jellyfin server is running and accessible on your local network (e.g. <Text style={[styles.bold, { color: colors.text }]}>http://192.168.x.x:8096</Text>) or via a secure reverse proxy domain.
+                    </Text>
+                  </View>
+
+                  <View style={styles.stepItem}>
+                    <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>2</Text>
+                    <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                      <Text style={[styles.bold, { color: colors.text }]}>API Key Method</Text>: In Jellyfin Web, go to <Text style={[styles.bold, { color: colors.text }]}>Dashboard → Advanced → API Keys</Text>, create an app key named &ldquo;BingeLog&rdquo;, and paste it above.
+                    </Text>
+                  </View>
+
+                  <View style={styles.stepItem}>
+                    <Text style={[styles.stepNumber, { backgroundColor: colors.inputBg, color: colors.primary }]}>3</Text>
+                    <Text style={[styles.stepText, { color: colors.textSecondary, fontSize: 12 * textScale }]}>
+                      <Text style={[styles.bold, { color: colors.text }]}>Username & Password Method</Text>: Enter your credentials directly to authenticate and generate an active session token.
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
         )}
       </View>
@@ -2844,7 +3276,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.24.2 • TMDB & MAL Attributions
+                Version 0.25.0 • TMDB, MAL & Jellyfin Attributions
               </Text>
             </View>
           </View>
@@ -2926,6 +3358,33 @@ export default function SettingsScreen() {
               </Text>
             </View>
 
+            <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 12 }]} />
+
+            {/* Jellyfin Legal Attribution */}
+            <View style={styles.jellyfinAttributionHeader}>
+              <Image
+                source={require('@/assets/images/jellyfin/jellyfin-horizontal--color-on-dark.png')}
+                style={styles.jellyfinLogoImage}
+                contentFit="contain"
+              />
+            </View>
+
+            <Text selectable style={[styles.tmdbLegalText, { color: colors.textSecondary }]}>
+              This product integrates with the Jellyfin API but is an independent client and is not endorsed or certified by the Jellyfin Project.
+            </Text>
+
+            <View style={styles.tmdbMetaRow}>
+              <Ionicons name="server-outline" size={14} color={colors.primary} />
+              <Text selectable style={[styles.tmdbMetaText, { color: colors.textMuted }]}>
+                Jellyfin is an open-source, community-driven media system. Learn more or deploy your own server at{' '}
+                <Text
+                  style={{ color: colors.primary, fontWeight: '700', textDecorationLine: 'underline' }}
+                  onPress={() => void Linking.openURL('https://jellyfin.org')}>
+                  jellyfin.org
+                </Text>.
+              </Text>
+            </View>
+
             <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, width: '100%', marginVertical: 12 }]} />
 
             <Text selectable style={[styles.disclaimerText, { color: colors.textMuted }]}>
@@ -2934,17 +3393,21 @@ export default function SettingsScreen() {
                 style={{ color: colors.primary, textDecorationLine: 'underline' }}
                 onPress={() => void Linking.openURL('https://myanimelist.net')}>
                 MyAnimeList (MAL)
-              </Text>{' '}
-              or{' '}
+              </Text>,{' '}
               <Text
                 style={{ color: colors.primary, textDecorationLine: 'underline' }}
                 onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
                 The Movie Database (TMDB)
+              </Text>, or the{' '}
+              <Text
+                style={{ color: colors.primary, textDecorationLine: 'underline' }}
+                onPress={() => void Linking.openURL('https://jellyfin.org')}>
+                Jellyfin Project
               </Text>. All trademarks, logos, and copyrights belong to their respective owners.
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.24.2 • Build 54 • Expo SDK 57
+              Version 0.25.0 • Build 55 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -4508,6 +4971,44 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
     fontStyle: 'italic',
+  },
+  jellyfinSectionHeader: {
+    marginBottom: 12,
+  },
+  jellyfinLogoSmall: {
+    width: 140,
+    height: 32,
+    marginBottom: 6,
+  },
+  jellyfinAttributionHeader: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    marginBottom: 6,
+  },
+  jellyfinLogoImage: {
+    width: 150,
+    height: 32,
+  },
+  jfConnectedCard: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 14,
+    gap: 4,
+  },
+  jfConnectedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  jfConnectedTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  jfConnectedDetail: {
+    fontSize: 11.5,
+    lineHeight: 16,
   },
 });
 

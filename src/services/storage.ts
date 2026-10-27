@@ -15,6 +15,7 @@ import {
 import { ThemeMode, ThemePresetId } from '@/constants/theme';
 import { HapticIntensity } from '@/services/haptics';
 import { InsightWidgetConfig, DEFAULT_INSIGHTS_LAYOUT } from '@/types/insights';
+import { JellyfinConfig } from './jellyfin';
 
 export interface SavedThemeConfig {
   mode: ThemeMode;
@@ -52,6 +53,7 @@ const STORAGE_KEYS = {
   STREAMING_REGION_STRATEGY: '@pmt_streaming_region_strategy',
   CUSTOM_STREAMING_REGION: '@pmt_custom_streaming_region',
   INSIGHTS_LAYOUT: '@pmt_insights_layout',
+  JELLYFIN_CONFIG: '@pmt_jellyfin_config',
 };
 
 export const StorageService = {
@@ -738,6 +740,37 @@ export const StorageService = {
       return true;
     } catch (e) {
       console.error('Failed to save insights layout to storage', e);
+      return false;
+    }
+  },
+
+  async getJellyfinConfig(): Promise<JellyfinConfig | null> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.JELLYFIN_CONFIG);
+      if (!data) return null;
+      return JSON.parse(data) as JellyfinConfig;
+    } catch (e) {
+      console.error('Failed to get Jellyfin config from storage', e);
+      return null;
+    }
+  },
+
+  async saveJellyfinConfig(config: JellyfinConfig): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.JELLYFIN_CONFIG, JSON.stringify(config));
+      return true;
+    } catch (e) {
+      console.error('Failed to save Jellyfin config to storage', e);
+      return false;
+    }
+  },
+
+  async removeJellyfinConfig(): Promise<boolean> {
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.JELLYFIN_CONFIG);
+      return true;
+    } catch (e) {
+      console.error('Failed to remove Jellyfin config from storage', e);
       return false;
     }
   },
