@@ -57,6 +57,7 @@ import {
   getDaysDifference,
   formatRuntime,
   getCountdownInfo,
+  combineDateAndTimeToIso,
 } from '@/utils/date';
 import { DatePickerModal } from '@/components/DatePickerModal';
 import { EntityModal } from '@/components/EntityModal';
@@ -325,6 +326,16 @@ function TrackModalFormContent({
       ? formatDateInput(existingRecord.startedAt, dateFormat)
       : ''
   );
+  const [startedTime, setStartedTime] = useState<string>(() => {
+    if (existingRecord?.startedAt) {
+      const d = new Date(existingRecord.startedAt);
+      if (!isNaN(d.getTime())) {
+        return formatTimeWithSeconds(d, timeFormat);
+      }
+    }
+    return '';
+  });
+  const [showStartedTimePicker, setShowStartedTimePicker] = useState<boolean>(false);
   const [finishedAt, setFinishedAt] = useState<string>(
     existingRecord?.finishedAt
       ? formatDateInput(existingRecord.finishedAt, dateFormat)
@@ -623,6 +634,7 @@ function TrackModalFormContent({
       } else if (next.size > 0 && (!status || status === 'plan_to_watch')) {
         setStatus('watching');
         if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
+        if (!startedTime) setStartedTime(formatTimeWithSeconds(new Date(), timeFormat));
       }
 
       return next;
@@ -699,6 +711,7 @@ function TrackModalFormContent({
       } else if (next.size > 0 && (!status || status === 'plan_to_watch')) {
         setStatus('watching');
         if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
+        if (!startedTime) setStartedTime(formatTimeWithSeconds(new Date(), timeFormat));
       }
 
       return next;
@@ -760,6 +773,7 @@ function TrackModalFormContent({
             } else if (!status || status === 'plan_to_watch') {
               setStatus('watching');
               if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
+              if (!startedTime) setStartedTime(formatTimeWithSeconds(new Date(), timeFormat));
             }
             return next;
           }
@@ -870,6 +884,7 @@ function TrackModalFormContent({
             setWatchedEpisodesHistory({});
             setWatchedSeasonsHistory({});
             setStartedAt(getTodayFormatted(dateFormat));
+            setStartedTime(formatTimeWithSeconds(new Date(), timeFormat));
             setFinishedAt('');
             setFinishedTime('');
           },
@@ -894,6 +909,7 @@ function TrackModalFormContent({
             setStatus('watching');
             setMinutesWatched(0);
             setStartedAt(getTodayFormatted(dateFormat));
+            setStartedTime(formatTimeWithSeconds(new Date(), timeFormat));
             setFinishedAt('');
             setFinishedTime('');
           },
@@ -938,6 +954,7 @@ function TrackModalFormContent({
       setIsAlsoPlanned(false);
       if (newStatus === 'watching') {
         if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
+        if (!startedTime) setStartedTime(formatTimeWithSeconds(new Date(), timeFormat));
         if (prevStatus === 'completed') {
           setFinishedAt('');
           setFinishedTime('');
@@ -1030,9 +1047,11 @@ function TrackModalFormContent({
     if (runtimeMinutes && clamped >= runtimeMinutes && status !== 'completed') {
       setStatus('completed');
       if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+      if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
     } else if (clamped > 0 && (!status || status === 'plan_to_watch')) {
       setStatus('watching');
       if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
+      if (!startedTime) setStartedTime(formatTimeWithSeconds(new Date(), timeFormat));
     }
   };
 
@@ -1046,33 +1065,8 @@ function TrackModalFormContent({
       return;
     }
 
-    const startedIso = parseFormattedDateToIso(startedAt, dateFormat);
-    let finishedIso: string | null = null;
-    if (finishedAt) {
-      const baseIso = parseFormattedDateToIso(finishedAt, dateFormat);
-      if (baseIso) {
-        const d = new Date(baseIso);
-        if (finishedTime) {
-          const match24 = finishedTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-          const match12 = finishedTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
-          if (match12) {
-            let h = parseInt(match12[1], 10);
-            const m = parseInt(match12[2], 10);
-            const s = match12[3] ? parseInt(match12[3], 10) : 0;
-            const period = match12[4].toUpperCase();
-            if (period === 'PM' && h < 12) h += 12;
-            if (period === 'AM' && h === 12) h = 0;
-            d.setHours(h, m, s, 0);
-          } else if (match24) {
-            const h = parseInt(match24[1], 10);
-            const m = parseInt(match24[2], 10);
-            const s = match24[3] ? parseInt(match24[3], 10) : 0;
-            d.setHours(h, m, s, 0);
-          }
-        }
-        finishedIso = d.toISOString();
-      }
-    }
+    const startedIso = combineDateAndTimeToIso(startedAt, startedTime, dateFormat);
+    const finishedIso = combineDateAndTimeToIso(finishedAt, finishedTime, dateFormat);
 
     const record: TrackedItem = {
       id,
@@ -1194,8 +1188,8 @@ function TrackModalFormContent({
   const posterUrl = TMDBService.getImageUrl(posterPath, 'w342');
   const currentScoreLabel =
     MAL_SCORES.find((s) => s.score === score)?.label || 'Select Score';
-  const startedIsoForLabel = parseFormattedDateToIso(startedAt, dateFormat);
-  const finishedIsoForLabel = parseFormattedDateToIso(finishedAt, dateFormat);
+  const startedIsoForLabel = combineDateAndTimeToIso(startedAt, startedTime, dateFormat);
+  const finishedIsoForLabel = combineDateAndTimeToIso(finishedAt, finishedTime, dateFormat);
   const currentOngoingHoldDays = useMemo(() => {
     if (status !== 'on_hold' || !onHoldStartedAt) return 0;
     return Math.max(0, getDaysDifference(onHoldStartedAt, new Date().toISOString()) || 0);
@@ -1204,7 +1198,7 @@ function TrackModalFormContent({
   const durationLabel = getDurationLabel(
     startedIsoForLabel,
     finishedIsoForLabel,
-    status === 'completed',
+    status,
     effectivePausedDays
   );
 
@@ -3521,7 +3515,7 @@ function TrackModalFormContent({
                   <Text style={[styles.dateStaticValue, { color: colors.text }]} selectable={true}>{formatDateDisplay(addedAt, dateFormat)}</Text>
                 </View>
 
-                {/* Started Watching Date Picker Button */}
+                {/* Started Watching Date and Time Pickers */}
                 <View style={styles.dateRow}>
                   <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Started Watching:</Text>
                   <View style={styles.dateButtonGroup}>
@@ -3539,15 +3533,35 @@ function TrackModalFormContent({
                     </Pressable>
 
                     <Pressable
+                      style={[styles.datePickerTriggerBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                      onPress={() => setShowStartedTimePicker(true)}>
+                      <Text
+                        style={[
+                          styles.datePickerTriggerText,
+                          { color: colors.text },
+                          !startedTime && styles.datePickerTriggerPlaceholder,
+                        ]}>
+                        {startedTime || 'Time'}
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
                       style={[styles.dateQuickBtn, { backgroundColor: colors.card }]}
-                      onPress={() => setStartedAt(getTodayFormatted(dateFormat))}>
+                      onPress={() => {
+                        const now = new Date();
+                        setStartedAt(getTodayFormatted(dateFormat));
+                        setStartedTime(formatTimeWithSeconds(now, timeFormat));
+                      }}>
                       <Text style={[styles.dateQuickText, { color: colors.primary }]}>Today</Text>
                     </Pressable>
 
-                    {startedAt ? (
+                    {(startedAt || startedTime) ? (
                       <Pressable
                         style={styles.dateClearBtn}
-                        onPress={() => setStartedAt('')}>
+                        onPress={() => {
+                          setStartedAt('');
+                          setStartedTime('');
+                        }}>
                         <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
                       </Pressable>
                     ) : null}
@@ -4071,9 +4085,13 @@ function TrackModalFormContent({
         dateFormat={dateFormat}
         onClose={() => setDatePickerTarget(null)}
         onSelectDate={(newDate) => {
-          if (datePickerTarget === 'started') setStartedAt(newDate);
-          else if (datePickerTarget === 'finished') setFinishedAt(newDate);
-          else if (datePickerTarget === 'holdRangeStart') {
+          if (datePickerTarget === 'started') {
+            setStartedAt(newDate);
+            if (!startedTime) setStartedTime(formatTimeWithSeconds(new Date(), timeFormat));
+          } else if (datePickerTarget === 'finished') {
+            setFinishedAt(newDate);
+            if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
+          } else if (datePickerTarget === 'holdRangeStart') {
             setHoldRangeStart(newDate);
             const iso = parseFormattedDateToIso(newDate, dateFormat);
             if (iso) {
@@ -4105,9 +4123,13 @@ function TrackModalFormContent({
           setDatePickerTarget(null);
         }}
         onClearDate={() => {
-          if (datePickerTarget === 'started') setStartedAt('');
-          else if (datePickerTarget === 'finished') setFinishedAt('');
-          else if (datePickerTarget === 'holdRangeStart') setHoldRangeStart('');
+          if (datePickerTarget === 'started') {
+            setStartedAt('');
+            setStartedTime('');
+          } else if (datePickerTarget === 'finished') {
+            setFinishedAt('');
+            setFinishedTime('');
+          } else if (datePickerTarget === 'holdRangeStart') setHoldRangeStart('');
           else if (datePickerTarget === 'holdRangeEnd') setHoldRangeEnd('');
           setDatePickerTarget(null);
         }}
@@ -4237,11 +4259,57 @@ function TrackModalFormContent({
         />
       )}
 
+      {/* Interactive TimePicker Modal for Whole Title Started Watching */}
+      <MaterialTimePickerModal
+        visible={showStartedTimePicker}
+        initialHour={(() => {
+          if (startedTime) {
+            const m12 = startedTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+            if (m12) {
+              let h = parseInt(m12[1], 10);
+              const p = m12[4].toUpperCase();
+              if (p === 'PM' && h < 12) h += 12;
+              if (p === 'AM' && h === 12) h = 0;
+              return h;
+            }
+            const m = startedTime.match(/^(\d{1,2}):/);
+            if (m) return parseInt(m[1], 10);
+          }
+          return new Date().getHours();
+        })()}
+        initialMinute={(() => {
+          if (startedTime) {
+            const m = startedTime.match(/:(\d{2})/);
+            if (m) return parseInt(m[1], 10);
+          }
+          return new Date().getMinutes();
+        })()}
+        timeFormat={timeFormat}
+        onClose={() => setShowStartedTimePicker(false)}
+        onConfirm={(hour, minute) => {
+          const d = new Date();
+          d.setHours(hour, minute, 0, 0);
+          setStartedTime(formatTimeWithSeconds(d, timeFormat));
+          if (!startedAt) {
+            setStartedAt(getTodayFormatted(dateFormat));
+          }
+          setShowStartedTimePicker(false);
+        }}
+      />
+
       {/* Interactive TimePicker Modal for Whole Title Finished Watching */}
       <MaterialTimePickerModal
         visible={showFinishedTimePicker}
         initialHour={(() => {
           if (finishedTime) {
+            const m12 = finishedTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+            if (m12) {
+              let h = parseInt(m12[1], 10);
+              const p = m12[4].toUpperCase();
+              if (p === 'PM' && h < 12) h += 12;
+              if (p === 'AM' && h === 12) h = 0;
+              return h;
+            }
             const m = finishedTime.match(/^(\d{1,2}):/);
             if (m) return parseInt(m[1], 10);
           }

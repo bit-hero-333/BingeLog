@@ -4,6 +4,7 @@ import {
   CountdownInfo,
   TimeFormatOption,
   DEFAULT_TIME_FORMAT,
+  MediaStatus,
 } from '@/types/media';
 
 const SHORT_MONTHS = [
@@ -260,15 +261,50 @@ export function getDaysDifference(
 export function getDurationLabel(
   startDateStr?: string | null,
   endDateStr?: string | null,
-  isCompleted?: boolean,
+  statusOrCompleted?: MediaStatus | boolean | null,
   pausedDays = 0
 ): string | null {
   if (!startDateStr) return null;
 
-  if (endDateStr && isCompleted) {
+  // Resolve media status
+  let status: MediaStatus | undefined;
+  if (typeof statusOrCompleted === 'boolean') {
+    status = statusOrCompleted ? 'completed' : 'watching';
+  } else if (statusOrCompleted) {
+    status = statusOrCompleted;
+  } else {
+    status = endDateStr ? 'completed' : 'watching';
+  }
+
+  // If endDateStr is provided, calculate duration between startDate and endDate
+  if (endDateStr) {
     const totalDays = getDaysDifference(startDateStr, endDateStr);
     if (totalDays === null) return null;
     const netDays = Math.max(0, totalDays - Math.max(0, pausedDays));
+
+    if (status === 'dropped') {
+      if (pausedDays > 0) {
+        if (netDays === 0) return `Dropped on same day (${pausedDays}d paused)`;
+        if (netDays === 1) return `Dropped after 1 active day (${pausedDays}d paused)`;
+        return `Dropped after ${netDays} active days (${pausedDays}d paused)`;
+      }
+      if (netDays === 0) return 'Dropped on same day';
+      if (netDays === 1) return 'Dropped after 1 day';
+      return `Dropped after ${netDays} days`;
+    }
+
+    if (status === 'watching') {
+      if (pausedDays > 0) {
+        if (netDays === 0) return `Watched on same day (${pausedDays}d paused)`;
+        if (netDays === 1) return `Watched for 1 active day (${pausedDays}d paused)`;
+        return `Watched for ${netDays} active days (${pausedDays}d paused)`;
+      }
+      if (netDays === 0) return 'Watched on same day';
+      if (netDays === 1) return 'Watched for 1 day';
+      return `Watched for ${netDays} days`;
+    }
+
+    // Default / completed
     if (pausedDays > 0) {
       if (netDays === 0) return `Completed on same day (${pausedDays}d paused)`;
       if (netDays === 1) return `Completed in 1 active day (${pausedDays}d paused)`;
@@ -279,6 +315,23 @@ export function getDurationLabel(
     return `Completed in ${netDays} days`;
   }
 
+  // When NO endDateStr is provided:
+  // If status is NOT watching (e.g. dropped, completed, plan_to_watch), one is not watching it.
+  if (status === 'dropped' || status === 'completed' || status === 'plan_to_watch') {
+    return null;
+  }
+
+  if (status === 'on_hold') {
+    const totalDays = getDaysDifference(startDateStr, new Date().toISOString());
+    if (totalDays === null) return null;
+    const netDays = Math.max(0, totalDays - Math.max(0, pausedDays));
+    if (pausedDays > 0) {
+      return `On hold: ${netDays} active days (${pausedDays}d paused)`;
+    }
+    return `On hold (${netDays} days)`;
+  }
+
+  // Active 'watching' status
   const totalDays = getDaysDifference(startDateStr, new Date().toISOString());
   if (totalDays === null) return null;
   const netDays = Math.max(0, totalDays - Math.max(0, pausedDays));
@@ -350,6 +403,40 @@ export function formatTimeWithSeconds(
   const period = h >= 12 ? 'PM' : 'AM';
   const displayHour = h % 12 === 0 ? 12 : h % 12;
   return `${pad(displayHour)}:${pad(m)}:${pad(s)} ${period}`;
+}
+
+/**
+ * Combines a formatted date string with a time string (12h or 24h) into a standard ISO string.
+ */
+export function combineDateAndTimeToIso(
+  dateStr?: string | null,
+  timeStr?: string | null,
+  dateFormat: DateFormatOption = DEFAULT_DATE_FORMAT
+): string | null {
+  if (!dateStr || !dateStr.trim()) return null;
+  const baseIso = parseFormattedDateToIso(dateStr, dateFormat);
+  if (!baseIso) return null;
+  const d = new Date(baseIso);
+  if (timeStr && timeStr.trim()) {
+    const trimmed = timeStr.trim();
+    const match12 = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+    const match24 = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (match12) {
+      let h = parseInt(match12[1], 10);
+      const m = parseInt(match12[2], 10);
+      const s = match12[3] ? parseInt(match12[3], 10) : 0;
+      const period = match12[4].toUpperCase();
+      if (period === 'PM' && h < 12) h += 12;
+      if (period === 'AM' && h === 12) h = 0;
+      d.setHours(h, m, s, 0);
+    } else if (match24) {
+      const h = parseInt(match24[1], 10);
+      const m = parseInt(match24[2], 10);
+      const s = match24[3] ? parseInt(match24[3], 10) : 0;
+      d.setHours(h, m, s, 0);
+    }
+  }
+  return d.toISOString();
 }
 
 /**
