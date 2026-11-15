@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { File, Paths } from 'expo-file-system';
 import {
   TrackedItem,
   SizingConfig,
@@ -23,9 +24,30 @@ export interface SavedThemeConfig {
   customCardColor?: string;
 }
 
+export interface AutoBackupInfo {
+  latestExists: boolean;
+  latestItemCount: number;
+  latestSavedAt: string | null;
+  latestSizeBytes: number;
+  prevExists: boolean;
+  prevItemCount: number;
+  prevSavedAt: string | null;
+  prevSizeBytes: number;
+}
+
+interface ChunkManifest {
+  version: number;
+  chunkCount: number;
+  itemCount: number;
+  updatedAt: string;
+}
+
 const STORAGE_KEYS = {
   API_KEY: '@pmt_tmdb_api_key',
   TRACKED_ITEMS: '@pmt_tracked_items',
+  TRACKED_ITEMS_MANIFEST: '@pmt_tracked_items_manifest',
+  TRACKED_ITEMS_CHUNK_PREFIX: '@pmt_tracked_items_chunk_',
+  INTENTIONALLY_CLEARED: '@pmt_intentionally_cleared',
   SHOW_MEDIA_IMAGES: '@pmt_show_media_images',
   SHOW_SEASON_EPISODE_IMAGES: '@pmt_show_season_episode_images',
   SHOW_ACTOR_IMAGES: '@pmt_show_actor_images',
@@ -53,6 +75,164 @@ const STORAGE_KEYS = {
   CUSTOM_STREAMING_REGION: '@pmt_custom_streaming_region',
   INSIGHTS_LAYOUT: '@pmt_insights_layout',
 };
+
+const CHUNK_ITEMS_SIZE = 25;
+const SAFE_MONOLITH_BYTE_LIMIT = 900_000; // ~900 KB, well under Android 2 MB CursorWindow limit
+const AUTO_BACKUP_LATEST_FILENAME = 'bingelog-auto-backup-latest.json';
+const AUTO_BACKUP_PREV_FILENAME = 'bingelog-auto-backup-prev.json';
+
+let inMemoryItemsCache: TrackedItem[] | null = null;
+let lastReadFailed = false;
+
+function sanitizeTrackedItemsArray(raw: unknown): TrackedItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (it): it is TrackedItem =>
+      Boolean(it) &&
+      typeof it === 'object' &&
+      typeof (it as TrackedItem).id === 'number' &&
+      ((it as TrackedItem).mediaType === 'movie' || (it as TrackedItem).mediaType === 'tv')
+  );
+}
+
+async function readAutoBackupFile(fileName: string): Promise<{
+  items: TrackedItem[];
+  savedAt: string | null;
+  sizeBytes: number;
+} | null> {
+  try {
+    const file = new File(Paths.document, fileName);
+    if (!file.exists) return null;
+    const sizeBytes = file.size ?? 0;
+    const text = await file.text();
+    if (!text || !text.trim()) return null;
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      const items = sanitizeTrackedItemsArray(parsed);
+      return { items, savedAt: null, sizeBytes };
+    }
+    if (parsed && typeof parsed === 'object') {
+      const obj = parsed as Record<string, unknown>;
+      const items = sanitizeTrackedItemsArray(obj.trackedItems);
+      const savedAt = typeof obj.exportedAt === 'string' ? obj.exportedAt : null;
+      return { items, savedAt, sizeBytes };
+    }
+    return null;
+  } catch (e) {
+    console.warn(`Failed to read auto-backup file ${fileName}`, e);
+    return null;
+  }
+}
+
+async function writeAutoBackupMirror(items: TrackedItem[]): Promise<void> {
+  try {
+    const latestFile = new File(Paths.document, AUTO_BACKUP_LATEST_FILENAME);
+    const prevFile = new File(Paths.document, AUTO_BACKUP_PREV_FILENAME);
+
+    // Roll existing latest -> prev if latest has items
+    if (latestFile.exists) {
+      try {
+        const existingLatest = await readAutoBackupFile(AUTO_BACKUP_LATEST_FILENAME);
+        if (existingLatest && existingLatest.items.length > 0) {
+          const existingText = await latestFile.text();
+          if (existingText && existingText.trim()) {
+            if (prevFile.exists) {
+              prevFile.delete();
+            }
+            prevFile.create();
+            prevFile.write(existingText);
+          }
+        }
+      } catch (rollErr) {
+        console.warn('Non-fatal error rolling auto-backup file', rollErr);
+      }
+    }
+
+    // Write new latest file if items > 0
+    if (items.length > 0) {
+      const payload = {
+        app: 'BingeLog',
+        version: '0.25.0',
+        exportedAt: new Date().toISOString(),
+        itemCount: items.length,
+        trackedItems: items,
+      };
+      if (latestFile.exists) {
+        latestFile.delete();
+      }
+      latestFile.create();
+      latestFile.write(JSON.stringify(payload));
+    }
+  } catch (e) {
+    console.warn('Failed to write auto-backup mirror to document directory', e);
+  }
+}
+
+async function persistTrackedItemsMultiLayer(items: TrackedItem[]): Promise<void> {
+  inMemoryItemsCache = items;
+  lastReadFailed = false;
+
+  // 1. Write chunked keys in AsyncStorage (immune to Android 2 MB CursorWindow limit)
+  const chunks: TrackedItem[][] = [];
+  for (let i = 0; i < items.length; i += CHUNK_ITEMS_SIZE) {
+    chunks.push(items.slice(i, i + CHUNK_ITEMS_SIZE));
+  }
+
+  let oldChunkCount = 0;
+  try {
+    const oldManifestRaw = await AsyncStorage.getItem(STORAGE_KEYS.TRACKED_ITEMS_MANIFEST);
+    if (oldManifestRaw) {
+      const parsedManifest = JSON.parse(oldManifestRaw) as ChunkManifest;
+      if (typeof parsedManifest?.chunkCount === 'number') {
+        oldChunkCount = parsedManifest.chunkCount;
+      }
+    }
+  } catch {
+    // Ignore old manifest read error
+  }
+
+  const pairsToSet: [string, string][] = chunks.map((chunk, idx) => [
+    `${STORAGE_KEYS.TRACKED_ITEMS_CHUNK_PREFIX}${idx}`,
+    JSON.stringify(chunk),
+  ]);
+
+  const manifest: ChunkManifest = {
+    version: 2,
+    chunkCount: chunks.length,
+    itemCount: items.length,
+    updatedAt: new Date().toISOString(),
+  };
+  pairsToSet.push([STORAGE_KEYS.TRACKED_ITEMS_MANIFEST, JSON.stringify(manifest)]);
+  pairsToSet.push([STORAGE_KEYS.INTENTIONALLY_CLEARED, 'false']);
+
+  await AsyncStorage.multiSet(pairsToSet);
+
+  // Clean up any leftover chunk keys from when library had more chunks
+  if (oldChunkCount > chunks.length) {
+    const keysToRemove: string[] = [];
+    for (let idx = chunks.length; idx < oldChunkCount; idx++) {
+      keysToRemove.push(`${STORAGE_KEYS.TRACKED_ITEMS_CHUNK_PREFIX}${idx}`);
+    }
+    if (keysToRemove.length > 0) {
+      await AsyncStorage.multiRemove(keysToRemove).catch(() => {});
+    }
+  }
+
+  // 2. Write legacy single key ONLY if well below Android's 2MB CursorWindow limit; otherwise remove monolithic key
+  try {
+    const fullSerialized = JSON.stringify(items);
+    if (fullSerialized.length < SAFE_MONOLITH_BYTE_LIMIT) {
+      await AsyncStorage.setItem(STORAGE_KEYS.TRACKED_ITEMS, fullSerialized);
+    } else {
+      await AsyncStorage.removeItem(STORAGE_KEYS.TRACKED_ITEMS);
+    }
+  } catch (e) {
+    console.warn('Non-fatal legacy key update warning', e);
+  }
+
+  // 3. Mirror to persistent FileSystem auto-backup
+  await writeAutoBackupMirror(items);
+}
 
 export const StorageService = {
   async getApiKey(): Promise<string | null> {
@@ -85,32 +265,138 @@ export const StorageService = {
   },
 
   async getTrackedItems(): Promise<TrackedItem[]> {
+    let intentionallyCleared = false;
     try {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.TRACKED_ITEMS);
-      if (!data) return [];
-      return JSON.parse(data) as TrackedItem[];
-    } catch (e) {
-      console.error('Failed to load tracked items', e);
-      return [];
+      const clearedFlag = await AsyncStorage.getItem(STORAGE_KEYS.INTENTIONALLY_CLEARED);
+      intentionallyCleared = clearedFlag === 'true';
+    } catch {
+      // Ignore
     }
+
+    // Layer 1: Try reading chunked AsyncStorage first
+    try {
+      const manifestRaw = await AsyncStorage.getItem(STORAGE_KEYS.TRACKED_ITEMS_MANIFEST);
+      if (manifestRaw) {
+        const manifest = JSON.parse(manifestRaw) as ChunkManifest;
+        if (manifest && typeof manifest.chunkCount === 'number') {
+          if (manifest.chunkCount === 0 && intentionallyCleared) {
+            inMemoryItemsCache = [];
+            lastReadFailed = false;
+            return [];
+          }
+          if (manifest.chunkCount > 0) {
+            const chunkKeys: string[] = [];
+            for (let i = 0; i < manifest.chunkCount; i++) {
+              chunkKeys.push(`${STORAGE_KEYS.TRACKED_ITEMS_CHUNK_PREFIX}${i}`);
+            }
+            const chunkPairs = await AsyncStorage.multiGet(chunkKeys);
+            const loadedItems: TrackedItem[] = [];
+            let allChunksValid = true;
+
+            for (const [, chunkVal] of chunkPairs) {
+              if (!chunkVal) {
+                allChunksValid = false;
+                break;
+              }
+              const parsedChunk = sanitizeTrackedItemsArray(JSON.parse(chunkVal));
+              loadedItems.push(...parsedChunk);
+            }
+
+            if (allChunksValid && loadedItems.length > 0) {
+              inMemoryItemsCache = loadedItems;
+              lastReadFailed = false;
+              // Ensure FileSystem mirror exists in the background
+              void readAutoBackupFile(AUTO_BACKUP_LATEST_FILENAME).then((existingMirror) => {
+                if (!existingMirror || existingMirror.items.length === 0) {
+                  void writeAutoBackupMirror(loadedItems);
+                }
+              });
+              return loadedItems;
+            }
+          }
+        }
+      }
+    } catch (chunkErr) {
+      console.warn('Chunked storage read failed, falling back to legacy/mirror storage', chunkErr);
+      lastReadFailed = true;
+    }
+
+    // Layer 2: Try reading legacy monolithic key (@pmt_tracked_items)
+    try {
+      const legacyData = await AsyncStorage.getItem(STORAGE_KEYS.TRACKED_ITEMS);
+      if (legacyData) {
+        const parsedLegacy = sanitizeTrackedItemsArray(JSON.parse(legacyData));
+        if (parsedLegacy.length > 0) {
+          inMemoryItemsCache = parsedLegacy;
+          lastReadFailed = false;
+          // Migrate legacy monolithic data to multi-layer chunked + filesystem mirror
+          void persistTrackedItemsMultiLayer(parsedLegacy).catch(() => {});
+          return parsedLegacy;
+        }
+      }
+    } catch (legacyErr) {
+      console.error('Legacy @pmt_tracked_items read failed (possible Android CursorWindow limit)', legacyErr);
+      lastReadFailed = true;
+    }
+
+    // Layer 3: Self-Heal from FileSystem Auto-Backup Mirror if not intentionally cleared
+    if (!intentionallyCleared) {
+      const latestMirror = await readAutoBackupFile(AUTO_BACKUP_LATEST_FILENAME);
+      if (latestMirror && latestMirror.items.length > 0) {
+        console.warn(`Self-healing ${latestMirror.items.length} items from latest auto-backup mirror`);
+        inMemoryItemsCache = latestMirror.items;
+        lastReadFailed = false;
+        void persistTrackedItemsMultiLayer(latestMirror.items).catch(() => {});
+        return latestMirror.items;
+      }
+
+      const prevMirror = await readAutoBackupFile(AUTO_BACKUP_PREV_FILENAME);
+      if (prevMirror && prevMirror.items.length > 0) {
+        console.warn(`Self-healing ${prevMirror.items.length} items from previous auto-backup mirror`);
+        inMemoryItemsCache = prevMirror.items;
+        lastReadFailed = false;
+        void persistTrackedItemsMultiLayer(prevMirror.items).catch(() => {});
+        return prevMirror.items;
+      }
+    }
+
+    // Layer 4: Fallback to in-memory cache if a transient read failure happened mid-session
+    if (inMemoryItemsCache && inMemoryItemsCache.length > 0 && !intentionallyCleared) {
+      return inMemoryItemsCache;
+    }
+
+    return [];
   },
 
   async saveTrackedItem(item: TrackedItem): Promise<TrackedItem[]> {
     try {
-      const existing = await this.getTrackedItems();
-      const index = existing.findIndex(
+      const existing =
+        inMemoryItemsCache !== null ? inMemoryItemsCache : await this.getTrackedItems();
+
+      // Anti-wipe guard: if a storage read failed and existing is empty, try mirror before saving
+      let baseList = existing;
+      if (baseList.length === 0 && lastReadFailed) {
+        const recovered =
+          (await readAutoBackupFile(AUTO_BACKUP_LATEST_FILENAME)) ||
+          (await readAutoBackupFile(AUTO_BACKUP_PREV_FILENAME));
+        if (recovered && recovered.items.length > 0) {
+          baseList = recovered.items;
+        }
+      }
+
+      const index = baseList.findIndex(
         (i) => i.id === item.id && i.mediaType === item.mediaType
       );
 
       let updated: TrackedItem[];
       if (index >= 0) {
-        updated = [...existing];
+        updated = [...baseList];
         updated[index] = { ...item, updatedAt: new Date().toISOString() };
       } else {
-        updated = [{ ...item, updatedAt: new Date().toISOString() }, ...existing];
+        updated = [{ ...item, updatedAt: new Date().toISOString() }, ...baseList];
       }
 
-      await AsyncStorage.setItem(STORAGE_KEYS.TRACKED_ITEMS, JSON.stringify(updated));
+      await persistTrackedItemsMultiLayer(updated);
       return updated;
     } catch (e) {
       console.error('Failed to save tracked item', e);
@@ -120,14 +406,26 @@ export const StorageService = {
 
   async saveTrackedItems(items: TrackedItem[]): Promise<TrackedItem[]> {
     try {
-      const existing = await this.getTrackedItems();
+      const existing =
+        inMemoryItemsCache !== null ? inMemoryItemsCache : await this.getTrackedItems();
+
+      let baseList = existing;
+      if (baseList.length === 0 && lastReadFailed) {
+        const recovered =
+          (await readAutoBackupFile(AUTO_BACKUP_LATEST_FILENAME)) ||
+          (await readAutoBackupFile(AUTO_BACKUP_PREV_FILENAME));
+        if (recovered && recovered.items.length > 0) {
+          baseList = recovered.items;
+        }
+      }
+
       const updatedMap = new Map<string, TrackedItem>();
-      existing.forEach((i) => updatedMap.set(`${i.mediaType}_${i.id}`, i));
+      baseList.forEach((i) => updatedMap.set(`${i.mediaType}_${i.id}`, i));
       items.forEach((i) => {
         updatedMap.set(`${i.mediaType}_${i.id}`, { ...i, updatedAt: new Date().toISOString() });
       });
       const updated = Array.from(updatedMap.values());
-      await AsyncStorage.setItem(STORAGE_KEYS.TRACKED_ITEMS, JSON.stringify(updated));
+      await persistTrackedItemsMultiLayer(updated);
       return updated;
     } catch (e) {
       console.error('Failed to save tracked items batch', e);
@@ -137,16 +435,48 @@ export const StorageService = {
 
   async removeTrackedItem(id: number, mediaType: 'movie' | 'tv'): Promise<TrackedItem[]> {
     try {
-      const existing = await this.getTrackedItems();
+      const existing =
+        inMemoryItemsCache !== null ? inMemoryItemsCache : await this.getTrackedItems();
       const filtered = existing.filter(
         (i) => !(i.id === id && i.mediaType === mediaType)
       );
-      await AsyncStorage.setItem(STORAGE_KEYS.TRACKED_ITEMS, JSON.stringify(filtered));
+      await persistTrackedItemsMultiLayer(filtered);
       return filtered;
     } catch (e) {
       console.error('Failed to remove tracked item', e);
       throw e;
     }
+  },
+
+  async getAutoBackupInfo(): Promise<AutoBackupInfo> {
+    const latest = await readAutoBackupFile(AUTO_BACKUP_LATEST_FILENAME);
+    const prev = await readAutoBackupFile(AUTO_BACKUP_PREV_FILENAME);
+    return {
+      latestExists: Boolean(latest && latest.items.length > 0),
+      latestItemCount: latest ? latest.items.length : 0,
+      latestSavedAt: latest ? latest.savedAt : null,
+      latestSizeBytes: latest ? latest.sizeBytes : 0,
+      prevExists: Boolean(prev && prev.items.length > 0),
+      prevItemCount: prev ? prev.items.length : 0,
+      prevSavedAt: prev ? prev.savedAt : null,
+      prevSizeBytes: prev ? prev.sizeBytes : 0,
+    };
+  },
+
+  async restoreFromAutoBackup(source: 'latest' | 'prev' = 'latest'): Promise<TrackedItem[] | null> {
+    const primaryFile =
+      source === 'latest' ? AUTO_BACKUP_LATEST_FILENAME : AUTO_BACKUP_PREV_FILENAME;
+    const fallbackFile =
+      source === 'latest' ? AUTO_BACKUP_PREV_FILENAME : AUTO_BACKUP_LATEST_FILENAME;
+
+    const target =
+      (await readAutoBackupFile(primaryFile)) || (await readAutoBackupFile(fallbackFile));
+    if (!target || target.items.length === 0) {
+      return null;
+    }
+
+    await persistTrackedItemsMultiLayer(target.items);
+    return target.items;
   },
 
   async getShowMediaImages(): Promise<boolean> {
@@ -381,7 +711,7 @@ export const StorageService = {
         finalItems = Array.from(map.values());
       }
 
-      await AsyncStorage.setItem(STORAGE_KEYS.TRACKED_ITEMS, JSON.stringify(finalItems));
+      await persistTrackedItemsMultiLayer(finalItems);
       return finalItems;
     } catch (e) {
       console.error('Failed to import tracked items', e);
@@ -744,7 +1074,35 @@ export const StorageService = {
 
   async clearAllData(): Promise<boolean> {
     try {
-      await AsyncStorage.multiRemove([STORAGE_KEYS.TRACKED_ITEMS]);
+      // Preserve a last-resort snapshot in prev auto-backup before clearing
+      try {
+        const latestFile = new File(Paths.document, AUTO_BACKUP_LATEST_FILENAME);
+        const prevFile = new File(Paths.document, AUTO_BACKUP_PREV_FILENAME);
+        if (latestFile.exists) {
+          const text = await latestFile.text();
+          if (text && text.trim()) {
+            if (prevFile.exists) {
+              prevFile.delete();
+            }
+            prevFile.create();
+            prevFile.write(text);
+          }
+          latestFile.delete();
+        }
+      } catch {
+        // Non-fatal
+      }
+
+      const allKeys = await AsyncStorage.getAllKeys();
+      const chunkKeys = allKeys.filter((k) => k.startsWith(STORAGE_KEYS.TRACKED_ITEMS_CHUNK_PREFIX));
+      await AsyncStorage.multiRemove([
+        STORAGE_KEYS.TRACKED_ITEMS,
+        STORAGE_KEYS.TRACKED_ITEMS_MANIFEST,
+        ...chunkKeys,
+      ]);
+      await AsyncStorage.setItem(STORAGE_KEYS.INTENTIONALLY_CLEARED, 'true');
+      inMemoryItemsCache = [];
+      lastReadFailed = false;
       return true;
     } catch (e) {
       console.error('Failed to clear storage', e);

@@ -49,6 +49,7 @@ interface MediaContextType {
   stats: MediaStats;
   clearData: () => Promise<void>;
   importTrackedItems: (items: TrackedItem[], mode: 'merge' | 'replace') => Promise<number>;
+  restoreFromAutoBackup: (source?: 'latest' | 'prev') => Promise<number>;
 
   // Display toggles
   showSeasonEpisodeImages: boolean;
@@ -171,7 +172,11 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        await NotificationService.init();
+        try {
+          await NotificationService.init();
+        } catch (notifErr) {
+          console.warn('NotificationService init warning:', notifErr);
+        }
 
         const [
           savedKey,
@@ -223,7 +228,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           StorageService.getNotificationDaysAhead(),
           StorageService.getNotificationTiming(),
           StorageService.getNotificationDayOffset(),
-          NotificationService.getPermissions(),
+          NotificationService.getPermissions().catch(() => 'undetermined' as const),
           StorageService.getStreamingDisplayStrategy(),
           StorageService.getMySubscribedProviders(),
           StorageService.getStreamingRegionStrategy(),
@@ -268,8 +273,32 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         }
         HapticsService.setIntensity(savedHaptic);
 
-        // Auto-refresh missing next air dates for active watchlist & dual-tracked TV shows
+        // Immediately hydrate trackedItems in state before running any background network calls
         let activeItems = savedItems || [];
+        let holdBackfillChanged = false;
+        activeItems = activeItems.map((item) => {
+          if (item.status === 'on_hold' && !item.onHoldStartedAt) {
+            holdBackfillChanged = true;
+            return {
+              ...item,
+              onHoldStartedAt: item.lastWatchedAt || item.updatedAt || item.addedAt || new Date().toISOString(),
+            };
+          }
+          return item;
+        });
+
+        setTrackedItems(activeItems);
+        setIsLoadingStorage(false);
+
+        if (holdBackfillChanged && activeItems.length > 0) {
+          try {
+            await StorageService.saveTrackedItems(activeItems);
+          } catch {
+            // Non-fatal
+          }
+        }
+
+        // Background TMDB enrichment (non-blocking)
         if (savedKey && activeItems.length > 0) {
           const missingAirDateCount = activeItems.filter(
             (i) =>
@@ -282,10 +311,9 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
 
           if (missingAirDateCount > 0) {
             try {
-              const updatedItems = [...activeItems];
-              let changed = false;
-              for (let i = 0; i < updatedItems.length; i++) {
-                const item = updatedItems[i];
+              const updatedBatch: TrackedItem[] = [];
+              for (let i = 0; i < activeItems.length; i++) {
+                const item = activeItems[i];
                 if (
                   (item.status === 'watching' ||
                     item.status === 'plan_to_watch' ||
@@ -293,22 +321,28 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
                   item.mediaType === 'tv' &&
                   !item.nextAirDate
                 ) {
-                  const details = await TMDBService.getMediaDetails(item.id, 'tv', savedKey);
-                  if (details.nextAirDate) {
-                    updatedItems[i] = {
-                      ...item,
-                      nextAirDate: details.nextAirDate,
-                      nextEpisode: details.nextEpisode,
-                      originCountry: details.originCountry || item.originCountry,
-                      originCountries: details.originCountries || item.originCountries,
-                    };
-                    changed = true;
+                  try {
+                    const details = await TMDBService.getMediaDetails(item.id, 'tv', savedKey);
+                    if (details.nextAirDate) {
+                      const enriched = {
+                        ...item,
+                        nextAirDate: details.nextAirDate,
+                        nextEpisode: details.nextEpisode,
+                        originCountry: details.originCountry || item.originCountry,
+                        originCountries: details.originCountries || item.originCountries,
+                      };
+                      activeItems[i] = enriched;
+                      updatedBatch.push(enriched);
+                    }
+                  } catch {
+                    // Non-fatal per-item error
                   }
                 }
               }
-              if (changed) {
-                activeItems = updatedItems;
-                await StorageService.saveTrackedItems(updatedItems);
+              if (updatedBatch.length > 0) {
+                const merged = await StorageService.saveTrackedItems(updatedBatch);
+                activeItems = merged;
+                setTrackedItems(merged);
               }
             } catch {
               // Non-fatal background refresh
@@ -322,29 +356,34 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
 
           if (missingGenresCount > 0) {
             try {
-              const updatedItems = [...activeItems];
-              let changed = false;
-              for (let i = 0; i < updatedItems.length; i++) {
-                const item = updatedItems[i];
+              const updatedBatch: TrackedItem[] = [];
+              for (let i = 0; i < activeItems.length; i++) {
+                const item = activeItems[i];
                 if (!item.genres || item.genres.length === 0) {
-                  const details = await TMDBService.getMediaDetails(item.id, item.mediaType, savedKey);
-                  if (details.genres && details.genres.length > 0) {
-                    updatedItems[i] = {
-                      ...item,
-                      genres: details.genres.map((g) => g.name),
-                      genre_ids: details.genres.map((g) => g.id),
-                      studios: details.studios && details.studios.length > 0 ? details.studios.map((s) => s.name) : item.studios,
-                      watchProviders: details.watchProviders || item.watchProviders,
-                      originCountry: details.originCountry || item.originCountry,
-                      originCountries: details.originCountries || item.originCountries,
-                    };
-                    changed = true;
+                  try {
+                    const details = await TMDBService.getMediaDetails(item.id, item.mediaType, savedKey);
+                    if (details.genres && details.genres.length > 0) {
+                      const enriched = {
+                        ...item,
+                        genres: details.genres.map((g) => g.name),
+                        genre_ids: details.genres.map((g) => g.id),
+                        studios: details.studios && details.studios.length > 0 ? details.studios.map((s) => s.name) : item.studios,
+                        watchProviders: details.watchProviders || item.watchProviders,
+                        originCountry: details.originCountry || item.originCountry,
+                        originCountries: details.originCountries || item.originCountries,
+                      };
+                      activeItems[i] = enriched;
+                      updatedBatch.push(enriched);
+                    }
+                  } catch {
+                    // Non-fatal per-item error
                   }
                 }
               }
-              if (changed) {
-                activeItems = updatedItems;
-                await StorageService.saveTrackedItems(updatedItems);
+              if (updatedBatch.length > 0) {
+                const merged = await StorageService.saveTrackedItems(updatedBatch);
+                activeItems = merged;
+                setTrackedItems(merged);
               }
             } catch {
               // Non-fatal background refresh
@@ -356,57 +395,35 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
 
           if (missingOriginCount > 0) {
             try {
-              const updatedItems = [...activeItems];
-              let changed = false;
-              for (let i = 0; i < updatedItems.length; i++) {
-                const item = updatedItems[i];
+              const updatedBatch: TrackedItem[] = [];
+              for (let i = 0; i < activeItems.length; i++) {
+                const item = activeItems[i];
                 if (!item.originCountry) {
                   try {
                     const details = await TMDBService.getMediaDetails(item.id, item.mediaType, savedKey);
                     if (details.originCountry) {
-                      updatedItems[i] = {
+                      const enriched = {
                         ...item,
                         originCountry: details.originCountry,
                       };
-                      changed = true;
+                      activeItems[i] = enriched;
+                      updatedBatch.push(enriched);
                     }
                   } catch {
                     // Non-fatal per-item error
                   }
                 }
               }
-              if (changed) {
-                activeItems = updatedItems;
-                setTrackedItems(updatedItems);
-                await StorageService.saveTrackedItems(updatedItems);
+              if (updatedBatch.length > 0) {
+                const merged = await StorageService.saveTrackedItems(updatedBatch);
+                activeItems = merged;
+                setTrackedItems(merged);
               }
             } catch {
               // Non-fatal background refresh
             }
           }
         }
-
-        // Retroactive backfill for existing on-hold items missing onHoldStartedAt
-        let holdBackfillChanged = false;
-        activeItems = activeItems.map((item) => {
-            if (item.status === 'on_hold' && !item.onHoldStartedAt) {
-              holdBackfillChanged = true;
-              return {
-                ...item,
-                onHoldStartedAt: item.lastWatchedAt || item.updatedAt || item.addedAt || new Date().toISOString(),
-              };
-            }
-            return item;
-          });
-          if (holdBackfillChanged) {
-            try {
-              await StorageService.saveTrackedItems(activeItems);
-            } catch {
-              // Non-fatal
-            }
-          }
-
-          setTrackedItems(activeItems);
 
         // Schedule all upcoming device notifications if enabled
         const count = await NotificationService.syncAll(activeItems, {
@@ -537,6 +554,26 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
       setScheduledNotificationsCount(count);
     }
     return updated.length;
+  };
+
+  const restoreFromAutoBackup = async (source: 'latest' | 'prev' = 'latest'): Promise<number> => {
+    const restored = await StorageService.restoreFromAutoBackup(source);
+    if (!restored) return 0;
+    setTrackedItems(restored);
+    if (deviceNotificationsEnabled) {
+      const count = await NotificationService.syncAll(restored, {
+        enabled: true,
+        hour: notificationHour,
+        minute: notificationMinute,
+        daysAhead: notificationDaysAhead,
+        timing: notificationTiming,
+        timezone: selectedTimezone,
+        timeFormat,
+        dayOffset: notificationDayOffset,
+      });
+      setScheduledNotificationsCount(count);
+    }
+    return restored.length;
   };
 
   const setShowSeasonEpisodeImages = async (enabled: boolean): Promise<boolean> => {
@@ -1000,6 +1037,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         stats,
         clearData,
         importTrackedItems,
+        restoreFromAutoBackup,
         showSeasonEpisodeImages,
         setShowSeasonEpisodeImages,
         showActorImages,

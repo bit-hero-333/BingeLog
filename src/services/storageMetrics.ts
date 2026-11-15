@@ -73,6 +73,8 @@ function calculateDirectorySize(dir: Directory): number {
  */
 export async function getStorageMetrics(trackedItemCount: number): Promise<StorageMetrics> {
   let librarySizeBytes = 0;
+  let chunkedLibraryBytes = 0;
+  let legacyLibraryBytes = 0;
   let totalAsyncStorageBytes = 0;
 
   try {
@@ -80,11 +82,19 @@ export async function getStorageMetrics(trackedItemCount: number): Promise<Stora
     const pairs = await AsyncStorage.multiGet(allKeys);
     for (const [key, val] of pairs) {
       const entryBytes = (key ? key.length : 0) + (val ? val.length : 0);
-      totalAsyncStorageBytes += entryBytes;
       if (key === '@pmt_tracked_items') {
-        librarySizeBytes = val ? val.length : 0;
+        legacyLibraryBytes = val ? val.length : 0;
+      } else if (
+        key === '@pmt_tracked_items_manifest' ||
+        (key && key.startsWith('@pmt_tracked_items_chunk_'))
+      ) {
+        chunkedLibraryBytes += val ? val.length : 0;
+      } else {
+        totalAsyncStorageBytes += entryBytes;
       }
     }
+    librarySizeBytes = chunkedLibraryBytes > 0 ? chunkedLibraryBytes : legacyLibraryBytes;
+    totalAsyncStorageBytes += librarySizeBytes;
   } catch (e) {
     console.warn('Failed to calculate AsyncStorage size', e);
   }
@@ -169,7 +179,7 @@ export async function exportWatchlistBackup(
   try {
     const backup: BackupData = {
       app: 'BingeLog',
-      version: '0.14.0',
+      version: '0.25.0',
       exportedAt: new Date().toISOString(),
       itemCount: trackedItems.length,
       trackedItems,

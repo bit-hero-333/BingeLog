@@ -17,6 +17,7 @@ import { Image } from 'expo-image';
 import { useMedia } from '@/context/MediaContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { TMDBService } from '@/services/tmdb';
+import { StorageService, AutoBackupInfo } from '@/services/storage';
 import {
   getStorageMetrics,
   formatBytes,
@@ -50,7 +51,7 @@ import {
   getButtonScale,
   getProviderScale,
 } from '@/utils/sizing';
-import { getTodayFormatted } from '@/utils/date';
+import { getTodayFormatted, formatDate, formatTimeWithSeconds } from '@/utils/date';
 import { SyncModal } from '@/components/SyncModal';
 import { EntityModal } from '@/components/EntityModal';
 import { CustomizeInsightsModal } from '@/components/insights/CustomizeInsightsModal';
@@ -82,6 +83,7 @@ export default function SettingsScreen() {
     trackedItems,
     clearData,
     importTrackedItems,
+    restoreFromAutoBackup,
     showSeasonEpisodeImages,
     setShowSeasonEpisodeImages,
     showActorImages,
@@ -337,10 +339,12 @@ export default function SettingsScreen() {
 
   // Storage Metrics & Backup State
   const [storageMetrics, setStorageMetrics] = useState<StorageMetrics | null>(null);
+  const [autoBackupInfo, setAutoBackupInfo] = useState<AutoBackupInfo | null>(null);
   const [isLoadingStorageMetrics, setIsLoadingStorageMetrics] = useState(false);
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isRestoringAutoBackup, setIsRestoringAutoBackup] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Manual hex input state
@@ -410,8 +414,12 @@ export default function SettingsScreen() {
   const loadStorageMetrics = useCallback(async () => {
     setIsLoadingStorageMetrics(true);
     try {
-      const metrics = await getStorageMetrics(trackedItems.length);
+      const [metrics, backupInfo] = await Promise.all([
+        getStorageMetrics(trackedItems.length),
+        StorageService.getAutoBackupInfo(),
+      ]);
       setStorageMetrics(metrics);
+      setAutoBackupInfo(backupInfo);
     } catch (err) {
       console.warn('Failed to calculate storage metrics', err);
     } finally {
@@ -540,6 +548,57 @@ export default function SettingsScreen() {
     } finally {
       setIsImporting(false);
     }
+  };
+
+  const handleRestoreAutoBackup = () => {
+    if (!autoBackupInfo || (!autoBackupInfo.latestExists && !autoBackupInfo.prevExists)) {
+      Alert.alert(
+        'No Auto-Backup Found',
+        'An automatic on-device safety mirror will be created automatically whenever your watchlist is saved.'
+      );
+      return;
+    }
+
+    const executeRestore = async (source: 'latest' | 'prev') => {
+      setIsRestoringAutoBackup(true);
+      try {
+        const count = await restoreFromAutoBackup(source);
+        await loadStorageMetrics();
+        if (count > 0) {
+          Alert.alert('Restore Complete', `Successfully restored ${count} items from the on-device safety mirror.`);
+        } else {
+          Alert.alert('Restore Notice', 'Could not restore items from the selected snapshot.');
+        }
+      } catch {
+        Alert.alert('Restore Failed', 'An error occurred while restoring the automatic backup.');
+      } finally {
+        setIsRestoringAutoBackup(false);
+      }
+    };
+
+    const buttons: { text: string; style?: 'cancel' | 'default' | 'destructive'; onPress?: () => void }[] = [
+      { text: 'Cancel', style: 'cancel' },
+    ];
+
+    if (autoBackupInfo.latestExists) {
+      buttons.push({
+        text: `Latest (${autoBackupInfo.latestItemCount} items)`,
+        onPress: () => void executeRestore('latest'),
+      });
+    }
+
+    if (autoBackupInfo.prevExists) {
+      buttons.push({
+        text: `Previous (${autoBackupInfo.prevItemCount} items)`,
+        onPress: () => void executeRestore('prev'),
+      });
+    }
+
+    Alert.alert(
+      'Restore On-Device Safety Mirror',
+      'BingeLog automatically maintains rolling backup files in internal app storage on every library change and self-heals on startup if storage is interrupted.\n\nChoose a snapshot to restore now:',
+      buttons
+    );
   };
 
   const handleStepSizing = (
@@ -2813,6 +2872,95 @@ export default function SettingsScreen() {
               </Pressable>
             </View>
 
+            {/* Automatic On-Device Safety Mirror Card */}
+            <View
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 10,
+                backgroundColor: colors.inputBg,
+                borderWidth: 1,
+                borderColor: colors.cardBorder,
+                gap: 8,
+              }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                  <Ionicons
+                    name="shield-checkmark-outline"
+                    size={Math.round(16 * textScale)}
+                    color={autoBackupInfo?.latestExists ? '#10b981' : colors.primary}
+                  />
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontWeight: '700',
+                      fontSize: Math.round(12.5 * textScale),
+                    }}>
+                    Automatic Safety Mirror
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 999,
+                    backgroundColor: autoBackupInfo?.latestExists ? 'rgba(16, 185, 129, 0.14)' : colors.primaryBg,
+                  }}>
+                  <Text
+                    style={{
+                      color: autoBackupInfo?.latestExists ? '#10b981' : colors.primary,
+                      fontSize: Math.round(10 * textScale),
+                      fontWeight: '700',
+                    }}>
+                    {autoBackupInfo?.latestExists ? 'ACTIVE' : 'STANDBY'}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={{ color: colors.textSecondary, fontSize: Math.round(11.5 * textScale), lineHeight: Math.round(16 * textScale) }}>
+                {autoBackupInfo?.latestExists
+                  ? `Latest mirror: ${autoBackupInfo.latestItemCount} items${
+                      autoBackupInfo.latestSavedAt
+                        ? ` • ${formatDate(autoBackupInfo.latestSavedAt, dateFormat)} ${formatTimeWithSeconds(autoBackupInfo.latestSavedAt, timeFormat)}`
+                        : ''
+                    }${
+                      autoBackupInfo.prevExists
+                        ? `\nPrevious snapshot: ${autoBackupInfo.prevItemCount} items${
+                            autoBackupInfo.prevSavedAt
+                              ? ` • ${formatDate(autoBackupInfo.prevSavedAt, dateFormat)} ${formatTimeWithSeconds(autoBackupInfo.prevSavedAt, timeFormat)}`
+                              : ''
+                          }`
+                        : ''
+                    }`
+                  : 'Automatically mirrors your library to internal files on every change and self-heals on launch if Android storage is interrupted.'}
+              </Text>
+
+              {(autoBackupInfo?.latestExists || autoBackupInfo?.prevExists) && (
+                <Pressable
+                  style={[
+                    styles.backupBtn,
+                    dynTypography.presetBtn,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.primary,
+                      marginTop: 2,
+                    },
+                    isRestoringAutoBackup && styles.btnDisabled,
+                  ]}
+                  onPress={handleRestoreAutoBackup}
+                  disabled={isRestoringAutoBackup}>
+                  {isRestoringAutoBackup ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Ionicons name="refresh-circle-outline" size={Math.round(16 * buttonScale)} color={colors.primary} />
+                  )}
+                  <Text style={[styles.backupBtnText, dynTypography.presetBtnText, { color: colors.primary }]}>
+                    Restore from Safety Mirror
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+
             <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
 
             {/* Danger Zone: Clear All Tracked Data */}
@@ -2844,7 +2992,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.24.3 • TMDB & MAL Attributions
+                Version 0.25.0 • TMDB & MAL Attributions
               </Text>
             </View>
           </View>
@@ -2944,7 +3092,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.24.3 • Build 55 • Expo SDK 57
+              Version 0.25.0 • Build 56 • Expo SDK 57
             </Text>
           </View>
         )}
