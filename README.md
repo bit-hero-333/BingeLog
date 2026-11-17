@@ -15,5 +15,3 @@ You just install the APK, plug in a free [TMDB](https://www.themoviedb.org/) API
 
 ### Attribution
 - **TMDB**: This product uses the [TMDB API](https://www.themoviedb.org/) but is not endorsed or certified by TMDB. All movie and TV metadata, posters, backdrops, and cast information are provided by The Movie Database.
-
-Found a bug or have an idea? Feel free to open an [Issue](https://github.com/bit-hero-333/BingeLog/issues) — just a heads-up that I don't check them very often.
