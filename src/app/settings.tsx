@@ -177,22 +177,39 @@ export default function SettingsScreen() {
       sliderTitle: { fontSize: Math.round(13 * textScale) },
       sliderValueText: { fontSize: Math.round(11.5 * textScale) },
       settingsOverviewText: { fontSize: Math.round(13 * textScale) },
-      toggleAllBtnText: { fontSize: Math.round(11 * buttonScale) },
+      toggleAllBtnText: {
+        fontSize: Math.round(11 * buttonScale),
+        includeFontPadding: false,
+        textAlignVertical: 'center' as const,
+      },
       toggleAllBtn: {
-        paddingVertical: Math.max(4, Math.round(6 * buttonScale)),
+        paddingVertical: Math.max(5, Math.round(6 * buttonScale)),
         paddingHorizontal: Math.max(8, Math.round(12 * buttonScale)),
       },
-      presetBtn: { paddingVertical: Math.max(6, Math.round(9 * buttonScale)) },
-      presetBtnText: { fontSize: Math.round(12 * buttonScale) },
-      modeSegmentBtn: { paddingVertical: Math.max(6, Math.round(8 * buttonScale)) },
-      modeSegmentText: { fontSize: Math.round(11.5 * buttonScale) },
+      presetBtn: { paddingVertical: Math.max(9, Math.round(10 * buttonScale)) },
+      presetBtnText: {
+        fontSize: Math.round(12 * buttonScale),
+        lineHeight: Math.round(16 * buttonScale),
+        includeFontPadding: false,
+        textAlignVertical: 'center' as const,
+      },
+      modeSegmentBtn: { paddingVertical: Math.max(7, Math.round(8 * buttonScale)) },
+      modeSegmentText: {
+        fontSize: Math.round(11.5 * buttonScale),
+        includeFontPadding: false,
+        textAlignVertical: 'center' as const,
+      },
       stepBtn: { width: Math.round(38 * buttonScale), height: Math.round(38 * buttonScale) },
       stepperBox: { minHeight: Math.round(38 * buttonScale) },
       smallActionBtn: {
-        paddingVertical: Math.max(4, Math.round(6 * buttonScale)),
+        paddingVertical: Math.max(5, Math.round(6 * buttonScale)),
         paddingHorizontal: Math.max(8, Math.round(12 * buttonScale)),
       },
-      smallActionBtnText: { fontSize: Math.round(10.5 * buttonScale) },
+      smallActionBtnText: {
+        fontSize: Math.round(10.5 * buttonScale),
+        includeFontPadding: false,
+        textAlignVertical: 'center' as const,
+      },
       providerGridLogo: {
         width: Math.round(32 * providerScale),
         height: Math.round(32 * providerScale),
@@ -345,6 +362,7 @@ export default function SettingsScreen() {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isRestoringAutoBackup, setIsRestoringAutoBackup] = useState(false);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Manual hex input state
@@ -464,35 +482,65 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleExportBackup = async () => {
+  const handleExportBackup = () => {
     if (trackedItems.length === 0) {
       Alert.alert('No Items to Export', 'You do not have any tracked media in your library yet.');
       return;
     }
 
-    setIsExporting(true);
-    try {
-      const res = await exportWatchlistBackup(trackedItems, {
-        showSeasonEpisodeImages,
-        showActorImages,
-        showAllCast,
-        showSeasonSpecials,
-        sizingConfig,
-      });
+    const executeExport = async (mode: 'files' | 'share') => {
+      setIsExporting(true);
+      try {
+        const res = await exportWatchlistBackup(
+          trackedItems,
+          {
+            showSeasonEpisodeImages,
+            showActorImages,
+            showAllCast,
+            showSeasonSpecials,
+            sizingConfig,
+          },
+          mode
+        );
 
-      if (res.success) {
-        void AchievementsEngine.recordExtraStat('backupCount');
-      } else if (res.message) {
-        Alert.alert('Export Notice', res.message);
+        if (res.canceled) {
+          return;
+        }
+
+        if (res.success) {
+          void AchievementsEngine.recordExtraStat('backupCount');
+          if (mode === 'files') {
+            Alert.alert('Backup Saved', res.message || 'Backup file saved to your device storage.');
+          }
+        } else if (res.message) {
+          Alert.alert('Export Notice', res.message);
+        }
+      } catch {
+        Alert.alert('Export Failed', 'An error occurred while creating the backup.');
+      } finally {
+        setIsExporting(false);
       }
-    } catch {
-      Alert.alert('Export Failed', 'An error occurred while creating the backup.');
-    } finally {
-      setIsExporting(false);
-    }
+    };
+
+    Alert.alert(
+      'Save Watchlist Backup',
+      'Save the backup JSON file directly to a folder in your device Files app, or share it via another app:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Share File...',
+          onPress: () => void executeExport('share'),
+        },
+        {
+          text: 'Save to Files',
+          onPress: () => void executeExport('files'),
+        },
+      ]
+    );
   };
 
   const handleImportBackup = async () => {
+    setShowRestoreModal(false);
     setIsImporting(true);
     try {
       const res = await pickAndParseBackupFile();
@@ -550,55 +598,22 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleRestoreAutoBackup = () => {
-    if (!autoBackupInfo || (!autoBackupInfo.latestExists && !autoBackupInfo.prevExists)) {
-      Alert.alert(
-        'No Auto-Backup Found',
-        'An automatic on-device safety mirror will be created automatically whenever your watchlist is saved.'
-      );
-      return;
-    }
-
-    const executeRestore = async (source: 'latest' | 'prev') => {
-      setIsRestoringAutoBackup(true);
-      try {
-        const count = await restoreFromAutoBackup(source);
-        await loadStorageMetrics();
-        if (count > 0) {
-          Alert.alert('Restore Complete', `Successfully restored ${count} items from the on-device safety mirror.`);
-        } else {
-          Alert.alert('Restore Notice', 'Could not restore items from the selected snapshot.');
-        }
-      } catch {
-        Alert.alert('Restore Failed', 'An error occurred while restoring the automatic backup.');
-      } finally {
-        setIsRestoringAutoBackup(false);
+  const handleRestoreAutoBackupSnapshot = async (source: 'latest' | 'prev') => {
+    setShowRestoreModal(false);
+    setIsRestoringAutoBackup(true);
+    try {
+      const count = await restoreFromAutoBackup(source);
+      await loadStorageMetrics();
+      if (count > 0) {
+        Alert.alert('Restore Complete', `Successfully restored ${count} items from the local auto-backup.`);
+      } else {
+        Alert.alert('Restore Notice', 'Could not restore items from the selected snapshot.');
       }
-    };
-
-    const buttons: { text: string; style?: 'cancel' | 'default' | 'destructive'; onPress?: () => void }[] = [
-      { text: 'Cancel', style: 'cancel' },
-    ];
-
-    if (autoBackupInfo.latestExists) {
-      buttons.push({
-        text: `Latest (${autoBackupInfo.latestItemCount} items)`,
-        onPress: () => void executeRestore('latest'),
-      });
+    } catch {
+      Alert.alert('Restore Failed', 'An error occurred while restoring the automatic backup.');
+    } finally {
+      setIsRestoringAutoBackup(false);
     }
-
-    if (autoBackupInfo.prevExists) {
-      buttons.push({
-        text: `Previous (${autoBackupInfo.prevItemCount} items)`,
-        onPress: () => void executeRestore('prev'),
-      });
-    }
-
-    Alert.alert(
-      'Restore On-Device Safety Mirror',
-      'BingeLog automatically maintains rolling backup files in internal app storage on every library change and self-heals on startup if storage is interrupted.\n\nChoose a snapshot to restore now:',
-      buttons
-    );
   };
 
   const handleStepSizing = (
@@ -2833,8 +2848,39 @@ export default function SettingsScreen() {
               BACKUP & RESTORE
             </Text>
             <Text style={[styles.backupDesc, dynTypography.cardDescription, { color: colors.textSecondary }]}>
-              Export your watchlist, ratings, reviews, and progress to an offline JSON file, or restore from a previous backup.
+              Save your watchlist, ratings, reviews, and progress to a JSON file in your device Files app, or restore from a backup file or local auto-backup.
             </Text>
+
+            {autoBackupInfo?.latestExists && (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginBottom: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                  borderRadius: 8,
+                  backgroundColor: colors.inputBg,
+                  borderWidth: 1,
+                  borderColor: colors.cardBorder,
+                }}>
+                <Ionicons name="shield-checkmark-outline" size={Math.round(14 * textScale)} color="#10b981" />
+                <Text
+                  style={{
+                    flex: 1,
+                    color: colors.textSecondary,
+                    fontSize: Math.round(11 * textScale),
+                    includeFontPadding: false,
+                  }}
+                  numberOfLines={1}>
+                  Auto-Backup active: {autoBackupInfo.latestItemCount} items
+                  {autoBackupInfo.latestSavedAt
+                    ? ` • ${formatDate(autoBackupInfo.latestSavedAt, dateFormat)} ${formatTimeWithSeconds(autoBackupInfo.latestSavedAt, timeFormat)}`
+                    : ''}
+                </Text>
+              </View>
+            )}
 
             <View style={styles.backupButtonsRow}>
               <Pressable
@@ -2849,9 +2895,9 @@ export default function SettingsScreen() {
                 {isExporting ? (
                   <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
-                  <Ionicons name="share-outline" size={Math.round(16 * buttonScale)} color={colors.primary} />
+                  <Ionicons name="save-outline" size={Math.round(16 * buttonScale)} color={colors.primary} />
                 )}
-                <Text style={[styles.backupBtnText, dynTypography.presetBtnText, { color: colors.primary }]}>Export Backup</Text>
+                <Text style={[styles.backupBtnText, dynTypography.presetBtnText, { color: colors.primary }]}>Save Backup</Text>
               </Pressable>
 
               <Pressable
@@ -2859,106 +2905,20 @@ export default function SettingsScreen() {
                   styles.backupBtn,
                   dynTypography.presetBtn,
                   { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-                  isImporting && styles.btnDisabled,
+                  (isImporting || isRestoringAutoBackup) && styles.btnDisabled,
                 ]}
-                onPress={handleImportBackup}
-                disabled={isImporting}>
-                {isImporting ? (
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setShowRestoreModal(true);
+                }}
+                disabled={isImporting || isRestoringAutoBackup}>
+                {isImporting || isRestoringAutoBackup ? (
                   <ActivityIndicator size="small" color={colors.text} />
                 ) : (
-                  <Ionicons name="folder-open-outline" size={Math.round(16 * buttonScale)} color={colors.text} />
+                  <Ionicons name="refresh-outline" size={Math.round(16 * buttonScale)} color={colors.text} />
                 )}
-                <Text style={[styles.backupBtnText, dynTypography.presetBtnText, { color: colors.text }]}>Import Backup</Text>
+                <Text style={[styles.backupBtnText, dynTypography.presetBtnText, { color: colors.text }]}>Restore Backup</Text>
               </Pressable>
-            </View>
-
-            {/* Automatic On-Device Safety Mirror Card */}
-            <View
-              style={{
-                marginTop: 12,
-                padding: 12,
-                borderRadius: 10,
-                backgroundColor: colors.inputBg,
-                borderWidth: 1,
-                borderColor: colors.cardBorder,
-                gap: 8,
-              }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                  <Ionicons
-                    name="shield-checkmark-outline"
-                    size={Math.round(16 * textScale)}
-                    color={autoBackupInfo?.latestExists ? '#10b981' : colors.primary}
-                  />
-                  <Text
-                    style={{
-                      color: colors.text,
-                      fontWeight: '700',
-                      fontSize: Math.round(12.5 * textScale),
-                    }}>
-                    Automatic Safety Mirror
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    paddingHorizontal: 8,
-                    paddingVertical: 2,
-                    borderRadius: 999,
-                    backgroundColor: autoBackupInfo?.latestExists ? 'rgba(16, 185, 129, 0.14)' : colors.primaryBg,
-                  }}>
-                  <Text
-                    style={{
-                      color: autoBackupInfo?.latestExists ? '#10b981' : colors.primary,
-                      fontSize: Math.round(10 * textScale),
-                      fontWeight: '700',
-                    }}>
-                    {autoBackupInfo?.latestExists ? 'ACTIVE' : 'STANDBY'}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={{ color: colors.textSecondary, fontSize: Math.round(11.5 * textScale), lineHeight: Math.round(16 * textScale) }}>
-                {autoBackupInfo?.latestExists
-                  ? `Latest mirror: ${autoBackupInfo.latestItemCount} items${
-                      autoBackupInfo.latestSavedAt
-                        ? ` • ${formatDate(autoBackupInfo.latestSavedAt, dateFormat)} ${formatTimeWithSeconds(autoBackupInfo.latestSavedAt, timeFormat)}`
-                        : ''
-                    }${
-                      autoBackupInfo.prevExists
-                        ? `\nPrevious snapshot: ${autoBackupInfo.prevItemCount} items${
-                            autoBackupInfo.prevSavedAt
-                              ? ` • ${formatDate(autoBackupInfo.prevSavedAt, dateFormat)} ${formatTimeWithSeconds(autoBackupInfo.prevSavedAt, timeFormat)}`
-                              : ''
-                          }`
-                        : ''
-                    }`
-                  : 'Automatically mirrors your library to internal files on every change and self-heals on launch if Android storage is interrupted.'}
-              </Text>
-
-              {(autoBackupInfo?.latestExists || autoBackupInfo?.prevExists) && (
-                <Pressable
-                  style={[
-                    styles.backupBtn,
-                    dynTypography.presetBtn,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.primary,
-                      marginTop: 2,
-                    },
-                    isRestoringAutoBackup && styles.btnDisabled,
-                  ]}
-                  onPress={handleRestoreAutoBackup}
-                  disabled={isRestoringAutoBackup}>
-                  {isRestoringAutoBackup ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <Ionicons name="refresh-circle-outline" size={Math.round(16 * buttonScale)} color={colors.primary} />
-                  )}
-                  <Text style={[styles.backupBtnText, dynTypography.presetBtnText, { color: colors.primary }]}>
-                    Restore from Safety Mirror
-                  </Text>
-                </Pressable>
-              )}
             </View>
 
             <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, marginVertical: 14 }]} />
@@ -2992,7 +2952,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.25.0 • TMDB & MAL Attributions
+                Version 0.26.0 • TMDB Attribution
               </Text>
             </View>
           </View>
@@ -3080,19 +3040,13 @@ export default function SettingsScreen() {
               Independent hobby project. Not affiliated with, endorsed by, or associated with{' '}
               <Text
                 style={{ color: colors.primary, textDecorationLine: 'underline' }}
-                onPress={() => void Linking.openURL('https://myanimelist.net')}>
-                MyAnimeList (MAL)
-              </Text>{' '}
-              or{' '}
-              <Text
-                style={{ color: colors.primary, textDecorationLine: 'underline' }}
                 onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
                 The Movie Database (TMDB)
               </Text>. All trademarks, logos, and copyrights belong to their respective owners.
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.25.0 • Build 56 • Expo SDK 57
+              Version 0.26.0 • Build 57 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -3180,6 +3134,126 @@ export default function SettingsScreen() {
                 );
               })}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Unified Restore Backup Modal */}
+      <Modal
+        visible={showRestoreModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRestoreModal(false)}>
+        <View style={styles.dialogOverlay}>
+          <Pressable style={styles.backdrop} onPress={() => setShowRestoreModal(false)} />
+          <View style={[styles.strategySheet, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={[styles.strategyHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.strategyHeaderTitle, { color: colors.text }]}>Restore Watchlist Backup</Text>
+              <Pressable onPress={() => setShowRestoreModal(false)} hitSlop={8}>
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <View style={{ padding: 14, gap: 10 }}>
+              <Pressable
+                style={({ pressed }) => [
+                  {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: 14,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    backgroundColor: colors.primaryBg,
+                    borderColor: colors.primary,
+                  },
+                  pressed && { opacity: 0.8 },
+                ]}
+                onPress={() => void handleImportBackup()}>
+                <Ionicons name="folder-open-outline" size={22} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '700', includeFontPadding: false }}>
+                    Choose Backup File...
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 11.5, marginTop: 2 }}>
+                    Select a saved .json backup file from your device Files app
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [
+                  {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: 14,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    backgroundColor: colors.inputBg,
+                    borderColor: colors.cardBorder,
+                  },
+                  !autoBackupInfo?.latestExists && { opacity: 0.5 },
+                  pressed && autoBackupInfo?.latestExists && { opacity: 0.8 },
+                ]}
+                disabled={!autoBackupInfo?.latestExists}
+                onPress={() => void handleRestoreAutoBackupSnapshot('latest')}>
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={22}
+                  color={autoBackupInfo?.latestExists ? '#10b981' : colors.textMuted}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700', includeFontPadding: false }}>
+                    Auto-Backup (Latest)
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 11.5, marginTop: 2 }}>
+                    {autoBackupInfo?.latestExists
+                      ? `${autoBackupInfo.latestItemCount} items${
+                          autoBackupInfo.latestSavedAt
+                            ? ` • ${formatDate(autoBackupInfo.latestSavedAt, dateFormat)} ${formatTimeWithSeconds(autoBackupInfo.latestSavedAt, timeFormat)}`
+                            : ''
+                        }`
+                      : 'No local auto-backup saved yet'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+              </Pressable>
+
+              {autoBackupInfo?.prevExists && (
+                <Pressable
+                  style={({ pressed }) => [
+                    {
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: 14,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      backgroundColor: colors.inputBg,
+                      borderColor: colors.cardBorder,
+                    },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => void handleRestoreAutoBackupSnapshot('prev')}>
+                  <Ionicons name="time-outline" size={22} color={colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700', includeFontPadding: false }}>
+                      Auto-Backup (Previous)
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11.5, marginTop: 2 }}>
+                      {`${autoBackupInfo.prevItemCount} items${
+                        autoBackupInfo.prevSavedAt
+                          ? ` • ${formatDate(autoBackupInfo.prevSavedAt, dateFormat)} ${formatTimeWithSeconds(autoBackupInfo.prevSavedAt, timeFormat)}`
+                          : ''
+                      }`}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+                </Pressable>
+              )}
+            </View>
           </View>
         </View>
       </Modal>
@@ -3794,7 +3868,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    height: 42,
+    minHeight: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: 10,
   },
   btnDisabled: {
@@ -3804,13 +3880,16 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '700',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   removeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    height: 42,
+    gap: 5,
+    minHeight: 44,
+    paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: 1,
@@ -3820,6 +3899,8 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 13,
     fontWeight: '600',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   stepList: {
     gap: 10,
@@ -3864,7 +3945,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    height: 42,
+    minHeight: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#ef4444',
@@ -3874,6 +3957,8 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 14,
     fontWeight: '700',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   cardHeaderWithAction: {
     flexDirection: 'row',
@@ -3976,7 +4061,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    height: 38,
+    minHeight: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: 1,
     marginTop: 4,
@@ -3984,6 +4071,8 @@ const styles = StyleSheet.create({
   clearCacheBtnText: {
     fontSize: 13,
     fontWeight: '700',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   backupDesc: {
     fontSize: 12,
@@ -4001,13 +4090,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    height: 42,
+    minHeight: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
   },
   backupBtnText: {
     fontSize: 13,
     fontWeight: '700',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   infoCard: {
     borderRadius: 14,
@@ -4320,7 +4413,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    height: 42,
+    minHeight: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: 1,
     marginTop: 4,
@@ -4328,6 +4423,8 @@ const styles = StyleSheet.create({
   testNotifBtnText: {
     fontSize: 13,
     fontWeight: '700',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   notifAdvanceRow: {
     flexDirection: 'row',

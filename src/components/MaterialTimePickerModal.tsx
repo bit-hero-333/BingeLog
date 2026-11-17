@@ -19,6 +19,7 @@ interface MaterialTimePickerModalProps {
   initialHour: number; // 0-23
   initialMinute?: number; // 0-59
   timeFormat?: TimeFormatOption;
+  title?: string;
   onClose: () => void;
   onConfirm: (hour: number, minute: number) => void;
 }
@@ -37,6 +38,7 @@ export function MaterialTimePickerModal({
   initialHour,
   initialMinute = 0,
   timeFormat = '24h',
+  title = 'Select time',
   onClose,
   onConfirm,
 }: MaterialTimePickerModalProps) {
@@ -305,7 +307,7 @@ export function MaterialTimePickerModal({
         <Pressable style={styles.backdrop} onPress={onClose} />
         <View style={[styles.dialogCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           {/* Header */}
-          <Text style={[styles.dialogTitle, { color: colors.textSecondary }]}>Select time</Text>
+          <Text style={[styles.dialogTitle, { color: colors.textSecondary }]}>{title}</Text>
 
           {/* Time Display Header Box */}
           <View style={styles.timeDisplayRow}>

@@ -170,24 +170,51 @@ export async function clearImageCache(): Promise<{ success: boolean; freedBytes:
 }
 
 /**
- * Export watchlist as a standardized JSON backup file and open native share sheet.
+ * Export watchlist as a standardized JSON backup file.
+ * Supports saving directly to the device's system Files app ('files') or opening the system share sheet ('share').
  */
 export async function exportWatchlistBackup(
   trackedItems: TrackedItem[],
-  settings?: BackupData['settings']
-): Promise<{ success: boolean; message?: string }> {
+  settings?: BackupData['settings'],
+  mode: 'files' | 'share' = 'files'
+): Promise<{ success: boolean; canceled?: boolean; fileName?: string; message?: string }> {
   try {
     const backup: BackupData = {
       app: 'BingeLog',
-      version: '0.25.0',
+      version: '0.26.0',
       exportedAt: new Date().toISOString(),
       itemCount: trackedItems.length,
       trackedItems,
       settings,
     };
 
+    const jsonContent = JSON.stringify(backup, null, 2);
     const dateStr = new Date().toISOString().split('T')[0];
     const fileName = `bingelog-backup-${dateStr}.json`;
+
+    if (mode === 'files') {
+      try {
+        const pickedDir = await Directory.pickDirectoryAsync();
+        const destFile = pickedDir.createFile(fileName, 'application/json');
+        destFile.write(jsonContent);
+        return {
+          success: true,
+          fileName: destFile.name || fileName,
+          message: `Saved ${destFile.name || fileName} to your selected folder.`,
+        };
+      } catch (dirErr) {
+        const msg = dirErr instanceof Error ? dirErr.message : String(dirErr);
+        if (
+          msg.toLowerCase().includes('cancel') ||
+          msg.toLowerCase().includes('dismiss') ||
+          msg.toLowerCase().includes('abort')
+        ) {
+          return { success: false, canceled: true };
+        }
+        throw dirErr;
+      }
+    }
+
     const file = new File(Paths.cache, fileName);
 
     if (file.exists) {
@@ -195,7 +222,7 @@ export async function exportWatchlistBackup(
     }
 
     file.create();
-    file.write(JSON.stringify(backup, null, 2));
+    file.write(jsonContent);
 
     const isAvailable = await Sharing.isAvailableAsync();
     if (!isAvailable) {
@@ -211,7 +238,7 @@ export async function exportWatchlistBackup(
       UTI: 'public.json',
     });
 
-    return { success: true };
+    return { success: true, fileName };
   } catch (err) {
     console.error('Failed to export backup', err);
     return {

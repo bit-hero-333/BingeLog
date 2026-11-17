@@ -351,6 +351,14 @@ function TrackModalFormContent({
     return '';
   });
   const [showFinishedTimePicker, setShowFinishedTimePicker] = useState<boolean>(false);
+  const [showMovieTimePicker, setShowMovieTimePicker] = useState<boolean>(false);
+
+  const formatMinutesToHHMMSS = (mins: number): string => {
+    const safeMins = Math.max(0, Math.floor(mins));
+    const h = Math.floor(safeMins / 60);
+    const m = safeMins % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+  };
 
   // Granular episode & season completion history
   const [watchedEpisodesHistory, setWatchedEpisodesHistory] = useState<Record<string, WatchedHistoryRecord>>(
@@ -3319,111 +3327,175 @@ function TrackModalFormContent({
   );
 
   // 5. Movie Viewing Progress
-  const renderMovieSection = () => (
-    <>
-            <View style={[styles.progressCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-              <View style={styles.progressHeaderRow}>
-                <View>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Movie Viewing Progress</Text>
-                  <Text style={[styles.progressSubtitle, { color: colors.textSecondary }]}>
-                    {runtimeMinutes
-                      ? `Total Runtime: ${formatRuntime(runtimeMinutes)} (${runtimeMinutes} min)`
-                      : 'Track viewing time'}
-                  </Text>
-                </View>
+  const renderMovieSection = () => {
+    const movieProgressRatio =
+      runtimeMinutes && runtimeMinutes > 0
+        ? Math.max(0, Math.min(1, minutesWatched / runtimeMinutes))
+        : 0;
+    const movieProgressPct = Math.round(movieProgressRatio * 100);
 
-                {runtimeMinutes && minutesWatched > 0 ? (
-                  <View style={[styles.fractionBadge, { backgroundColor: colors.primaryBg }]}>
-                    <Text style={[styles.fractionBadgeText, { color: colors.primary }]}>
-                      {minutesWatched} / {runtimeMinutes}m
-                    </Text>
-                  </View>
-                ) : null}
+    return (
+      <>
+        <View style={[styles.progressCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
+          <View style={styles.progressHeaderRow}>
+            <View>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Movie Viewing Progress</Text>
+              <Text style={[styles.progressSubtitle, { color: colors.textSecondary }]}>
+                {runtimeMinutes
+                  ? `Total Runtime: ${formatRuntime(runtimeMinutes)} (${runtimeMinutes} min)`
+                  : 'Track viewing time'}
+              </Text>
+            </View>
+
+            {runtimeMinutes && minutesWatched > 0 ? (
+              <View style={[styles.fractionBadge, { backgroundColor: colors.primaryBg }]}>
+                <Text style={[styles.fractionBadgeText, { color: colors.primary }]}>
+                  {minutesWatched} / {runtimeMinutes}m
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          {runtimeMinutes ? (
+            <View style={{ marginTop: 12, marginBottom: 12, gap: 10 }}>
+              {/* Clickable HH:MM:SS Time Box */}
+              <View style={{ alignItems: 'center' }}>
+                <Pressable
+                  style={({ pressed }) => [
+                    {
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 10,
+                      paddingHorizontal: 18,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      borderWidth: 1.5,
+                      backgroundColor: colors.card,
+                      borderColor: minutesWatched > 0 ? colors.primary : colors.cardBorder,
+                    },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setShowMovieTimePicker(true);
+                  }}>
+                  <Ionicons name="time-outline" size={18} color={colors.primary} />
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 20,
+                      fontWeight: '800',
+                      fontVariant: ['tabular-nums'],
+                    }}
+                    selectable={true}>
+                    {formatMinutesToHHMMSS(minutesWatched)}
+                  </Text>
+                  <Text
+                    style={{
+                      color: colors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: '600',
+                      fontVariant: ['tabular-nums'],
+                    }}>
+                    / {formatMinutesToHHMMSS(runtimeMinutes)}
+                  </Text>
+                  <Ionicons name="create-outline" size={15} color={colors.textSecondary} />
+                </Pressable>
               </View>
 
-              {runtimeMinutes ? (
-                <View style={styles.stepperContainer}>
-                  <Pressable
-                    style={[styles.stepperBtn, { backgroundColor: colors.primary }, minutesWatched <= 0 && styles.stepperDisabled]}
-                    onPress={() => handleMinutesChange(minutesWatched - 15)}
-                    disabled={minutesWatched <= 0}>
-                    <Ionicons name="remove" size={18} color="#ffffff" />
-                  </Pressable>
-
-                  <View style={styles.stepperValueContainer}>
-                    <Text style={[styles.stepperValue, { color: colors.text }]} selectable={true}>{minutesWatched}m</Text>
-                    <Text style={[styles.stepperSubLabel, { color: colors.textSecondary }]}>watched</Text>
-                  </View>
-
-                  <Pressable
-                    style={[
-                      styles.stepperBtn,
-                      { backgroundColor: colors.primary },
-                      minutesWatched >= runtimeMinutes && styles.stepperDisabled,
-                    ]}
-                    onPress={() => handleMinutesChange(minutesWatched + 15)}
-                    disabled={minutesWatched >= runtimeMinutes}>
-                    <Ionicons name="add" size={18} color="#ffffff" />
-                  </Pressable>
+              {/* Visual Progress Bar */}
+              <View style={{ gap: 5 }}>
+                <View
+                  style={{
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: colors.card,
+                    borderWidth: 1,
+                    borderColor: colors.cardBorder,
+                    overflow: 'hidden',
+                  }}>
+                  <View
+                    style={{
+                      width: `${movieProgressPct}%`,
+                      height: '100%',
+                      backgroundColor: colors.primary,
+                      borderRadius: 4,
+                    }}
+                  />
                 </View>
-              ) : null}
-
-              <View style={styles.quickActionsRow}>
-                {runtimeMinutes ? (
-                  <>
-                    <Pressable
-                      style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                      onPress={() => handleMinutesChange(runtimeMinutes)}>
-                      <Text style={[styles.quickPillText, { color: colors.textSecondary }]}>Watched Entire Movie</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                      onPress={() => handleMinutesChange(minutesWatched + 30)}>
-                      <Text style={[styles.quickPillText, { color: colors.textSecondary }]}>+30m</Text>
-                    </Pressable>
-                  </>
-                ) : null}
-              </View>
-
-              {/* Rewatch Counter */}
-              <View style={[styles.rewatchRow, { borderTopColor: colors.divider }]}>
-                <View style={styles.rewatchInfo}>
-                  <Ionicons name="repeat" size={16} color={colors.primary} />
-                  <Text style={[styles.rewatchText, { color: colors.textSecondary }]}>Rewatched:</Text>
-                  <Text style={[styles.rewatchCount, { color: colors.text }]}>
-                    {rewatchCount > 0 ? `${rewatchCount}×` : '0 times'}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ color: colors.textMuted, fontSize: 10.5, fontWeight: '600' }}>00:00:00</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '700' }}>
+                    {movieProgressPct}% watched ({minutesWatched}m)
                   </Text>
-                </View>
-
-                <View style={styles.rewatchControlGroup}>
-                  <Pressable
-                    style={[styles.rewatchMiniBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }, rewatchCount <= 0 && styles.stepperDisabled]}
-                      onPress={() => {
-                        triggerHaptic('selection');
-                        setRewatchCount((c) => Math.max(0, c - 1));
-                      }}
-                    disabled={rewatchCount <= 0}>
-                    <Ionicons name="remove" size={14} color={colors.text} />
-                  </Pressable>
-                  <Pressable
-                    style={[styles.rewatchMiniBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                      onPress={() => {
-                        triggerHaptic('selection');
-                        setRewatchCount((c) => c + 1);
-                      }}>
-                    <Ionicons name="add" size={14} color={colors.text} />
-                  </Pressable>
-                  <Pressable
-                    style={[styles.rewatchBtn, { backgroundColor: colors.primary }]}
-                    onPress={handleStartMovieRewatch}>
-                    <Ionicons name="refresh" size={13} color="#ffffff" />
-                    <Text style={styles.rewatchBtnText}>Start Rewatch</Text>
-                  </Pressable>
+                  <Text style={{ color: colors.textMuted, fontSize: 10.5, fontWeight: '600' }}>
+                    {formatMinutesToHHMMSS(runtimeMinutes)}
+                  </Text>
                 </View>
               </View>
             </View>
-    </>
-  );
+          ) : null}
+
+          <View style={styles.quickActionsRow}>
+            {runtimeMinutes ? (
+              <>
+                <Pressable
+                  style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                  onPress={() => handleMinutesChange(runtimeMinutes)}>
+                  <Text style={[styles.quickPillText, { color: colors.textSecondary }]}>Watched Entire Movie</Text>
+                </Pressable>
+                {minutesWatched > 0 ? (
+                  <Pressable
+                    style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                    onPress={() => handleMinutesChange(0)}>
+                    <Text style={[styles.quickPillText, { color: colors.textSecondary }]}>Reset (0m)</Text>
+                  </Pressable>
+                ) : null}
+              </>
+            ) : null}
+          </View>
+
+          {/* Rewatch Counter */}
+          <View style={[styles.rewatchRow, { borderTopColor: colors.divider }]}>
+            <View style={styles.rewatchInfo}>
+              <Ionicons name="repeat" size={16} color={colors.primary} />
+              <Text style={[styles.rewatchText, { color: colors.textSecondary }]}>Rewatched:</Text>
+              <Text style={[styles.rewatchCount, { color: colors.text }]}>
+                {rewatchCount > 0 ? `${rewatchCount}×` : '0 times'}
+              </Text>
+            </View>
+
+            <View style={styles.rewatchControlGroup}>
+              <Pressable
+                style={[styles.rewatchMiniBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }, rewatchCount <= 0 && styles.stepperDisabled]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setRewatchCount((c) => Math.max(0, c - 1));
+                }}
+                disabled={rewatchCount <= 0}>
+                <Ionicons name="remove" size={14} color={colors.text} />
+              </Pressable>
+              <Pressable
+                style={[styles.rewatchMiniBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setRewatchCount((c) => c + 1);
+                }}>
+                <Ionicons name="add" size={14} color={colors.text} />
+              </Pressable>
+              <Pressable
+                style={[styles.rewatchBtn, { backgroundColor: colors.primary }]}
+                onPress={handleStartMovieRewatch}>
+                <Ionicons name="refresh" size={13} color="#ffffff" />
+                <Text style={styles.rewatchBtnText}>Start Rewatch</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </>
+    );
+  };
 
   // 6. Score Selector
   const renderScoreSelector = () => (
@@ -3517,7 +3589,7 @@ function TrackModalFormContent({
 
                 {/* Started Watching Date and Time Pickers */}
                 <View style={styles.dateRow}>
-                  <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Started Watching:</Text>
+                  <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Started:</Text>
                   <View style={styles.dateButtonGroup}>
                     <Pressable
                       style={[styles.datePickerTriggerBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
@@ -3558,11 +3630,12 @@ function TrackModalFormContent({
                     {(startedAt || startedTime) ? (
                       <Pressable
                         style={styles.dateClearBtn}
+                        hitSlop={8}
                         onPress={() => {
                           setStartedAt('');
                           setStartedTime('');
                         }}>
-                        <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+                        <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
                       </Pressable>
                     ) : null}
                   </View>
@@ -3570,7 +3643,7 @@ function TrackModalFormContent({
 
                 {/* Finished Watching Date and Time Pickers */}
                 <View style={styles.dateRow}>
-                  <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Finished Watching:</Text>
+                  <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Finished:</Text>
                   <View style={styles.dateButtonGroup}>
                     <Pressable
                       style={[styles.datePickerTriggerBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
@@ -3611,11 +3684,12 @@ function TrackModalFormContent({
                     {(finishedAt || finishedTime) ? (
                       <Pressable
                         style={styles.dateClearBtn}
+                        hitSlop={8}
                         onPress={() => {
                           setFinishedAt('');
                           setFinishedTime('');
                         }}>
-                        <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+                        <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
                       </Pressable>
                     ) : null}
                   </View>
@@ -4332,6 +4406,20 @@ function TrackModalFormContent({
             setFinishedAt(getTodayFormatted(dateFormat));
           }
           setShowFinishedTimePicker(false);
+        }}
+      />
+
+      {/* Interactive TimePicker Modal for Movie Watched Duration (HH:MM) */}
+      <MaterialTimePickerModal
+        visible={showMovieTimePicker}
+        title="Select watched time (HH:MM)"
+        initialHour={Math.floor(Math.max(0, minutesWatched) / 60)}
+        initialMinute={Math.max(0, minutesWatched) % 60}
+        timeFormat="24h"
+        onClose={() => setShowMovieTimePicker(false)}
+        onConfirm={(hour, minute) => {
+          handleMinutesChange(hour * 60 + minute);
+          setShowMovieTimePicker(false);
         }}
       />
 
@@ -5175,6 +5263,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
   },
   dateLabelGroup: {
     flexDirection: 'row',
@@ -5185,6 +5274,7 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 12,
     fontWeight: '600',
+    flexShrink: 0,
   },
   dateRelativeText: {
     color: '#64748b',
@@ -5198,7 +5288,11 @@ const styles = StyleSheet.create({
   dateButtonGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+    gap: 5,
+    paddingRight: 4,
+    flexShrink: 1,
   },
   datePickerTriggerBtn: {
     flexDirection: 'row',
@@ -5207,7 +5301,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0d0f15',
     borderWidth: 1,
     borderColor: '#262d3d',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 8,
   },
@@ -5232,7 +5326,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   dateClearBtn: {
-    padding: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    marginLeft: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   holdDropdownTrigger: {
     flexDirection: 'row',
