@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -8,6 +8,9 @@ import {
   TextInput,
   PanResponder,
   GestureResponderEvent,
+  Keyboard,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -18,14 +21,15 @@ interface MaterialTimePickerModalProps {
   visible: boolean;
   initialHour: number; // 0-23
   initialMinute?: number; // 0-59
+  initialSecond?: number; // 0-59
   timeFormat?: TimeFormatOption;
   title?: string;
   onClose: () => void;
-  onConfirm: (hour: number, minute: number) => void;
+  onConfirm: (hour: number, minute: number, second?: number) => void;
 }
 
 type PickerDisplayMode = 'dial' | 'keypad';
-type ActiveUnit = 'hour' | 'minute';
+type ActiveUnit = 'hour' | 'minute' | 'second';
 
 const DIAL_SIZE = 256;
 const CENTER = DIAL_SIZE / 2;
@@ -37,6 +41,7 @@ export function MaterialTimePickerModal({
   visible,
   initialHour,
   initialMinute = 0,
+  initialSecond = 0,
   timeFormat = '24h',
   title = 'Select time',
   onClose,
@@ -50,13 +55,32 @@ export function MaterialTimePickerModal({
   // Internal 24h state
   const [selectedHour, setSelectedHour] = useState<number>(initialHour);
   const [selectedMinute, setSelectedMinute] = useState<number>(initialMinute);
+  const [selectedSecond, setSelectedSecond] = useState<number>(initialSecond);
   const [activeUnit, setActiveUnit] = useState<ActiveUnit>('hour');
   const [displayMode, setDisplayMode] = useState<PickerDisplayMode>('dial');
+  const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
 
   // Keypad string inputs
   const [hourInput, setHourInput] = useState<string>(String(initialHour).padStart(2, '0'));
   const [minuteInput, setMinuteInput] = useState<string>(String(initialMinute).padStart(2, '0'));
+  const [secondInput, setSecondInput] = useState<string>(String(initialSecond).padStart(2, '0'));
   const minuteInputRef = useRef<TextInput | null>(null);
+  const secondInputRef = useRef<TextInput | null>(null);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Sync state during render whenever modal opens
   const [prevVisible, setPrevVisible] = useState<boolean>(visible);
@@ -65,8 +89,10 @@ export function MaterialTimePickerModal({
     if (visible) {
       const h = Math.max(0, Math.min(23, initialHour));
       const m = Math.max(0, Math.min(59, initialMinute));
+      const s = Math.max(0, Math.min(59, initialSecond));
       setSelectedHour(h);
       setSelectedMinute(m);
+      setSelectedSecond(s);
       setActiveUnit('hour');
       setDisplayMode('dial');
 
@@ -77,6 +103,7 @@ export function MaterialTimePickerModal({
         setHourInput(String(display12).padStart(2, '0'));
       }
       setMinuteInput(String(m).padStart(2, '0'));
+      setSecondInput(String(s).padStart(2, '0'));
     }
   }
 
@@ -242,12 +269,25 @@ export function MaterialTimePickerModal({
     const val = parseInt(cleaned, 10);
     if (!isNaN(val) && val >= 0 && val <= 59) {
       setSelectedMinute(val);
+      if (cleaned.length === 2 && secondInputRef.current) {
+        secondInputRef.current.focus();
+      }
+    }
+  };
+
+  const handleSecondTextChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    setSecondInput(cleaned);
+
+    const val = parseInt(cleaned, 10);
+    if (!isNaN(val) && val >= 0 && val <= 59) {
+      setSelectedSecond(val);
     }
   };
 
   const handleConfirm = () => {
     triggerHaptic('success');
-    onConfirm(selectedHour, selectedMinute);
+    onConfirm(selectedHour, selectedMinute, selectedSecond);
     onClose();
   };
 
@@ -303,8 +343,27 @@ export function MaterialTimePickerModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
+      <View
+        style={[
+          styles.overlay,
+          keyboardHeight > 0 && {
+            justifyContent: 'flex-start',
+            paddingTop: 32,
+            paddingBottom: keyboardHeight + 12,
+          },
+        ]}>
+        <Pressable
+          style={styles.backdrop}
+          onPress={() => {
+            Keyboard.dismiss();
+            onClose();
+          }}
+        />
+        <ScrollView
+          style={{ width: '100%', maxHeight: '100%' }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
         <View style={[styles.dialogCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           {/* Header */}
           <Text style={[styles.dialogTitle, { color: colors.textSecondary }]}>{title}</Text>
@@ -341,6 +400,9 @@ export function MaterialTimePickerModal({
                     styles.timeBox,
                     styles.timeInputBox,
                     {
+                      width: 72,
+                      height: 58,
+                      fontSize: 30,
                       backgroundColor: activeUnit === 'hour' ? colors.primaryBg : colors.inputBg,
                       borderColor: activeUnit === 'hour' ? colors.primary : colors.cardBorder,
                       color: activeUnit === 'hour' ? colors.primary : colors.text,
@@ -394,6 +456,9 @@ export function MaterialTimePickerModal({
                     styles.timeBox,
                     styles.timeInputBox,
                     {
+                      width: 72,
+                      height: 58,
+                      fontSize: 30,
                       backgroundColor: activeUnit === 'minute' ? colors.primaryBg : colors.inputBg,
                       borderColor: activeUnit === 'minute' ? colors.primary : colors.cardBorder,
                       color: activeUnit === 'minute' ? colors.primary : colors.text,
@@ -411,6 +476,37 @@ export function MaterialTimePickerModal({
                 <Text style={[styles.timeBoxSubLabel, { color: colors.textSecondary }]}>Minute</Text>
               )}
             </View>
+
+            {/* Second Box (shown in keypad mode) */}
+            {displayMode === 'keypad' && (
+              <>
+                <Text style={[styles.colonText, { color: colors.text }]}>:</Text>
+                <View style={styles.timeBoxColumn}>
+                  <TextInput
+                    ref={secondInputRef}
+                    style={[
+                      styles.timeBox,
+                      styles.timeInputBox,
+                      {
+                        width: 72,
+                        height: 58,
+                        fontSize: 30,
+                        backgroundColor: activeUnit === 'second' ? colors.primaryBg : colors.inputBg,
+                        borderColor: activeUnit === 'second' ? colors.primary : colors.cardBorder,
+                        color: activeUnit === 'second' ? colors.primary : colors.text,
+                      },
+                    ]}
+                    value={secondInput}
+                    onChangeText={handleSecondTextChange}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    selectTextOnFocus
+                    onFocus={() => setActiveUnit('second')}
+                  />
+                  <Text style={[styles.timeBoxSubLabel, { color: colors.textSecondary }]}>Second</Text>
+                </View>
+              </>
+            )}
 
             {/* 12-Hour AM/PM Toggle */}
             {!is24h && (
@@ -576,6 +672,7 @@ export function MaterialTimePickerModal({
             </View>
           </View>
         </View>
+        </ScrollView>
       </View>
     </Modal>
   );

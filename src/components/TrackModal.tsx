@@ -63,6 +63,7 @@ import { DatePickerModal } from '@/components/DatePickerModal';
 import { EntityModal } from '@/components/EntityModal';
 import { EpisodeDetailModal } from '@/components/EpisodeDetailModal';
 import { MaterialTimePickerModal } from '@/components/MaterialTimePickerModal';
+import { MovieDurationPickerModal } from '@/components/MovieDurationPickerModal';
 import { SeasonDetailModal } from '@/components/SeasonDetailModal';
 import { ReleaseReminderModal } from '@/components/ReleaseReminderModal';
 import { CountryOriginBadge } from '@/components/CountryOriginBadge';
@@ -308,6 +309,12 @@ function TrackModalFormContent({
   const [minutesWatched, setMinutesWatched] = useState<number>(
     existingRecord ? existingRecord.minutesWatched || 0 : 0
   );
+  const [secondsWatched, setSecondsWatched] = useState<number>(() => {
+    if (existingRecord?.secondsWatched != null) {
+      return existingRecord.secondsWatched;
+    }
+    return existingRecord?.minutesWatched ? existingRecord.minutesWatched * 60 : 0;
+  });
   const [rewatchCount, setRewatchCount] = useState<number>(
     existingRecord ? existingRecord.rewatchCount || 0 : 0
   );
@@ -358,6 +365,14 @@ function TrackModalFormContent({
     const h = Math.floor(safeMins / 60);
     const m = safeMins % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+  };
+
+  const formatSecondsToHHMMSS = (totalSec: number): string => {
+    const safeSec = Math.max(0, Math.floor(totalSec));
+    const h = Math.floor(safeSec / 3600);
+    const m = Math.floor((safeSec % 3600) / 60);
+    const s = safeSec % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
   // Granular episode & season completion history
@@ -916,6 +931,7 @@ function TrackModalFormContent({
             setRewatchCount((c) => c + 1);
             setStatus('watching');
             setMinutesWatched(0);
+            setSecondsWatched(0);
             setStartedAt(getTodayFormatted(dateFormat));
             setStartedTime(formatTimeWithSeconds(new Date(), timeFormat));
             setFinishedAt('');
@@ -957,6 +973,7 @@ function TrackModalFormContent({
         handleMarkEntireShowWatched();
       } else if (mediaType === 'movie' && runtimeMinutes) {
         setMinutesWatched(runtimeMinutes);
+        setSecondsWatched(runtimeMinutes * 60);
       }
     } else {
       setIsAlsoPlanned(false);
@@ -1044,23 +1061,28 @@ function TrackModalFormContent({
     handleStatusChange(st);
   };
 
-  // Movie minutes watched change
-  const handleMinutesChange = (newVal: number) => {
+  // Movie minutes/seconds watched change
+  const handleSecondsChange = (newTotalSeconds: number) => {
     triggerHaptic('selection');
-    const minVal = 0;
-    const maxVal = runtimeMinutes && runtimeMinutes > 0 ? runtimeMinutes : 999;
-    const clamped = Math.max(minVal, Math.min(newVal, maxVal));
-    setMinutesWatched(clamped);
+    const maxSec = runtimeMinutes && runtimeMinutes > 0 ? runtimeMinutes * 60 : 999 * 60;
+    const clampedSec = Math.max(0, Math.min(Math.floor(newTotalSeconds), maxSec));
+    const derivedMins = Math.floor(clampedSec / 60);
+    setSecondsWatched(clampedSec);
+    setMinutesWatched(derivedMins);
 
-    if (runtimeMinutes && clamped >= runtimeMinutes && status !== 'completed') {
+    if (runtimeMinutes && clampedSec >= runtimeMinutes * 60 && status !== 'completed') {
       setStatus('completed');
       if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
       if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
-    } else if (clamped > 0 && (!status || status === 'plan_to_watch')) {
+    } else if (clampedSec > 0 && (!status || status === 'plan_to_watch')) {
       setStatus('watching');
       if (!startedAt) setStartedAt(getTodayFormatted(dateFormat));
       if (!startedTime) setStartedTime(formatTimeWithSeconds(new Date(), timeFormat));
     }
+  };
+
+  const handleMinutesChange = (newVal: number) => {
+    handleSecondsChange(newVal * 60);
   };
 
   const handleSave = () => {
@@ -1118,6 +1140,7 @@ function TrackModalFormContent({
       // Movie
       runtimeMinutes,
       minutesWatched: mediaType === 'movie' ? minutesWatched : undefined,
+      secondsWatched: mediaType === 'movie' ? secondsWatched : undefined,
       rewatchCount: rewatchCount > 0 ? rewatchCount : undefined,
 
       // Rich metadata
@@ -3330,7 +3353,7 @@ function TrackModalFormContent({
   const renderMovieSection = () => {
     const movieProgressRatio =
       runtimeMinutes && runtimeMinutes > 0
-        ? Math.max(0, Math.min(1, minutesWatched / runtimeMinutes))
+        ? Math.max(0, Math.min(1, secondsWatched / (runtimeMinutes * 60)))
         : 0;
     const movieProgressPct = Math.round(movieProgressRatio * 100);
 
@@ -3347,7 +3370,7 @@ function TrackModalFormContent({
               </Text>
             </View>
 
-            {runtimeMinutes && minutesWatched > 0 ? (
+            {runtimeMinutes && secondsWatched > 0 ? (
               <View style={[styles.fractionBadge, { backgroundColor: colors.primaryBg }]}>
                 <Text style={[styles.fractionBadgeText, { color: colors.primary }]}>
                   {minutesWatched} / {runtimeMinutes}m
@@ -3372,7 +3395,7 @@ function TrackModalFormContent({
                       borderRadius: 12,
                       borderWidth: 1.5,
                       backgroundColor: colors.card,
-                      borderColor: minutesWatched > 0 ? colors.primary : colors.cardBorder,
+                      borderColor: secondsWatched > 0 ? colors.primary : colors.cardBorder,
                     },
                     pressed && { opacity: 0.8 },
                   ]}
@@ -3389,7 +3412,7 @@ function TrackModalFormContent({
                       fontVariant: ['tabular-nums'],
                     }}
                     selectable={true}>
-                    {formatMinutesToHHMMSS(minutesWatched)}
+                    {formatSecondsToHHMMSS(secondsWatched)}
                   </Text>
                   <Text
                     style={{
@@ -3445,10 +3468,10 @@ function TrackModalFormContent({
                   onPress={() => handleMinutesChange(runtimeMinutes)}>
                   <Text style={[styles.quickPillText, { color: colors.textSecondary }]}>Watched Entire Movie</Text>
                 </Pressable>
-                {minutesWatched > 0 ? (
+                {secondsWatched > 0 ? (
                   <Pressable
                     style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                    onPress={() => handleMinutesChange(0)}>
+                    onPress={() => handleSecondsChange(0)}>
                     <Text style={[styles.quickPillText, { color: colors.textSecondary }]}>Reset (0m)</Text>
                   </Pressable>
                 ) : null}
@@ -4358,11 +4381,18 @@ function TrackModalFormContent({
           }
           return new Date().getMinutes();
         })()}
+        initialSecond={(() => {
+          if (startedTime) {
+            const m = startedTime.match(/^\d{1,2}:\d{2}:(\d{2})/);
+            if (m) return parseInt(m[1], 10);
+          }
+          return 0;
+        })()}
         timeFormat={timeFormat}
         onClose={() => setShowStartedTimePicker(false)}
-        onConfirm={(hour, minute) => {
+        onConfirm={(hour, minute, second = 0) => {
           const d = new Date();
-          d.setHours(hour, minute, 0, 0);
+          d.setHours(hour, minute, second, 0);
           setStartedTime(formatTimeWithSeconds(d, timeFormat));
           if (!startedAt) {
             setStartedAt(getTodayFormatted(dateFormat));
@@ -4396,11 +4426,18 @@ function TrackModalFormContent({
           }
           return new Date().getMinutes();
         })()}
+        initialSecond={(() => {
+          if (finishedTime) {
+            const m = finishedTime.match(/^\d{1,2}:\d{2}:(\d{2})/);
+            if (m) return parseInt(m[1], 10);
+          }
+          return 0;
+        })()}
         timeFormat={timeFormat}
         onClose={() => setShowFinishedTimePicker(false)}
-        onConfirm={(hour, minute) => {
+        onConfirm={(hour, minute, second = 0) => {
           const d = new Date();
-          d.setHours(hour, minute, 0, 0);
+          d.setHours(hour, minute, second, 0);
           setFinishedTime(formatTimeWithSeconds(d, timeFormat));
           if (!finishedAt) {
             setFinishedAt(getTodayFormatted(dateFormat));
@@ -4409,16 +4446,14 @@ function TrackModalFormContent({
         }}
       />
 
-      {/* Interactive TimePicker Modal for Movie Watched Duration (HH:MM) */}
-      <MaterialTimePickerModal
+      {/* Dedicated Keypad Duration Picker Modal for Movie Watched Duration (HH:MM:SS) */}
+      <MovieDurationPickerModal
         visible={showMovieTimePicker}
-        title="Select watched time (HH:MM)"
-        initialHour={Math.floor(Math.max(0, minutesWatched) / 60)}
-        initialMinute={Math.max(0, minutesWatched) % 60}
-        timeFormat="24h"
+        initialTotalSeconds={secondsWatched}
+        maxRuntimeMinutes={runtimeMinutes}
         onClose={() => setShowMovieTimePicker(false)}
-        onConfirm={(hour, minute) => {
-          handleMinutesChange(hour * 60 + minute);
+        onConfirm={(totalSec) => {
+          handleSecondsChange(totalSec);
           setShowMovieTimePicker(false);
         }}
       />

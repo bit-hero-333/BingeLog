@@ -418,10 +418,11 @@ function SeasonDetailContent({
         visible={showTimePicker}
         initialHour={completedAt ? new Date(completedAt).getHours() : new Date().getHours()}
         initialMinute={completedAt ? new Date(completedAt).getMinutes() : new Date().getMinutes()}
+        initialSecond={completedAt ? new Date(completedAt).getSeconds() : 0}
         timeFormat={timeFormat}
         onClose={() => setShowTimePicker(false)}
-        onConfirm={(hour, minute) => {
-          const nextIso = updateIsoTime(completedAt, hour, minute, 0);
+        onConfirm={(hour, minute, second = 0) => {
+          const nextIso = updateIsoTime(completedAt, hour, minute, second);
           onUpdateCompletedAt?.(nextIso);
           setShowTimePicker(false);
         }}

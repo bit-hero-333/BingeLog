@@ -192,6 +192,7 @@ export interface TrackedItem {
   // Movie Tracking Fields
   runtimeMinutes?: number | null;
   minutesWatched?: number | null;
+  secondsWatched?: number | null;
 
   // Rich Details
   tagline?: string;

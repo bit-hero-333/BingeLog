@@ -2952,7 +2952,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.26.0 • TMDB Attribution
+                Version 0.26.1 • TMDB Attribution
               </Text>
             </View>
           </View>
@@ -2965,13 +2965,9 @@ export default function SettingsScreen() {
 
         {expandedSections.about && (
           <View style={[styles.accordionContent, { borderTopColor: colors.cardBorder }]}>
-            {/* App Info & Vibe-Coded Badge */}
+            {/* App Info */}
             <View style={styles.appTitleBadgeRow}>
               <Text selectable style={[styles.infoTitle, { color: colors.text }]}>BingeLog</Text>
-              <View style={[styles.vibeBadge, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}>
-                <Ionicons name="sparkles" size={11} color={colors.primary} />
-                <Text style={[styles.vibeBadgeText, { color: colors.primary }]}>Vibe-Coded</Text>
-              </View>
             </View>
 
             <Text selectable style={[styles.infoSub, { color: colors.textSecondary }]}>
@@ -2979,7 +2975,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoAiCredit, { color: colors.textSecondary }]}>
-              Crafted with Google DeepMind Antigravity & Gemini assistance and vibe-coded with care as an independent personal tracking project.
+              Crafted with Google DeepMind Antigravity & Gemini assistance as an independent personal tracking project.
             </Text>
 
             {/* GitHub Project Link */}
@@ -3022,17 +3018,14 @@ export default function SettingsScreen() {
               This product uses the TMDB API but is not endorsed or certified by TMDB.
             </Text>
 
-            <View style={styles.tmdbMetaRow}>
-              <Ionicons name="film-outline" size={14} color={colors.primary} />
-              <Text selectable style={[styles.tmdbMetaText, { color: colors.textMuted }]}>
-                All movie and TV metadata, posters, backdrops, and cast information are provided courtesy of{' '}
-                <Text
-                  style={{ color: colors.primary, fontWeight: '700', textDecorationLine: 'underline' }}
-                  onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
-                  The Movie Database (TMDB)
-                </Text>.
-              </Text>
-            </View>
+            <Text selectable style={[styles.tmdbMetaText, { color: colors.textMuted }]}>
+              All movie and TV metadata, posters, backdrops, and cast information are provided courtesy of{' '}
+              <Text
+                style={{ color: colors.primary, fontWeight: '700', textDecorationLine: 'underline' }}
+                onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
+                The Movie Database (TMDB)
+              </Text>.
+            </Text>
 
             <View style={[styles.cardDivider, { backgroundColor: colors.cardBorder, width: '100%', marginVertical: 12 }]} />
 
@@ -3046,7 +3039,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.26.0 • Build 57 • Expo SDK 57
+              Version 0.26.1 • Build 58 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -4125,16 +4118,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     paddingHorizontal: 8,
   },
-  tmdbMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    paddingHorizontal: 4,
-  },
   tmdbMetaText: {
-    flex: 1,
     fontSize: 11,
     lineHeight: 16,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+    marginTop: 6,
   },
   appTitleBadgeRow: {
     flexDirection: 'row',
