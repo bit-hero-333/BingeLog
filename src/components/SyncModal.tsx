@@ -8,11 +8,11 @@ import {
   TextInput,
   ActivityIndicator,
   ScrollView,
-  Alert,
   useWindowDimensions,
   Keyboard,
   Platform,
 } from 'react-native';
+import { AppAlert as Alert } from '@/components/AppDialog';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { CameraView, useCameraPermissions } from 'expo-camera';

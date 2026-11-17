@@ -7,6 +7,7 @@ import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MediaProvider, useMedia } from '@/context/MediaContext';
 import { ThemeProvider, useAppTheme } from '@/context/ThemeContext';
+import { AppDialogHost } from '@/components/AppDialog';
 
 function TabLayoutContent() {
   const { trackedItems } = useMedia();
@@ -155,6 +156,7 @@ export default function RootLayout() {
       <ThemeProvider>
         <MediaProvider>
           <TabLayoutContent />
+          <AppDialogHost />
         </MediaProvider>
       </ThemeProvider>
     </SafeAreaProvider>

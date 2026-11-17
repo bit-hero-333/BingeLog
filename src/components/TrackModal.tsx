@@ -9,13 +9,13 @@ import {
   TextInput,
   Keyboard,
   Platform,
-  Alert,
   ActivityIndicator,
   useWindowDimensions,
   Animated,
   PanResponder,
   Switch,
 } from 'react-native';
+import { AppAlert as Alert } from '@/components/AppDialog';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';

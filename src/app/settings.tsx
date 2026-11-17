@@ -6,12 +6,12 @@ import {
   TextInput,
   Pressable,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Switch,
   Linking,
   Modal,
 } from 'react-native';
+import { AppAlert as Alert } from '@/components/AppDialog';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useMedia } from '@/context/MediaContext';
@@ -363,6 +363,7 @@ export default function SettingsScreen() {
   const [isImporting, setIsImporting] = useState(false);
   const [isRestoringAutoBackup, setIsRestoringAutoBackup] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [showLicenseModal, setShowLicenseModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Manual hex input state
@@ -2952,7 +2953,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.26.1 • TMDB Attribution
+                Version 0.27.0 • TMDB & MIT License
               </Text>
             </View>
           </View>
@@ -3035,11 +3036,21 @@ export default function SettingsScreen() {
                 style={{ color: colors.primary, textDecorationLine: 'underline' }}
                 onPress={() => void Linking.openURL('https://www.themoviedb.org')}>
                 The Movie Database (TMDB)
-              </Text>. All trademarks, logos, and copyrights belong to their respective owners.
+              </Text>
+              . Released under the{' '}
+              <Text
+                style={{ color: colors.primary, fontWeight: '700', textDecorationLine: 'underline' }}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setShowLicenseModal(true);
+                }}>
+                MIT License
+              </Text>
+              . All trademarks, logos, and copyrights belong to their respective owners.
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.26.1 • Build 58 • Expo SDK 57
+              Version 0.27.0 • Build 59 • Expo SDK 57
             </Text>
           </View>
         )}
@@ -3247,6 +3258,39 @@ export default function SettingsScreen() {
                 </Pressable>
               )}
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MIT License Modal */}
+      <Modal
+        visible={showLicenseModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLicenseModal(false)}>
+        <View style={styles.dialogOverlay}>
+          <Pressable style={styles.backdrop} onPress={() => setShowLicenseModal(false)} />
+          <View style={[styles.strategySheet, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={[styles.strategyHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.strategyHeaderTitle, { color: colors.text }]}>MIT License</Text>
+              <Pressable onPress={() => setShowLicenseModal(false)} hitSlop={8}>
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ padding: 16, gap: 12 }}>
+              <Text selectable style={{ color: colors.text, fontSize: 13, fontWeight: '700' }}>
+                MIT License — Copyright (c) 2026 BingeLog Contributors
+              </Text>
+              <Text selectable style={{ color: colors.textSecondary, fontSize: 12.5, lineHeight: 19 }}>
+                Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the &quot;Software&quot;), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+              </Text>
+              <Text selectable style={{ color: colors.textSecondary, fontSize: 12.5, lineHeight: 19 }}>
+                The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+              </Text>
+              <Text selectable style={{ color: colors.textSecondary, fontSize: 12, lineHeight: 18, fontWeight: '600' }}>
+                THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+              </Text>
+            </ScrollView>
           </View>
         </View>
       </Modal>
