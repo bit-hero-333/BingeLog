@@ -49,6 +49,8 @@ function ReleaseReminderSheetContent({
 }: Omit<ReleaseReminderModalProps, 'visible'>) {
   const { colors } = useAppTheme();
   const {
+    deviceNotificationsEnabled,
+    notificationStatuses,
     notificationHour: globalHour,
     notificationMinute: globalMinute,
     notificationDaysAhead: globalDaysAhead,
@@ -69,7 +71,21 @@ function ReleaseReminderSheetContent({
   const existingConfig = existingRecord?.reminder;
   const originCountry = existingRecord?.originCountry || (item as any)?.originCountry || (item as any)?.origin_country?.[0];
 
-  const [enabled, setEnabled] = useState<boolean>(existingConfig?.enabled ?? true);
+  const isCurrentlyActive =
+    existingConfig !== undefined
+      ? Boolean(existingConfig.enabled)
+      : existingRecord
+      ? Boolean(
+          deviceNotificationsEnabled &&
+            (notificationStatuses[existingRecord.status] ||
+              (existingRecord.mediaType === 'tv' &&
+                existingRecord.status === 'completed' &&
+                existingRecord.isAlsoPlanned &&
+                notificationStatuses.plan_to_watch))
+        )
+      : true;
+
+  const [enabled, setEnabled] = useState<boolean>(isCurrentlyActive);
   const [timing, setTiming] = useState<NotificationTimingOption>(
     existingConfig?.timing ?? globalTiming
   );
@@ -313,7 +329,7 @@ function ReleaseReminderSheetContent({
 
         {/* Action Buttons */}
         <View style={[styles.actionsRow, { borderTopColor: colors.divider }]}>
-          {existingConfig ? (
+          {(isCurrentlyActive || enabled) && existingRecord ? (
             <Pressable
               style={[styles.removeBtn, { borderColor: colors.cardBorder }]}
               onPress={handleDisable}>

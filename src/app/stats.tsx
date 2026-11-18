@@ -277,6 +277,7 @@ export default function StatsScreen() {
             setSelectedTrackItem(null);
           }}
           onSave={(record) => {
+            setSelectedTrackItem(record);
             void saveItem(record);
           }}
           onRemove={(id, mediaType) => {

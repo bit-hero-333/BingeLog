@@ -783,6 +783,7 @@ export default function MyListScreen() {
           setActiveItem(null);
         }}
         onSave={(record) => {
+          setActiveItem(record);
           saveItem(record);
         }}
         onRemove={(id, mediaType: MediaType) => {

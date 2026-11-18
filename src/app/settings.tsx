@@ -10,6 +10,7 @@ import {
   Switch,
   Linking,
   Modal,
+  ColorValue,
 } from 'react-native';
 import { AppAlert as Alert } from '@/components/AppDialog';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,6 +44,8 @@ import {
   StreamingRegionStrategy,
   EntitySelection,
   WatchProvider,
+  MediaStatus,
+  STATUS_CONFIG,
   NOTIFICATION_TIMING_CONFIGS,
 } from '@/types/media';
 import {
@@ -74,6 +77,59 @@ const ROW_SCALE_LABELS: Record<ElementScale, string> = {
   large: 'Roomy',
   xlarge: 'Spacious',
 };
+
+const ALERT_STATUS_ITEMS: { status: MediaStatus; desc: string }[] = [
+  { status: 'watching', desc: 'New episodes airing for shows you are currently watching' },
+  { status: 'plan_to_watch', desc: 'Upcoming movie premieres and planned shows starting to air' },
+  { status: 'completed', desc: 'Completed shows airing a new season or special episode' },
+  { status: 'on_hold', desc: 'Shows currently on hold airing new episodes' },
+  { status: 'dropped', desc: 'Dropped shows airing new episodes' },
+];
+
+function StatusColorSwitch({
+  value,
+  onValueChange,
+  activeColor,
+  inactiveBg,
+  borderColor,
+}: {
+  value: boolean;
+  onValueChange: (next: boolean) => void;
+  activeColor: ColorValue;
+  inactiveBg: ColorValue;
+  borderColor: ColorValue;
+}) {
+  return (
+    <Pressable
+      onPress={() => onValueChange(!value)}
+      hitSlop={8}
+      style={{
+        width: 48,
+        height: 28,
+        borderRadius: 14,
+        padding: 3,
+        backgroundColor: value ? activeColor : inactiveBg,
+        borderWidth: 1.5,
+        borderColor: value ? activeColor : borderColor,
+        justifyContent: 'center',
+        alignItems: value ? 'flex-end' : 'flex-start',
+      }}>
+      <View
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: 10,
+          backgroundColor: '#ffffff',
+          elevation: 2,
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.25,
+          shadowRadius: 2,
+        }}
+      />
+    </Pressable>
+  );
+}
 
 export default function SettingsScreen() {
   const {
@@ -115,6 +171,8 @@ export default function SettingsScreen() {
     setDeviceNotificationsEnabled,
     notificationTiming,
     setNotificationTiming,
+    notificationStatuses,
+    toggleNotificationStatus,
     notificationPermissionStatus,
     requestNotificationPermission,
     sendTestNotification,
@@ -2319,19 +2377,102 @@ export default function SettingsScreen() {
                   Schedule automatic offline notifications on your device when tracked titles premiere or air.
                 </Text>
               </View>
-              <Switch
+              <StatusColorSwitch
                 value={deviceNotificationsEnabled}
                 onValueChange={(val) => {
                   triggerHaptic('selection');
                   void setDeviceNotificationsEnabled(val);
                 }}
-                trackColor={{ false: colors.cardBorder, true: colors.primary }}
-                thumbColor="#ffffff"
+                activeColor={colors.primary}
+                inactiveBg={colors.inputBg}
+                borderColor={colors.cardBorder}
               />
             </View>
 
             {deviceNotificationsEnabled && (
               <>
+                {/* Per-Status Alert Switches */}
+                <Text style={[styles.subControlLabel, dynTypography.subControlLabel, { color: colors.textSecondary, marginTop: 14 }]}>
+                  ALERTS BY WATCH STATUS
+                </Text>
+                <Text style={[styles.cardDescription, dynTypography.cardDescription, { color: colors.textSecondary, marginBottom: 8 }]}>
+                  Choose which watchlist statuses automatically schedule release alerts. Editing an alert on an individual show or movie stays independent of these global switches.
+                </Text>
+
+                <View
+                  style={{
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.cardBorder,
+                    backgroundColor: colors.inputBg,
+                    overflow: 'hidden',
+                  }}>
+                  {ALERT_STATUS_ITEMS.map((entry, idx) => {
+                    const stConfig = STATUS_CONFIG[entry.status];
+                    const isEnabled = Boolean(notificationStatuses[entry.status]);
+                    const isLast = idx === ALERT_STATUS_ITEMS.length - 1;
+                    return (
+                      <Pressable
+                        key={entry.status}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          void toggleNotificationStatus(entry.status);
+                        }}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          paddingHorizontal: 14,
+                          paddingVertical: 12,
+                          borderBottomWidth: isLast ? 0 : StyleSheet.hairlineWidth,
+                          borderBottomColor: colors.divider,
+                          gap: 12,
+                        }}>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <View
+                              style={{
+                                width: 9,
+                                height: 9,
+                                borderRadius: 4.5,
+                                backgroundColor: stConfig.color,
+                              }}
+                            />
+                            <Text
+                              style={{
+                                color: isEnabled ? stConfig.color : colors.text,
+                                fontSize: Math.round(13.5 * textScale),
+                                fontWeight: '700',
+                                includeFontPadding: false,
+                              }}>
+                              {stConfig.label}
+                            </Text>
+                          </View>
+                          <Text
+                            style={{
+                              color: colors.textSecondary,
+                              fontSize: Math.round(11.5 * textScale),
+                              lineHeight: Math.round(16 * textScale),
+                              marginTop: 3,
+                            }}>
+                            {entry.desc}
+                          </Text>
+                        </View>
+
+                        <StatusColorSwitch
+                          value={isEnabled}
+                          onValueChange={() => {
+                            triggerHaptic('selection');
+                            void toggleNotificationStatus(entry.status);
+                          }}
+                          activeColor={stConfig.color}
+                          inactiveBg={colors.card}
+                          borderColor={colors.cardBorder}
+                        />
+                      </Pressable>
+                    );
+                  })}
+                </View>
                 {/* Permission status banner */}
                 {notificationPermissionStatus === 'granted' ? (
                   <View style={[styles.notifPermBanner, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
@@ -2953,7 +3094,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.27.0 • TMDB & MIT License
+                Version 0.28.0 • TMDB & MIT License
               </Text>
             </View>
           </View>
@@ -3050,7 +3191,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.27.0 • Build 59 • Expo SDK 57
+              Version 0.28.0 • Build 60 • Expo SDK 57
             </Text>
           </View>
         )}

@@ -413,6 +413,7 @@ export default function AchievementsScreen() {
             refreshAchievements();
           }}
           onSave={(record) => {
+            setSelectedTrackItem(record);
             void saveItem(record);
             refreshAchievements();
           }}

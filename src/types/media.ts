@@ -694,3 +694,13 @@ export const NOTIFICATION_DAYS_ADVANCE_OPTIONS: NotificationDaysAdvanceOption[] 
   { days: 14, label: '2 Weeks Ahead', shortLabel: '2 Weeks' },
 ];
 
+export type NotificationStatusConfig = Record<MediaStatus, boolean>;
+
+export const DEFAULT_NOTIFICATION_STATUSES: NotificationStatusConfig = {
+  watching: true,
+  plan_to_watch: false,
+  completed: false,
+  on_hold: false,
+  dropped: false,
+};
+

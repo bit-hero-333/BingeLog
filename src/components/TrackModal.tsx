@@ -126,6 +126,7 @@ function TrackModalFormContent({
     selectedTimezone,
     remindersEnabled,
     deviceNotificationsEnabled,
+    notificationStatuses,
     streamingDisplayStrategy,
     mySubscribedProviders,
     streamingRegionStrategy,
@@ -323,6 +324,9 @@ function TrackModalFormContent({
   );
   const [isAlsoPlanned, setIsAlsoPlanned] = useState<boolean>(
     existingRecord ? Boolean(existingRecord.isAlsoPlanned) : false
+  );
+  const [reminderConfig, setReminderConfig] = useState<ItemReminderConfig | undefined>(
+    existingRecord?.reminder
   );
 
   // Dates:
@@ -1188,7 +1192,7 @@ function TrackModalFormContent({
       nextEpisode: detailedInfo?.nextEpisode || existingRecord?.nextEpisode,
 
       // Release Alert Configuration
-      reminder: existingRecord?.reminder,
+      reminder: reminderConfig,
 
       notes: notes.trim(),
     };
@@ -1419,14 +1423,28 @@ function TrackModalFormContent({
     return unique;
   }, [detailedInfo, activeStreamRegion, selectedRegion]);
 
-  const isReminderActive = existingRecord?.reminder
-    ? existingRecord.reminder.enabled
-    : deviceNotificationsEnabled;
+  const effectiveStatusForAlert = status || existingRecord?.status || 'plan_to_watch';
+  const isStatusAlertEnabled =
+    Boolean(notificationStatuses[effectiveStatusForAlert]) ||
+    Boolean(
+      mediaType === 'tv' &&
+        effectiveStatusForAlert === 'completed' &&
+        isAlsoPlanned &&
+        notificationStatuses.plan_to_watch
+    );
+
+  const isReminderActive =
+    reminderConfig !== undefined
+      ? Boolean(reminderConfig.enabled)
+      : Boolean((existingRecord || status) && deviceNotificationsEnabled && isStatusAlertEnabled);
 
   const handleSaveReminder = (config: ItemReminderConfig) => {
+    setReminderConfig(config);
     if (existingRecord) {
       const updated: TrackedItem = {
         ...existingRecord,
+        status: status || existingRecord.status,
+        isAlsoPlanned: mediaType === 'tv' && (status || existingRecord.status) === 'completed' ? Boolean(isAlsoPlanned) : undefined,
         releaseDate:
           detailedInfo?.releaseDate ||
           existingRecord.releaseDate ||
@@ -1448,6 +1466,8 @@ function TrackModalFormContent({
       };
       onSave(updated);
     } else {
+      const nextStatus = status || 'plan_to_watch';
+      if (!status) setStatus('plan_to_watch');
       const record: TrackedItem = {
         id,
         mediaType,
@@ -1456,8 +1476,8 @@ function TrackModalFormContent({
         releaseYear: releaseYear || undefined,
         voteAverage: voteAverage || undefined,
         overview: ('overview' in item && item.overview) || detailedInfo?.tagline || '',
-        status: 'plan_to_watch',
-        userScore: 0,
+        status: nextStatus,
+        userScore: score,
         totalEpisodes: totalEpisodes || undefined,
         totalSeasons: totalSeasons || undefined,
         runtimeMinutes: runtimeMinutes || undefined,
@@ -1475,9 +1495,19 @@ function TrackModalFormContent({
   };
 
   const handleRemoveReminder = () => {
+    const disabledConfig: ItemReminderConfig = {
+      enabled: false,
+      timing: reminderConfig?.timing ?? 'both',
+      daysAhead: reminderConfig?.daysAhead ?? 1,
+      hour: reminderConfig?.hour ?? 9,
+      minute: reminderConfig?.minute ?? 0,
+    };
+    setReminderConfig(disabledConfig);
     if (existingRecord) {
       const updated: TrackedItem = {
         ...existingRecord,
+        status: status || existingRecord.status,
+        isAlsoPlanned: mediaType === 'tv' && (status || existingRecord.status) === 'completed' ? Boolean(isAlsoPlanned) : undefined,
         releaseDate:
           detailedInfo?.releaseDate ||
           existingRecord.releaseDate ||
@@ -1494,13 +1524,7 @@ function TrackModalFormContent({
           detailedInfo?.nextEpisode ||
           existingRecord.nextEpisode ||
           tvNextEpisode,
-        reminder: {
-          enabled: false,
-          timing: 'both',
-          daysAhead: 1,
-          hour: 9,
-          minute: 0,
-        },
+        reminder: disabledConfig,
         updatedAt: new Date().toISOString(),
       };
       onSave(updated);
@@ -4462,7 +4486,29 @@ function TrackModalFormContent({
       <ReleaseReminderModal
         visible={showReminderModal}
         item={item}
-        existingRecord={existingRecord}
+        existingRecord={
+          existingRecord
+            ? {
+                ...existingRecord,
+                status: status || existingRecord.status,
+                isAlsoPlanned,
+                reminder: reminderConfig,
+              }
+            : reminderConfig
+            ? ({
+                id,
+                mediaType,
+                title,
+                posterPath: posterPath || null,
+                status: status || 'plan_to_watch',
+                userScore: score,
+                addedAt,
+                updatedAt: addedAt,
+                isAlsoPlanned,
+                reminder: reminderConfig,
+              } as TrackedItem)
+            : undefined
+        }
         targetDate={effectiveMovieDate || effectiveTvNextAirDate}
         dateLabel={
           mediaType === 'movie'

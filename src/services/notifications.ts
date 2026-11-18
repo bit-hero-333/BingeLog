@@ -4,6 +4,8 @@ import {
   TrackedItem,
   MediaType,
   NotificationTimingOption,
+  NotificationStatusConfig,
+  DEFAULT_NOTIFICATION_STATUSES,
   TimeFormatOption,
   NOTIFICATION_TIMING_CONFIGS,
 } from '@/types/media';
@@ -17,6 +19,41 @@ export interface NotificationScheduleOptions {
   timezone?: string;
   timeFormat?: TimeFormatOption;
   dayOffset?: number;
+  notificationStatuses?: NotificationStatusConfig;
+}
+
+/**
+ * Determines whether a tracked item should have active device release alerts.
+ * - If the item has an explicit per-item `reminder` config, it is decoupled from global status settings and obeys `item.reminder.enabled`.
+ * - Otherwise, it follows the global master switch (`options.enabled`) and per-status switches (`options.notificationStatuses`).
+ */
+export function isItemReminderActive(
+  item: TrackedItem,
+  options: NotificationScheduleOptions = {}
+): boolean {
+  if (item.reminder !== undefined && item.reminder !== null) {
+    return Boolean(item.reminder.enabled);
+  }
+
+  if (options.enabled === false) {
+    return false;
+  }
+
+  const statuses = options.notificationStatuses || DEFAULT_NOTIFICATION_STATUSES;
+  if (statuses[item.status]) {
+    return true;
+  }
+
+  if (
+    item.mediaType === 'tv' &&
+    item.status === 'completed' &&
+    item.isAlsoPlanned &&
+    statuses.plan_to_watch
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -184,14 +221,7 @@ export async function scheduleReleaseNotification(
   item: TrackedItem,
   options: NotificationScheduleOptions = {}
 ): Promise<string[] | null> {
-  // If item explicitly disabled reminders in its custom config, cancel and exit
-  if (item.reminder && item.reminder.enabled === false) {
-    await cancelReleaseNotification(item.mediaType, item.id);
-    return null;
-  }
-
-  // If item is not in active watchlist, ensure notifications are canceled
-  if (item.status !== 'watching' && item.status !== 'plan_to_watch') {
+  if (!isItemReminderActive(item, options)) {
     await cancelReleaseNotification(item.mediaType, item.id);
     return null;
   }
@@ -468,16 +498,9 @@ export async function syncAllReleaseReminders(
   items: TrackedItem[],
   options: NotificationScheduleOptions = {}
 ): Promise<number> {
-  if (options.enabled === false) {
-    await cancelAllReleaseNotifications();
-    return 0;
-  }
+  await cancelAllReleaseNotifications();
 
-  const eligibleItems = items.filter(
-    (i) => i.status === 'watching' || i.status === 'plan_to_watch'
-  );
-
-  for (const item of eligibleItems) {
+  for (const item of items) {
     await scheduleReleaseNotification(item, options);
   }
 

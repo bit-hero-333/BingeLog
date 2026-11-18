@@ -10,6 +10,8 @@ import {
   TimeFormatOption,
   DEFAULT_TIME_FORMAT,
   NotificationTimingOption,
+  NotificationStatusConfig,
+  DEFAULT_NOTIFICATION_STATUSES,
   ProviderDisplayStrategy,
   StreamingRegionStrategy,
 } from '@/types/media';
@@ -69,6 +71,7 @@ const STORAGE_KEYS = {
   TIME_FORMAT: '@pmt_time_format',
   NOTIFICATION_TIMING: '@pmt_notification_timing',
   NOTIFICATION_DAY_OFFSET: '@pmt_notification_day_offset',
+  NOTIFICATION_STATUSES: '@pmt_notification_statuses',
   STREAMING_DISPLAY_STRATEGY: '@pmt_streaming_display_strategy',
   MY_SUBSCRIBED_PROVIDERS: '@pmt_my_subscribed_providers',
   STREAMING_REGION_STRATEGY: '@pmt_streaming_region_strategy',
@@ -947,6 +950,35 @@ export const StorageService = {
   async saveNotificationDayOffset(offset: number): Promise<boolean> {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATION_DAY_OFFSET, String(offset));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async getNotificationStatuses(): Promise<NotificationStatusConfig> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.NOTIFICATION_STATUSES);
+      if (!val) return { ...DEFAULT_NOTIFICATION_STATUSES };
+      const parsed = JSON.parse(val);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          watching: Boolean(parsed.watching ?? DEFAULT_NOTIFICATION_STATUSES.watching),
+          plan_to_watch: Boolean(parsed.plan_to_watch ?? DEFAULT_NOTIFICATION_STATUSES.plan_to_watch),
+          completed: Boolean(parsed.completed ?? DEFAULT_NOTIFICATION_STATUSES.completed),
+          on_hold: Boolean(parsed.on_hold ?? DEFAULT_NOTIFICATION_STATUSES.on_hold),
+          dropped: Boolean(parsed.dropped ?? DEFAULT_NOTIFICATION_STATUSES.dropped),
+        };
+      }
+      return { ...DEFAULT_NOTIFICATION_STATUSES };
+    } catch {
+      return { ...DEFAULT_NOTIFICATION_STATUSES };
+    }
+  },
+
+  async saveNotificationStatuses(statuses: NotificationStatusConfig): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATION_STATUSES, JSON.stringify(statuses));
       return true;
     } catch {
       return false;
