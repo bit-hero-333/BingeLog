@@ -14,6 +14,7 @@ import {
   Animated,
   PanResponder,
   Switch,
+  Linking,
 } from 'react-native';
 import { AppAlert as Alert } from '@/components/AppDialog';
 import { Image } from 'expo-image';
@@ -35,8 +36,10 @@ import {
   WatchProvider,
   TMDB_GENRE_MAP,
   WatchedHistoryRecord,
+  MediaTrailerInfo,
 } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
+import { getCachedTrailers, saveCachedTrailers } from '@/services/trailerCache';
 import { useMedia } from '@/context/MediaContext';
 import {
   getTextScale,
@@ -117,6 +120,7 @@ function TrackModalFormContent({
     showActorImages,
     showAllCast,
     showSeasonSpecials,
+    showTrailers,
     sizingConfig,
     setActiveDiscoverFilter,
     triggerHaptic,
@@ -267,6 +271,8 @@ function TrackModalFormContent({
       null
   );
   const [isLoadingDetails, setIsLoadingDetails] = useState(Boolean(apiKey));
+  const [trailers, setTrailers] = useState<MediaTrailerInfo[]>([]);
+  const [isLoadingTrailers, setIsLoadingTrailers] = useState<boolean>(false);
 
   // Granular episode tracking state: Set of "s{season}_e{episode}"
   const initialWatchedKeys = useMemo(() => {
@@ -616,6 +622,35 @@ function TrackModalFormContent({
       isMounted = false;
     };
   }, [id, mediaType, apiKey, selectedRegion]);
+
+  // Opt-in Trailers fetch & local cache (never calls TMDB unless showTrailers is ON)
+  useEffect(() => {
+    if (!showTrailers || !apiKey) {
+      return;
+    }
+    let isMounted = true;
+    async function loadTrailers() {
+      const cached = await getCachedTrailers(mediaType, id);
+      if (!isMounted) return;
+      if (cached !== null) {
+        setTrailers(cached);
+        return;
+      }
+      setIsLoadingTrailers(true);
+      try {
+        const fetched = await TMDBService.getMediaTrailers(id, mediaType, apiKey!);
+        if (!isMounted) return;
+        setTrailers(fetched);
+        await saveCachedTrailers(mediaType, id, fetched);
+      } finally {
+        if (isMounted) setIsLoadingTrailers(false);
+      }
+    }
+    void loadTrailers();
+    return () => {
+      isMounted = false;
+    };
+  }, [showTrailers, apiKey, id, mediaType]);
 
   // Load episodes of a specific season when expanded
   const handleToggleSeasonExpand = (seasonNumber: number) => {
@@ -2578,6 +2613,87 @@ function TrackModalFormContent({
                 ))}
               </View>
             ) : null}
+
+            {/* Opt-In Official Trailers Section */}
+            {showTrailers && (isLoadingTrailers || trailers.length > 0) && (
+              <View style={{ marginBottom: 12, gap: 8 }}>
+                {isLoadingTrailers ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                    <Text style={{ color: colors.textSecondary, fontSize: Math.round(12 * textScale) }}>
+                      Loading trailers...
+                    </Text>
+                  </View>
+                ) : trailers.length > 0 ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                    <Pressable
+                      style={({ pressed }) => [
+                        {
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 6,
+                          paddingHorizontal: 12,
+                          paddingVertical: 7,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          backgroundColor: colors.primaryBg,
+                          borderColor: colors.primary,
+                        },
+                        pressed && { opacity: 0.8 },
+                      ]}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        void Linking.openURL(`https://www.youtube.com/watch?v=${trailers[0].key}`);
+                      }}>
+                      <Ionicons name="play-circle" size={16} color={colors.primary} />
+                      <Text
+                        style={{
+                          color: colors.primary,
+                          fontSize: Math.round(12 * textScale),
+                          fontWeight: '700',
+                          includeFontPadding: false,
+                        }}>
+                        {trailers[0].type === 'Teaser' ? 'Watch Teaser' : 'Watch Trailer'}
+                      </Text>
+                    </Pressable>
+
+                    {trailers.slice(1, 3).map((tr, idx) => (
+                      <Pressable
+                        key={`tr-${tr.key}`}
+                        style={({ pressed }) => [
+                          {
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 5,
+                            paddingHorizontal: 10,
+                            paddingVertical: 7,
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            backgroundColor: colors.inputBg,
+                            borderColor: colors.cardBorder,
+                          },
+                          pressed && { opacity: 0.8 },
+                        ]}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          void Linking.openURL(`https://www.youtube.com/watch?v=${tr.key}`);
+                        }}>
+                        <Ionicons name="logo-youtube" size={13} color={colors.textSecondary} />
+                        <Text
+                          style={{
+                            color: colors.textSecondary,
+                            fontSize: Math.round(11.5 * textScale),
+                            fontWeight: '600',
+                            includeFontPadding: false,
+                          }}>
+                          {tr.type === 'Teaser' ? 'Teaser' : `Trailer ${idx + 2}`}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            )}
 
             {overview ? (
               <View style={[styles.synopsisContainer, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>

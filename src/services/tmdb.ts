@@ -14,6 +14,7 @@ import {
   WatchProvider,
   POPULAR_STREAMING_PROVIDERS,
   MultiDiscoverFilter,
+  MediaTrailerInfo,
 } from '@/types/media';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
@@ -1159,5 +1160,57 @@ export const TMDBService = {
     Object.keys(watchProvidersListCache).forEach((k) => {
       delete watchProvidersListCache[k];
     });
+  },
+
+  async getMediaTrailers(
+    id: number,
+    type: MediaType,
+    apiKey: string
+  ): Promise<MediaTrailerInfo[]> {
+    try {
+      interface RawVideoItem {
+        key?: string;
+        name?: string;
+        site?: string;
+        type?: string;
+        official?: boolean;
+        published_at?: string;
+      }
+      const data = await this.request<{ results?: RawVideoItem[] }>(
+        `/${type}/${id}/videos`,
+        apiKey
+      );
+      const raw = Array.isArray(data?.results) ? data.results : [];
+      const youtube = raw.filter((v) => v.site === 'YouTube' && Boolean(v.key));
+
+      const getRank = (v: RawVideoItem): number => {
+        const isOfficial = Boolean(v.official);
+        if (isOfficial && v.type === 'Trailer') return 0;
+        if (!isOfficial && v.type === 'Trailer') return 1;
+        if (isOfficial && v.type === 'Teaser') return 2;
+        if (!isOfficial && v.type === 'Teaser') return 3;
+        return 4;
+      };
+
+      youtube.sort((a, b) => {
+        const rankDiff = getRank(a) - getRank(b);
+        if (rankDiff !== 0) return rankDiff;
+        const dateA = a.published_at || '';
+        const dateB = b.published_at || '';
+        return dateB.localeCompare(dateA);
+      });
+
+      return youtube.slice(0, 5).map((v) => ({
+        key: v.key!,
+        name: v.name || 'Trailer',
+        site: v.site || 'YouTube',
+        type: v.type || 'Trailer',
+        official: Boolean(v.official),
+        publishedAt: v.published_at,
+      }));
+    } catch (e) {
+      console.warn('Failed to fetch media trailers from TMDB', e);
+      return [];
+    }
   },
 };

@@ -23,6 +23,8 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { TrackedItem, MediaType } from '@/types/media';
 import { TMDBService } from '@/services/tmdb';
 import { MediaCard } from '@/components/MediaCard';
+import { MediaPosterGridCard } from '@/components/MediaPosterGridCard';
+import { ReleaseCalendarModal } from '@/components/ReleaseCalendarModal';
 import { StatsHeader } from '@/components/StatsHeader';
 import { StatusFilterChips, FilterStatus } from '@/components/StatusFilterChips';
 import { TrackModal } from '@/components/TrackModal';
@@ -69,7 +71,6 @@ const SORT_OPTIONS: SortOptionConfig[] = [
 export default function MyListScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const numColumns = width >= 1100 ? 3 : width >= 700 ? 2 : 1;
 
   const {
     trackedItems,
@@ -82,12 +83,33 @@ export default function MyListScreen() {
     selectedRegion,
     selectedTimezone,
     sizingConfig,
+    myListViewMode,
+    setMyListViewMode,
   } = useMedia();
   const { colors } = useAppTheme();
 
   const textScale = getTextScale(sizingConfig?.textSize);
   const headerScale = getHeaderScale(sizingConfig?.headerSize);
   const buttonScale = getButtonScale(sizingConfig?.buttonSize);
+
+  const effectiveNumColumns = useMemo(() => {
+    if (myListViewMode === 'grid') {
+      const isLargePoster =
+        sizingConfig?.posterSize === 'large' || sizingConfig?.posterSize === 'xlarge';
+      if (width >= 1100) return isLargePoster ? 4 : 5;
+      if (width >= 700) return isLargePoster ? 3 : 4;
+      return isLargePoster ? 2 : 3;
+    }
+    return width >= 1100 ? 3 : width >= 700 ? 2 : 1;
+  }, [myListViewMode, sizingConfig?.posterSize, width]);
+
+  const gridCardWidth = useMemo(() => {
+    const gridHorizontalPadding = 24;
+    const gridGap = 10;
+    return Math.floor(
+      (width - gridHorizontalPadding - gridGap * (effectiveNumColumns - 1)) / effectiveNumColumns
+    );
+  }, [width, effectiveNumColumns]);
 
   const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaTypeFilter>('all');
   const [isMediaTypeDropdownOpen, setIsMediaTypeDropdownOpen] = useState(false);
@@ -106,11 +128,16 @@ export default function MyListScreen() {
   const [activeItem, setActiveItem] = useState<TrackedItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [rouletteVisible, setRouletteVisible] = useState(false);
+  const [calendarVisible, setCalendarVisible] = useState(false);
 
   // Back gesture handler: dismisses local modals and search before tab navigation
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
+        if (calendarVisible) {
+          setCalendarVisible(false);
+          return true;
+        }
         if (sortModalVisible) {
           setSortModalVisible(false);
           return true;
@@ -130,7 +157,7 @@ export default function MyListScreen() {
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
-    }, [sortModalVisible, isMediaTypeDropdownOpen, filterQuery])
+    }, [calendarVisible, sortModalVisible, isMediaTypeDropdownOpen, filterQuery])
   );
 
   // Movie vs TV counts
@@ -395,6 +422,24 @@ export default function MyListScreen() {
             },
           ]}
           onPress={() => {
+            triggerHaptic('selection');
+            setCalendarVisible(true);
+          }}
+          accessibilityLabel="Open release calendar">
+          <Ionicons name="calendar-outline" size={Math.round(18 * textScale)} color={colors.primary} />
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.rouletteButton,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.cardBorder,
+              minHeight: Math.max(36, Math.round(38 * buttonScale)),
+              minWidth: Math.max(36, Math.round(38 * buttonScale)),
+            },
+          ]}
+          onPress={() => {
             triggerHaptic('impact');
             setRouletteVisible(true);
           }}
@@ -482,6 +527,28 @@ export default function MyListScreen() {
               ]}>
               Upcoming ({upcomingCount})
             </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.rouletteButton,
+              {
+                backgroundColor: myListViewMode === 'grid' ? colors.primaryBg : colors.card,
+                borderColor: myListViewMode === 'grid' ? colors.primary : colors.cardBorder,
+                minHeight: Math.max(36, Math.round(38 * buttonScale)),
+                minWidth: Math.max(36, Math.round(38 * buttonScale)),
+              },
+            ]}
+            onPress={() => {
+              triggerHaptic('selection');
+              void setMyListViewMode(myListViewMode === 'grid' ? 'list' : 'grid');
+            }}
+            accessibilityLabel="Toggle watchlist view mode">
+            <Ionicons
+              name={myListViewMode === 'grid' ? 'list-outline' : 'grid-outline'}
+              size={Math.round(17 * textScale)}
+              color={myListViewMode === 'grid' ? colors.primary : colors.textSecondary}
+            />
           </Pressable>
         </View>
 
@@ -643,22 +710,39 @@ export default function MyListScreen() {
 
       {/* Main List */}
       <FlatList
-        key={`mylist-grid-${numColumns}`}
+        key={`mylist-${myListViewMode}-${effectiveNumColumns}`}
         data={displayedItems}
-        numColumns={numColumns}
-        columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : undefined}
+        numColumns={effectiveNumColumns}
+        columnWrapperStyle={
+          effectiveNumColumns > 1
+            ? myListViewMode === 'grid'
+              ? { gap: 10, justifyContent: 'flex-start' }
+              : styles.columnWrapper
+            : undefined
+        }
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         keyExtractor={(item) => `${item.mediaType}-${item.id}`}
-        renderItem={({ item }) => (
-          <MediaCard
-            item={item}
-            trackedRecord={item}
-            onPress={() => handleCardPress(item)}
-            style={numColumns > 1 ? styles.gridCard : undefined}
-          />
-        )}
-        contentContainerStyle={styles.listContent}
+        renderItem={({ item }) =>
+          myListViewMode === 'grid' ? (
+            <MediaPosterGridCard
+              item={item}
+              width={gridCardWidth}
+              onPress={() => handleCardPress(item)}
+            />
+          ) : (
+            <MediaCard
+              item={item}
+              trackedRecord={item}
+              onPress={() => handleCardPress(item)}
+              style={effectiveNumColumns > 1 ? styles.gridCard : undefined}
+            />
+          )
+        }
+        contentContainerStyle={[
+          styles.listContent,
+          myListViewMode === 'grid' && { paddingHorizontal: 12 },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -797,6 +881,16 @@ export default function MyListScreen() {
         onClose={() => setRouletteVisible(false)}
         onSelectItem={handleCardPress}
         initialFormat={mediaTypeFilter}
+      />
+
+      {/* Interactive Release Calendar Modal */}
+      <ReleaseCalendarModal
+        visible={calendarVisible}
+        onClose={() => setCalendarVisible(false)}
+        onSelectItem={(item) => {
+          setCalendarVisible(false);
+          handleCardPress(item);
+        }}
       />
     </View>
   );

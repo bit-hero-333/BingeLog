@@ -148,6 +148,8 @@ export default function SettingsScreen() {
     setShowAllCast,
     showSeasonSpecials,
     setShowSeasonSpecials,
+    showTrailers,
+    setShowTrailers,
     sizingConfig,
     setSizingConfig,
     hapticIntensity,
@@ -557,6 +559,7 @@ export default function SettingsScreen() {
             showActorImages,
             showAllCast,
             showSeasonSpecials,
+            showTrailers,
             sizingConfig,
           },
           mode
@@ -1414,6 +1417,24 @@ export default function SettingsScreen() {
             value={showSeasonSpecials}
             onValueChange={(val) => {
               void setShowSeasonSpecials(val);
+            }}
+            trackColor={{ false: '#334155', true: colors.primary }}
+            thumbColor="#ffffff"
+          />
+        </View>
+
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleTextContainer}>
+            <Text style={[styles.toggleLabel, { color: colors.text }]}>Official Trailers (YouTube)</Text>
+            <Text style={[styles.toggleDescription, { color: colors.textSecondary }]}>
+              Opt-in: fetches official trailer links from TMDB on detail pages and caches them locally. Off by default to avoid spoilers.
+            </Text>
+          </View>
+          <Switch
+            value={showTrailers}
+            onValueChange={(val) => {
+              triggerHaptic('selection');
+              void setShowTrailers(val);
             }}
             trackColor={{ false: '#334155', true: colors.primary }}
             thumbColor="#ffffff"
@@ -3094,7 +3115,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.28.0 • TMDB & MIT License
+                Version 0.29.0 • TMDB & MIT License
               </Text>
             </View>
           </View>
@@ -3191,7 +3212,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.28.0 • Build 60 • Expo SDK 57
+              Version 0.29.0 • Build 61 • Expo SDK 57
             </Text>
           </View>
         )}

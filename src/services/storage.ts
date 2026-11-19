@@ -12,6 +12,7 @@ import {
   NotificationTimingOption,
   NotificationStatusConfig,
   DEFAULT_NOTIFICATION_STATUSES,
+  MyListViewMode,
   ProviderDisplayStrategy,
   StreamingRegionStrategy,
 } from '@/types/media';
@@ -55,6 +56,8 @@ const STORAGE_KEYS = {
   SHOW_ACTOR_IMAGES: '@pmt_show_actor_images',
   SHOW_ALL_CAST: '@pmt_show_all_cast',
   SHOW_SEASON_SPECIALS: '@pmt_show_season_specials',
+  SHOW_TRAILERS: '@pmt_show_trailers',
+  MY_LIST_VIEW_MODE: '@pmt_my_list_view_mode',
   SIZING_CONFIG: '@pmt_sizing_config',
   THEME_CONFIG: '@pmt_theme_config',
   HAPTIC_INTENSITY: '@pmt_haptic_intensity',
@@ -586,6 +589,47 @@ export const StorageService = {
       return true;
     } catch (e) {
       console.error('Failed to save show season specials setting', e);
+      return false;
+    }
+  },
+
+  async getShowTrailers(): Promise<boolean> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.SHOW_TRAILERS);
+      if (val === null) return false;
+      return val === 'true';
+    } catch (e) {
+      console.error('Failed to get show trailers setting', e);
+      return false;
+    }
+  },
+
+  async saveShowTrailers(enabled: boolean): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SHOW_TRAILERS, enabled ? 'true' : 'false');
+      return true;
+    } catch (e) {
+      console.error('Failed to save show trailers setting', e);
+      return false;
+    }
+  },
+
+  async getMyListViewMode(): Promise<MyListViewMode> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.MY_LIST_VIEW_MODE);
+      return val === 'grid' ? 'grid' : 'list';
+    } catch (e) {
+      console.error('Failed to get my list view mode', e);
+      return 'list';
+    }
+  },
+
+  async saveMyListViewMode(mode: MyListViewMode): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.MY_LIST_VIEW_MODE, mode);
+      return true;
+    } catch (e) {
+      console.error('Failed to save my list view mode', e);
       return false;
     }
   },

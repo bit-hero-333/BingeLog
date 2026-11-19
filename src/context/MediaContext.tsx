@@ -18,6 +18,7 @@ import {
   NotificationTimingOption,
   NotificationStatusConfig,
   DEFAULT_NOTIFICATION_STATUSES,
+  MyListViewMode,
   ItemReminderConfig,
   ProviderDisplayStrategy,
   StreamingRegionStrategy,
@@ -63,6 +64,10 @@ interface MediaContextType {
   setShowAllCast: (enabled: boolean) => Promise<boolean>;
   showSeasonSpecials: boolean;
   setShowSeasonSpecials: (enabled: boolean) => Promise<boolean>;
+  showTrailers: boolean;
+  setShowTrailers: (enabled: boolean) => Promise<boolean>;
+  myListViewMode: MyListViewMode;
+  setMyListViewMode: (mode: MyListViewMode) => Promise<boolean>;
 
   // Granular sizing
   sizingConfig: SizingConfig;
@@ -148,6 +153,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   const [showActorImages, setShowActorImagesState] = useState(true);
   const [showAllCast, setShowAllCastState] = useState(false);
   const [showSeasonSpecials, setShowSeasonSpecialsState] = useState(false);
+  const [showTrailers, setShowTrailersState] = useState(false);
+  const [myListViewMode, setMyListViewModeState] = useState<MyListViewMode>('list');
   const [sizingConfig, setSizingConfigState] = useState<SizingConfig>(DEFAULT_SIZING_CONFIG);
   const [hapticIntensity, setHapticIntensityState] = useState<HapticIntensity>('medium');
   const [dateFormat, setDateFormatState] = useState<DateFormatOption>(DEFAULT_DATE_FORMAT);
@@ -194,6 +201,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           savedActorImages,
           savedAllCast,
           savedSeasonSpecials,
+          savedShowTrailers,
+          savedMyListViewMode,
           savedSizing,
           savedHaptic,
           savedDateFormat,
@@ -223,6 +232,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           StorageService.getShowActorImages(),
           StorageService.getShowAllCast(),
           StorageService.getShowSeasonSpecials(),
+          StorageService.getShowTrailers(),
+          StorageService.getMyListViewMode(),
           StorageService.getSizingConfig(),
           StorageService.getHapticIntensity(),
           StorageService.getDateFormat(),
@@ -251,6 +262,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setShowActorImagesState(savedActorImages);
         setShowAllCastState(savedAllCast);
         setShowSeasonSpecialsState(savedSeasonSpecials);
+        setShowTrailersState(savedShowTrailers);
+        setMyListViewModeState(savedMyListViewMode);
         setSizingConfigState(savedSizing);
         setHapticIntensityState(savedHaptic);
         setDateFormatState(savedDateFormat);
@@ -642,6 +655,22 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     const success = await StorageService.saveShowSeasonSpecials(enabled);
     if (success) {
       setShowSeasonSpecialsState(enabled);
+    }
+    return success;
+  };
+
+  const setShowTrailers = async (enabled: boolean): Promise<boolean> => {
+    const success = await StorageService.saveShowTrailers(enabled);
+    if (success) {
+      setShowTrailersState(enabled);
+    }
+    return success;
+  };
+
+  const setMyListViewMode = async (mode: MyListViewMode): Promise<boolean> => {
+    const success = await StorageService.saveMyListViewMode(mode);
+    if (success) {
+      setMyListViewModeState(mode);
     }
     return success;
   };
@@ -1083,6 +1112,10 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         setShowAllCast,
         showSeasonSpecials,
         setShowSeasonSpecials,
+        showTrailers,
+        setShowTrailers,
+        myListViewMode,
+        setMyListViewMode,
         sizingConfig,
         setSizingConfig,
         hapticIntensity,

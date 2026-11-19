@@ -704,3 +704,14 @@ export const DEFAULT_NOTIFICATION_STATUSES: NotificationStatusConfig = {
   dropped: false,
 };
 
+export type MyListViewMode = 'list' | 'grid';
+
+export interface MediaTrailerInfo {
+  key: string;
+  name: string;
+  site: string;
+  type: string;
+  official: boolean;
+  publishedAt?: string;
+}
+
