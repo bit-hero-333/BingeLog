@@ -3115,7 +3115,7 @@ export default function SettingsScreen() {
             <View style={styles.accordionTextGroup}>
               <Text style={[styles.cardTitle, dynTypography.cardTitle, { color: colors.text }]}>About & Disclaimers</Text>
               <Text style={[styles.accordionSubtitle, dynTypography.accordionSubtitle, { color: colors.textSecondary }]}>
-                Version 0.29.0 • TMDB & MIT License
+                Version 0.29.1 • TMDB & MIT License
               </Text>
             </View>
           </View>
@@ -3212,7 +3212,7 @@ export default function SettingsScreen() {
             </Text>
 
             <Text selectable style={[styles.infoVersion, { color: colors.primary, fontSize: 11 * textScale }]}>
-              Version 0.29.0 • Build 61 • Expo SDK 57
+              Version 0.29.1 • Build 62 • Expo SDK 57
             </Text>
           </View>
         )}

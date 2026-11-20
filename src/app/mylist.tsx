@@ -115,7 +115,6 @@ export default function MyListScreen() {
   const [isMediaTypeDropdownOpen, setIsMediaTypeDropdownOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>('all');
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
-  const [filterUpcomingOnly, setFilterUpcomingOnly] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('updated');
   const [sortModalVisible, setSortModalVisible] = useState(false);
@@ -254,18 +253,6 @@ export default function MyListScreen() {
       result = result.filter((i) => i.genres?.includes(selectedGenre));
     }
 
-    // Filter by upcoming releases only
-    if (filterUpcomingOnly) {
-      result = result.filter((i) => {
-        const dateStr =
-          i.mediaType === 'movie'
-            ? i.regionalReleaseDate || i.releaseDate
-            : i.nextAirDate || i.nextEpisode?.airDate;
-        if (!dateStr) return false;
-        return getCountdownInfo(dateStr, selectedTimezone).isUpcoming;
-      });
-    }
-
     // Filter by query
     if (filterQuery.trim()) {
       const q = filterQuery.toLowerCase();
@@ -314,7 +301,7 @@ export default function MyListScreen() {
     });
 
     return result;
-  }, [trackedItems, mediaTypeFilter, selectedStatus, selectedGenre, filterUpcomingOnly, filterQuery, sortBy, selectedTimezone]);
+  }, [trackedItems, mediaTypeFilter, selectedStatus, selectedGenre, filterQuery, sortBy]);
 
   const handleRefresh = async () => {
     if (!apiKey) {
@@ -422,24 +409,6 @@ export default function MyListScreen() {
             },
           ]}
           onPress={() => {
-            triggerHaptic('selection');
-            setCalendarVisible(true);
-          }}
-          accessibilityLabel="Open release calendar">
-          <Ionicons name="calendar-outline" size={Math.round(18 * textScale)} color={colors.primary} />
-        </Pressable>
-
-        <Pressable
-          style={[
-            styles.rouletteButton,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.cardBorder,
-              minHeight: Math.max(36, Math.round(38 * buttonScale)),
-              minWidth: Math.max(36, Math.round(38 * buttonScale)),
-            },
-          ]}
-          onPress={() => {
             triggerHaptic('impact');
             setRouletteVisible(true);
           }}
@@ -458,7 +427,7 @@ export default function MyListScreen() {
         </Pressable>
       </View>
 
-      {/* Media Type & Upcoming Filter Controls */}
+      {/* Media Type, Release Calendar & View Controls */}
       <View style={styles.mediaTypeSection}>
         <View style={styles.mediaTypeRow}>
           <Pressable
@@ -504,28 +473,30 @@ export default function MyListScreen() {
 
           <Pressable
             style={[
-              styles.upcomingToggleBtn,
+              styles.calendarBtn,
               {
-                backgroundColor: filterUpcomingOnly ? colors.primaryBg : colors.card,
-                borderColor: filterUpcomingOnly ? colors.primary : colors.cardBorder,
+                backgroundColor: colors.card,
+                borderColor: colors.cardBorder,
                 minHeight: Math.max(36, Math.round(38 * buttonScale)),
               },
             ]}
             onPress={() => {
               triggerHaptic('selection');
-              setFilterUpcomingOnly((prev) => !prev);
-            }}>
+              setCalendarVisible(true);
+            }}
+            accessibilityLabel="Open release calendar">
             <Ionicons
               name="calendar-outline"
-              size={Math.round(13 * textScale)}
-              color={filterUpcomingOnly ? colors.primary : colors.textSecondary}
+              size={Math.round(14 * textScale)}
+              color={colors.primary}
             />
             <Text
               style={[
-                styles.upcomingToggleText,
-                { color: filterUpcomingOnly ? colors.primary : colors.textSecondary, fontSize: Math.round(12 * textScale) },
-              ]}>
-              Upcoming ({upcomingCount})
+                styles.calendarBtnText,
+                { color: colors.primary, fontSize: Math.round(12 * textScale) },
+              ]}
+              numberOfLines={1}>
+              {upcomingCount > 0 ? `Calendar (${upcomingCount})` : 'Calendar'}
             </Text>
           </Pressable>
 
@@ -972,7 +943,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
   },
-  upcomingToggleBtn: {
+  calendarBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -981,7 +952,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
   },
-  upcomingToggleText: {
+  calendarBtnText: {
     fontSize: 12,
     fontWeight: '700',
   },
