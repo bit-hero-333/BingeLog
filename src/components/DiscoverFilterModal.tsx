@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,11 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   Keyboard,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useMedia } from '@/context/MediaContext';
 import { TMDBService } from '@/services/tmdb';
@@ -66,11 +68,63 @@ function DiscoverFilterModalContent({
     triggerHaptic,
     sizingConfig,
   } = useMedia();
-  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
 
   const textScale = getTextScale(sizingConfig?.textSize);
   const headerScale = getHeaderScale(sizingConfig?.headerSize);
   const buttonScale = getButtonScale(sizingConfig?.buttonSize);
+
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [backdropHeight, setBackdropHeight] = useState(height);
+  const [fullBackdropHeight, setFullBackdropHeight] = useState(height);
+  const [isApplying, setIsApplying] = useState(false);
+
+  const [prevWidth, setPrevWidth] = useState(width);
+  if (width !== prevWidth) {
+    setPrevWidth(width);
+    setBackdropHeight(height);
+    setFullBackdropHeight(height);
+  }
+
+  type SearchSectionKey = 'provider' | 'country' | 'company' | 'person';
+  const scrollViewRef = useRef<ScrollView>(null);
+  const sectionYRef = useRef<Record<SearchSectionKey, number>>({
+    provider: 0,
+    country: 0,
+    company: 0,
+    person: 0,
+  });
+  const focusedSectionRef = useRef<SearchSectionKey | null>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scrollToSection = useCallback((key: SearchSectionKey, delay = 140) => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    scrollTimeoutRef.current = setTimeout(() => {
+      const y = sectionYRef.current[key] ?? 0;
+      scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
+    }, delay);
+  }, []);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Draft local filter state for the modal - initialized fresh when opened
   const [draft, setDraft] = useState<MultiDiscoverFilter>(filter);
@@ -98,6 +152,12 @@ function DiscoverFilterModalContent({
   const [companyQuery, setCompanyQuery] = useState('');
   const [companyResults, setCompanyResults] = useState<{ id: number; name: string; logoPath: string | null }[]>([]);
   const [isSearchingCompanies, setIsSearchingCompanies] = useState(false);
+
+  useEffect(() => {
+    if (keyboardHeight > 0 && focusedSectionRef.current) {
+      scrollToSection(focusedSectionRef.current, 100);
+    }
+  }, [keyboardHeight, personResults.length, companyResults.length, countrySuggestions.length, scrollToSection]);
 
   // Load streaming providers when providerScope is selected
   useEffect(() => {
@@ -196,10 +256,9 @@ function DiscoverFilterModalContent({
     return list.filter((p: WatchProvider) => p.name.toLowerCase().includes(q));
   }, [draft.providerScope, mySubscribedProviders, regionProviders, worldwideProviders, providerSearch]);
 
-  // Calculate active filter count
+  // Calculate active filter count (aligned with Discover header badge)
   const activeCount = useMemo(() => {
     let count = 0;
-    if (draft.mediaType !== 'all') count++;
     if (draft.releaseWindow !== 'all') count++;
     if (draft.providerScope !== 'none') {
       if (draft.providerScope === 'subscribed') count++;
@@ -210,7 +269,7 @@ function DiscoverFilterModalContent({
     if (draft.minRating > 0) count++;
     if (draft.selectedPeople.length > 0) count += draft.selectedPeople.length;
     if (draft.selectedCompanies.length > 0) count += draft.selectedCompanies.length;
-    if (draft.sortBy !== 'primary_release_date.asc') count++;
+    if (draft.sortBy !== DEFAULT_MULTI_DISCOVER_FILTER.sortBy) count++;
     return count;
   }, [draft]);
 
@@ -337,35 +396,79 @@ function DiscoverFilterModalContent({
     }));
   };
 
-  const handleApply = () => {
+  const handleApply = async () => {
+    if (isApplying) return;
+    setIsApplying(true);
     triggerHaptic('selection');
-    const detailMap = new Map<number, WatchProvider>();
-    for (const d of draft.selectedProviderDetails || []) {
-      detailMap.set(d.id, d);
-    }
-    for (const id of draft.selectedProviders) {
-      if (!detailMap.has(id)) {
-        const found =
-          availableProviders.find((p) => p.id === id) ||
-          regionProviders.find((p) => p.id === id) ||
-          worldwideProviders.find((p) => p.id === id) ||
-          POPULAR_STREAMING_PROVIDERS.find((p) => p.id === id);
-        if (found) {
-          detailMap.set(id, { id: found.id, name: found.name, logoPath: found.logoPath });
+
+    try {
+      const nextPeople = [...draft.selectedPeople];
+      if (personQuery.trim() && apiKey) {
+        let match = personResults[0];
+        if (!match) {
+          const fetched = await TMDBService.searchPeople(personQuery.trim(), apiKey);
+          match = fetched[0];
+        }
+        if (match && !nextPeople.some((p) => p.id === match.id)) {
+          nextPeople.push({ id: match.id, name: match.name, profilePath: match.profilePath });
         }
       }
+
+      const nextCompanies = [...draft.selectedCompanies];
+      if (companyQuery.trim() && apiKey) {
+        let match = companyResults[0];
+        if (!match) {
+          const fetched = await TMDBService.searchCompanies(companyQuery.trim(), apiKey);
+          match = fetched[0];
+        }
+        if (match && !nextCompanies.some((c) => c.id === match.id)) {
+          nextCompanies.push({ id: match.id, name: match.name, logoPath: match.logoPath });
+        }
+      }
+
+      const nextCountries = [...(draft.selectedCountries || [])];
+      if (countryQuery.trim()) {
+        const match = countrySuggestions[0];
+        if (match && !nextCountries.includes(match.code)) {
+          nextCountries.push(match.code);
+        }
+      }
+
+      const detailMap = new Map<number, WatchProvider>();
+      for (const d of draft.selectedProviderDetails || []) {
+        detailMap.set(d.id, d);
+      }
+      for (const id of draft.selectedProviders) {
+        if (!detailMap.has(id)) {
+          const found =
+            availableProviders.find((p) => p.id === id) ||
+            regionProviders.find((p) => p.id === id) ||
+            worldwideProviders.find((p) => p.id === id) ||
+            POPULAR_STREAMING_PROVIDERS.find((p) => p.id === id);
+          if (found) {
+            detailMap.set(id, { id: found.id, name: found.name, logoPath: found.logoPath });
+          }
+        }
+      }
+
+      onApply({
+        ...draft,
+        selectedPeople: nextPeople,
+        selectedCompanies: nextCompanies,
+        selectedCountries: nextCountries,
+        selectedProviderDetails: Array.from(detailMap.values()),
+      });
+      onClose();
+    } finally {
+      setIsApplying(false);
     }
-    onApply({
-      ...draft,
-      selectedProviderDetails: Array.from(detailMap.values()),
-    });
-    onClose();
   };
 
   const handleReset = () => {
     triggerHaptic('selection');
     setDraft(DEFAULT_MULTI_DISCOVER_FILTER);
     setProviderSearch('');
+    setCountryQuery('');
     setPersonQuery('');
     setPersonResults([]);
     setCompanyQuery('');
@@ -384,26 +487,52 @@ function DiscoverFilterModalContent({
   ];
 
   const SORT_OPTIONS: { id: DiscoverSortOption; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { id: 'primary_release_date.asc', label: 'Release Date (Earliest)', icon: 'arrow-up-outline' },
     { id: 'popularity.desc', label: 'Most Popular', icon: 'trending-up-outline' },
+    { id: 'primary_release_date.asc', label: 'Release Date (Earliest)', icon: 'arrow-up-outline' },
     { id: 'primary_release_date.desc', label: 'Release Date (Newest)', icon: 'arrow-down-outline' },
     { id: 'vote_average.desc', label: 'Highest Rated', icon: 'star-outline' },
   ];
 
   const RATING_PRESETS = [0, 6, 7, 7.5, 8, 8.5];
 
-  // Explicit modal sheet height (85% of screen height) so ScrollView never collapses
-  const modalSheetHeight = Math.round(height * 0.85);
+  const topSafeSpace = Math.max(insets.top, 24) + 12;
+  const windowAlreadyShrank =
+    keyboardHeight > 0 ? Math.max(0, fullBackdropHeight - backdropHeight) : 0;
+  const effectiveKeyboardInset =
+    keyboardHeight > 0 ? Math.max(0, keyboardHeight - windowAlreadyShrank) : 0;
+  const availableHeight = Math.max(220, backdropHeight - effectiveKeyboardInset - topSafeSpace);
+  const modalSheetHeight =
+    keyboardHeight > 0
+      ? Math.min(Math.round(height * 0.85), availableHeight)
+      : Math.round(height * 0.85);
 
   return (
-    <View style={styles.modalBackdrop}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+    <View
+      style={styles.modalBackdrop}
+      onLayout={(e) => {
+        const h = e.nativeEvent.layout.height;
+        if (h > 0) {
+          setBackdropHeight(h);
+          setFullBackdropHeight((prev) => (keyboardHeight === 0 ? Math.max(prev, h) : prev));
+        }
+      }}>
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        onPress={() => {
+          if (keyboardHeight > 0) {
+            Keyboard.dismiss();
+          } else {
+            onClose();
+          }
+        }}
+      />
       <View
         style={[
           styles.modalContainer,
           {
             backgroundColor: colors.background,
             height: modalSheetHeight,
+            marginBottom: effectiveKeyboardInset,
             borderColor: colors.cardBorder,
           },
         ]}>
@@ -427,10 +556,15 @@ function DiscoverFilterModalContent({
 
         {/* Scrollable Form Body */}
         <ScrollView
+          ref={scrollViewRef}
           style={styles.modalBody}
-          contentContainerStyle={styles.modalBodyContent}
+          contentContainerStyle={[
+            styles.modalBodyContent,
+            { paddingBottom: keyboardHeight > 0 ? 48 : 36 },
+          ]}
           showsVerticalScrollIndicator={true}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           nestedScrollEnabled={true}
           overScrollMode="always">
           {/* 1. Media Type Selector */}
@@ -518,7 +652,11 @@ function DiscoverFilterModalContent({
           </View>
 
           {/* 3. Streaming Providers */}
-          <View style={styles.section}>
+          <View
+            style={styles.section}
+            onLayout={(e) => {
+              sectionYRef.current.provider = e.nativeEvent.layout.y;
+            }}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary, fontSize: 13 * headerScale }]}>
               STREAMING PROVIDERS
             </Text>
@@ -581,6 +719,15 @@ function DiscoverFilterModalContent({
                     placeholderTextColor={colors.textMuted}
                     value={providerSearch}
                     onChangeText={setProviderSearch}
+                    onFocus={() => {
+                      focusedSectionRef.current = 'provider';
+                      scrollToSection('provider', 150);
+                    }}
+                    onBlur={() => {
+                      if (focusedSectionRef.current === 'provider') {
+                        focusedSectionRef.current = null;
+                      }
+                    }}
                     autoCorrect={false}
                   />
                   {providerSearch.length > 0 && (
@@ -704,7 +851,11 @@ function DiscoverFilterModalContent({
           </View>
 
           {/* 5. Country of Origin */}
-          <View style={styles.section}>
+          <View
+            style={styles.section}
+            onLayout={(e) => {
+              sectionYRef.current.country = e.nativeEvent.layout.y;
+            }}>
             <View style={styles.sectionHeaderRow}>
               <Text style={[styles.sectionTitle, { color: colors.textSecondary, fontSize: 13 * headerScale }]}>
                 COUNTRY OF ORIGIN
@@ -753,6 +904,15 @@ function DiscoverFilterModalContent({
                 placeholderTextColor={colors.textMuted}
                 value={countryQuery}
                 onChangeText={setCountryQuery}
+                onFocus={() => {
+                  focusedSectionRef.current = 'country';
+                  scrollToSection('country', 150);
+                }}
+                onBlur={() => {
+                  if (focusedSectionRef.current === 'country') {
+                    focusedSectionRef.current = null;
+                  }
+                }}
                 autoCorrect={false}
                 autoCapitalize="none"
                 multiline={false}
@@ -883,7 +1043,11 @@ function DiscoverFilterModalContent({
           </View>
 
           {/* 6. Production Studios / Companies */}
-          <View style={styles.section}>
+          <View
+            style={styles.section}
+            onLayout={(e) => {
+              sectionYRef.current.company = e.nativeEvent.layout.y;
+            }}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary, fontSize: 13 * headerScale }]}>
               STUDIOS & PRODUCTION COMPANIES
             </Text>
@@ -915,13 +1079,30 @@ function DiscoverFilterModalContent({
                 placeholderTextColor={colors.textMuted}
                 value={companyQuery}
                 onChangeText={setCompanyQuery}
+                onFocus={() => {
+                  focusedSectionRef.current = 'company';
+                  scrollToSection('company', 150);
+                }}
+                onBlur={() => {
+                  if (focusedSectionRef.current === 'company') {
+                    focusedSectionRef.current = null;
+                  }
+                }}
                 autoCorrect={false}
               />
-              {isSearchingCompanies && <ActivityIndicator size="small" color={colors.primary} />}
+              {isSearchingCompanies ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                companyQuery.length > 0 && (
+                  <Pressable onPress={() => setCompanyQuery('')} hitSlop={8}>
+                    <Ionicons name="close-circle" size={17} color={colors.textSecondary} />
+                  </Pressable>
+                )
+              )}
             </View>
 
             {/* Company Suggestions Dropdown */}
-            {companyResults.length > 0 && (
+            {companyResults.length > 0 ? (
               <View style={[styles.suggestionBox, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                 {companyResults.map((c) => (
                   <Pressable
@@ -935,11 +1116,24 @@ function DiscoverFilterModalContent({
                   </Pressable>
                 ))}
               </View>
+            ) : (
+              companyQuery.trim().length > 0 &&
+              !isSearchingCompanies && (
+                <View style={[styles.suggestionBox, { backgroundColor: colors.card, borderColor: colors.cardBorder, padding: 12, alignItems: 'center' }]}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 * textScale }}>
+                    No studios found matching &ldquo;{companyQuery}&rdquo;.
+                  </Text>
+                </View>
+              )
             )}
           </View>
 
           {/* 7. Actors & Directors */}
-          <View style={styles.section}>
+          <View
+            style={styles.section}
+            onLayout={(e) => {
+              sectionYRef.current.person = e.nativeEvent.layout.y;
+            }}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary, fontSize: 13 * headerScale }]}>
               CAST & DIRECTORS
             </Text>
@@ -971,13 +1165,30 @@ function DiscoverFilterModalContent({
                 placeholderTextColor={colors.textMuted}
                 value={personQuery}
                 onChangeText={setPersonQuery}
+                onFocus={() => {
+                  focusedSectionRef.current = 'person';
+                  scrollToSection('person', 150);
+                }}
+                onBlur={() => {
+                  if (focusedSectionRef.current === 'person') {
+                    focusedSectionRef.current = null;
+                  }
+                }}
                 autoCorrect={false}
               />
-              {isSearchingPeople && <ActivityIndicator size="small" color={colors.primary} />}
+              {isSearchingPeople ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                personQuery.length > 0 && (
+                  <Pressable onPress={() => setPersonQuery('')} hitSlop={8}>
+                    <Ionicons name="close-circle" size={17} color={colors.textSecondary} />
+                  </Pressable>
+                )
+              )}
             </View>
 
             {/* Person Suggestions Dropdown */}
-            {personResults.length > 0 && (
+            {personResults.length > 0 ? (
               <View style={[styles.suggestionBox, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                 {personResults.map((p) => {
                   const profileUrl = TMDBService.getImageUrl(p.profilePath, 'w92');
@@ -1008,6 +1219,15 @@ function DiscoverFilterModalContent({
                   );
                 })}
               </View>
+            ) : (
+              personQuery.trim().length > 0 &&
+              !isSearchingPeople && (
+                <View style={[styles.suggestionBox, { backgroundColor: colors.card, borderColor: colors.cardBorder, padding: 12, alignItems: 'center' }]}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 * textScale }}>
+                    No actors or directors found matching &ldquo;{personQuery}&rdquo;.
+                  </Text>
+                </View>
+              )
             )}
           </View>
 
@@ -1052,7 +1272,14 @@ function DiscoverFilterModalContent({
         </ScrollView>
 
         {/* Footer Actions */}
-        <View style={[styles.modalFooter, { borderTopColor: colors.cardBorder }]}>
+        <View
+          style={[
+            styles.modalFooter,
+            {
+              borderTopColor: colors.cardBorder,
+              paddingBottom: keyboardHeight > 0 ? 10 : Math.max(12, insets.bottom),
+            },
+          ]}>
           <Pressable
             style={[
               styles.resetBtn,
@@ -1068,12 +1295,25 @@ function DiscoverFilterModalContent({
           <Pressable
             style={[
               styles.applyBtn,
-              { backgroundColor: colors.primary, minHeight: Math.round(44 * buttonScale) },
+              {
+                backgroundColor: colors.primary,
+                minHeight: Math.round(44 * buttonScale),
+                opacity: isApplying ? 0.7 : 1,
+              },
             ]}
-            onPress={handleApply}>
-            <Ionicons name="checkmark" size={17 * textScale} color="#ffffff" />
+            disabled={isApplying}
+            onPress={() => {
+              void handleApply();
+            }}>
+            {isApplying ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Ionicons name="checkmark" size={17 * textScale} color="#ffffff" />
+            )}
             <Text style={[styles.applyBtnText, { fontSize: 13.5 * textScale }]}>
-              Apply Filters {activeCount > 0 ? `(${activeCount})` : ''}
+              {isApplying
+                ? 'Applying...'
+                : `Apply Filters ${activeCount > 0 ? `(${activeCount})` : ''}`}
             </Text>
           </Pressable>
         </View>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -35,6 +35,7 @@ import { DiscoverFilterModal } from '@/components/DiscoverFilterModal';
 import { ReleaseReminderModal } from '@/components/ReleaseReminderModal';
 import { BingeRouletteModal } from '@/components/BingeRouletteModal';
 import { getTextScale, getHeaderScale } from '@/utils/sizing';
+import { getCountryName } from '@/utils/country';
 
 type DiscoverFeedTab = 'upcoming' | 'trending';
 
@@ -62,8 +63,9 @@ export default function DiscoverScreen() {
   const textScale = getTextScale(sizingConfig?.textSize);
   const headerScale = getHeaderScale(sizingConfig?.headerSize);
 
-  // Active top feed tab: 'upcoming' drops vs 'trending' now
-  const [feedTab, setFeedTab] = useState<DiscoverFeedTab>('upcoming');
+  // Active top feed tab: 'trending' now (default) vs 'upcoming' drops
+  const [feedTab, setFeedTab] = useState<DiscoverFeedTab>('trending');
+  const requestIdRef = useRef(0);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,9 +90,9 @@ export default function DiscoverScreen() {
   const [selectedReminderItem, setSelectedReminderItem] = useState<TMDBMediaItem | null>(null);
   const [reminderModalVisible, setReminderModalVisible] = useState(false);
 
-  // Quick timing windows list (defaults to no particular time frame at all)
+  // Quick timing windows list (defaults to upcoming releases)
   const TIMING_PRESETS: { id: DiscoverReleaseWindow; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { id: 'all', label: 'All Releases', icon: 'infinite-outline' },
+    { id: 'all', label: 'All Upcoming', icon: 'infinite-outline' },
     { id: 'upcoming_30', label: 'Next 30 Days', icon: 'calendar-outline' },
     { id: 'upcoming_60', label: 'Next 60 Days', icon: 'calendar-outline' },
     { id: 'upcoming_90', label: 'Next 90 Days', icon: 'calendar-outline' },
@@ -144,12 +146,15 @@ export default function DiscoverScreen() {
     if (multiFilter.minRating > 0) count++;
     if (multiFilter.selectedPeople.length > 0) count += multiFilter.selectedPeople.length;
     if (multiFilter.selectedCompanies.length > 0) count += multiFilter.selectedCompanies.length;
-    if (multiFilter.sortBy !== 'primary_release_date.asc') count++;
+    if (multiFilter.sortBy !== DEFAULT_MULTI_DISCOVER_FILTER.sortBy) count++;
     return count;
   }, [multiFilter]);
 
+  const isSearchOrFilterActive =
+    searchQuery.trim().length > 0 || activeFilterCount > 0 || activeDiscoverFilter !== null;
+
   const hasActiveCustomFilters =
-    activeFilterCount > 0 || multiFilter.mediaType !== 'all' || feedTab === 'trending';
+    activeFilterCount > 0 || multiFilter.mediaType !== 'all';
 
   // Android hardware back handler: dismisses local sheets/searches before bubbling to tab history
   useFocusEffect(
@@ -175,7 +180,10 @@ export default function DiscoverScreen() {
         }
         if (hasActiveCustomFilters) {
           setMultiFilter(DEFAULT_MULTI_DISCOVER_FILTER);
-          setFeedTab('upcoming');
+          return true;
+        }
+        if (feedTab === 'upcoming') {
+          setFeedTab('trending');
           return true;
         }
         return false;
@@ -189,14 +197,17 @@ export default function DiscoverScreen() {
       searchQuery,
       activeDiscoverFilter,
       hasActiveCustomFilters,
+      feedTab,
       setActiveDiscoverFilter,
     ])
   );
 
-  // Fetch media using advanced discover or trending
+  // Fetch media using advanced discover, search, or trending
   const fetchMedia = useCallback(
     async (pageToLoad = 1, isAppend = false) => {
       if (!apiKey) return;
+      const reqId = ++requestIdRef.current;
+
       if (isAppend) {
         setIsFetchingNextPage(true);
       } else {
@@ -211,15 +222,33 @@ export default function DiscoverScreen() {
             activeDiscoverFilter.id,
             apiKey,
             pageToLoad,
-            selectedRegion
+            selectedRegion,
+            multiFilter.mediaType
           );
+          if (reqId !== requestIdRef.current) return;
           setItems((prev) => (isAppend ? [...prev, ...results] : results));
           setPage(pageToLoad);
           setTotalPages(pageToLoad + 1);
           return;
         }
 
-        // Search query mode
+        // Combined Search + Filters mode
+        if (searchQuery.trim() && activeFilterCount > 0) {
+          const results = await TMDBService.searchWithFilters(
+            searchQuery,
+            multiFilter,
+            apiKey,
+            selectedRegion,
+            mySubscribedProviders
+          );
+          if (reqId !== requestIdRef.current) return;
+          setItems(results);
+          setPage(1);
+          setTotalPages(1);
+          return;
+        }
+
+        // Pure text search mode
         if (searchQuery.trim()) {
           let results: TMDBMediaItem[] = [];
           if (multiFilter.mediaType === 'all') {
@@ -227,45 +256,70 @@ export default function DiscoverScreen() {
           } else {
             results = await TMDBService.searchByType(searchQuery, multiFilter.mediaType, apiKey);
           }
+          if (reqId !== requestIdRef.current) return;
           setItems(results);
           setPage(1);
           setTotalPages(1);
           return;
         }
 
-        // Trending Tab Mode
+        // Active Extended Filters mode (runs regardless of underlying feedTab)
+        if (activeFilterCount > 0) {
+          const res = await TMDBService.advancedDiscover(
+            multiFilter,
+            apiKey,
+            pageToLoad,
+            selectedRegion,
+            mySubscribedProviders,
+            { upcomingOnly: false }
+          );
+          if (reqId !== requestIdRef.current) return;
+          setItems((prev) => (isAppend ? [...prev, ...res.results] : res.results));
+          setPage(pageToLoad);
+          setTotalPages(res.totalPages || 1);
+          return;
+        }
+
+        // Default Trending Now Tab Mode
         if (feedTab === 'trending') {
           const trendingType = multiFilter.mediaType === 'all' ? 'all' : multiFilter.mediaType;
           const results = await TMDBService.getTrending(trendingType, apiKey, 'day');
+          if (reqId !== requestIdRef.current) return;
           setItems(results);
           setPage(1);
           setTotalPages(1);
           return;
         }
 
-        // Upcoming & Advanced Discover Mode
+        // Upcoming Drops Tab Mode (always sorted earliest upcoming first)
         const res = await TMDBService.advancedDiscover(
-          multiFilter,
+          { ...multiFilter, sortBy: 'primary_release_date.asc' },
           apiKey,
           pageToLoad,
           selectedRegion,
-          mySubscribedProviders
+          mySubscribedProviders,
+          { upcomingOnly: true }
         );
+        if (reqId !== requestIdRef.current) return;
         setItems((prev) => (isAppend ? [...prev, ...res.results] : res.results));
         setPage(pageToLoad);
         setTotalPages(res.totalPages || 1);
       } catch (e: unknown) {
+        if (reqId !== requestIdRef.current) return;
         const err = e as Error;
         setErrorMessage(err.message || 'Failed to load media.');
       } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
-        setIsFetchingNextPage(false);
+        if (reqId === requestIdRef.current) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+          setIsFetchingNextPage(false);
+        }
       }
     },
     [
       apiKey,
       activeDiscoverFilter,
+      activeFilterCount,
       selectedRegion,
       searchQuery,
       feedTab,
@@ -305,7 +359,15 @@ export default function DiscoverScreen() {
   };
 
   const handleLoadMore = () => {
-    if (isLoading || isFetchingNextPage || page >= totalPages || searchQuery.trim() || feedTab === 'trending') return;
+    if (
+      isLoading ||
+      isFetchingNextPage ||
+      page >= totalPages ||
+      searchQuery.trim() ||
+      (!activeDiscoverFilter && activeFilterCount === 0 && feedTab === 'trending')
+    ) {
+      return;
+    }
     fetchMedia(page + 1, true);
   };
 
@@ -322,18 +384,43 @@ export default function DiscoverScreen() {
   const handleSelectQuickProvider = (providerId: number | 'all' | 'subscribed') => {
     triggerHaptic('selection');
     if (providerId === 'all') {
-      setMultiFilter((prev) => ({ ...prev, providerScope: 'none', selectedProviders: [] }));
+      setMultiFilter((prev) => ({
+        ...prev,
+        providerScope: 'none',
+        selectedProviders: [],
+        selectedProviderDetails: [],
+      }));
     } else if (providerId === 'subscribed') {
-      setMultiFilter((prev) => ({ ...prev, providerScope: 'subscribed', selectedProviders: [] }));
+      setMultiFilter((prev) => ({
+        ...prev,
+        providerScope: 'subscribed',
+        selectedProviders: [],
+        selectedProviderDetails: [],
+      }));
     } else {
       setMultiFilter((prev) => {
         const exists = prev.selectedProviders.includes(providerId);
+        const nextProviders = exists
+          ? prev.selectedProviders.filter((id) => id !== providerId)
+          : [...prev.selectedProviders, providerId];
+        const prevDetails = prev.selectedProviderDetails || [];
+        let nextDetails = prevDetails;
+        if (exists) {
+          nextDetails = prevDetails.filter((d) => d.id !== providerId);
+        } else {
+          const matched = displayedQuickProviders.find((p) => p.id === providerId);
+          if (matched) {
+            nextDetails = [
+              ...prevDetails.filter((d) => d.id !== providerId),
+              { id: matched.id, name: matched.name, logoPath: matched.logoPath },
+            ];
+          }
+        }
         return {
           ...prev,
-          providerScope: 'region',
-          selectedProviders: exists
-            ? prev.selectedProviders.filter((id) => id !== providerId)
-            : [...prev.selectedProviders, providerId],
+          providerScope: nextProviders.length > 0 ? 'region' : 'none',
+          selectedProviders: nextProviders,
+          selectedProviderDetails: nextDetails,
         };
       });
     }
@@ -425,6 +512,19 @@ export default function DiscoverScreen() {
     }
   };
 
+  const getSortLabel = (s: MultiDiscoverFilter['sortBy']) => {
+    switch (s) {
+      case 'primary_release_date.asc':
+        return 'Release Date (Earliest)';
+      case 'primary_release_date.desc':
+        return 'Release Date (Newest)';
+      case 'vote_average.desc':
+        return 'Highest Rated';
+      default:
+        return 'Most Popular';
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Search Header */}
@@ -498,64 +598,66 @@ export default function DiscoverScreen() {
           </Pressable>
         </View>
 
-        {/* Discover Feed Tabs: Upcoming Drops vs Trending Now */}
-        <View style={styles.feedTabsRow}>
-          <Pressable
-            style={[
-              styles.feedTabBtn,
-              { borderColor: colors.cardBorder },
-              feedTab === 'upcoming' && {
-                backgroundColor: colors.primary,
-                borderColor: colors.primary,
-              },
-            ]}
-            onPress={() => {
-              triggerHaptic('selection');
-              setFeedTab('upcoming');
-            }}>
-            <Ionicons
-              name="calendar"
-              size={14 * textScale}
-              color={feedTab === 'upcoming' ? '#ffffff' : colors.textSecondary}
-            />
-            <Text
+        {/* Discover Feed Tabs: Trending Now (left, default) vs Upcoming Drops (right) */}
+        {!isSearchOrFilterActive && (
+          <View style={styles.feedTabsRow}>
+            <Pressable
               style={[
-                styles.feedTabText,
-                { color: feedTab === 'upcoming' ? '#ffffff' : colors.textSecondary, fontSize: 12.5 * textScale },
-                feedTab === 'upcoming' && styles.feedTabTextActive,
-              ]}>
-              Upcoming Drops
-            </Text>
-          </Pressable>
+                styles.feedTabBtn,
+                { borderColor: colors.cardBorder },
+                feedTab === 'trending' && {
+                  backgroundColor: colors.primary,
+                  borderColor: colors.primary,
+                },
+              ]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setFeedTab('trending');
+              }}>
+              <Ionicons
+                name="flame"
+                size={14 * textScale}
+                color={feedTab === 'trending' ? '#ffffff' : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.feedTabText,
+                  { color: feedTab === 'trending' ? '#ffffff' : colors.textSecondary, fontSize: 12.5 * textScale },
+                  feedTab === 'trending' && styles.feedTabTextActive,
+                ]}>
+                Trending Now
+              </Text>
+            </Pressable>
 
-          <Pressable
-            style={[
-              styles.feedTabBtn,
-              { borderColor: colors.cardBorder },
-              feedTab === 'trending' && {
-                backgroundColor: colors.primary,
-                borderColor: colors.primary,
-              },
-            ]}
-            onPress={() => {
-              triggerHaptic('selection');
-              setFeedTab('trending');
-            }}>
-            <Ionicons
-              name="flame"
-              size={14 * textScale}
-              color={feedTab === 'trending' ? '#ffffff' : colors.textSecondary}
-            />
-            <Text
+            <Pressable
               style={[
-                styles.feedTabText,
-                { color: feedTab === 'trending' ? '#ffffff' : colors.textSecondary, fontSize: 12.5 * textScale },
-                feedTab === 'trending' && styles.feedTabTextActive,
-              ]}>
-              Trending Now
-            </Text>
-          </Pressable>
-        </View>
+                styles.feedTabBtn,
+                { borderColor: colors.cardBorder },
+                feedTab === 'upcoming' && {
+                  backgroundColor: colors.primary,
+                  borderColor: colors.primary,
+                },
+              ]}
+              onPress={() => {
+                triggerHaptic('selection');
+                setFeedTab('upcoming');
+              }}>
+              <Ionicons
+                name="calendar"
+                size={14 * textScale}
+                color={feedTab === 'upcoming' ? '#ffffff' : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.feedTabText,
+                  { color: feedTab === 'upcoming' ? '#ffffff' : colors.textSecondary, fontSize: 12.5 * textScale },
+                  feedTab === 'upcoming' && styles.feedTabTextActive,
+                ]}>
+                Upcoming Drops
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Media Format Selector: All / Movies / TV */}
         <View style={styles.formatRow}>
@@ -589,8 +691,8 @@ export default function DiscoverScreen() {
           })}
         </View>
 
-        {/* Upcoming Drops Timing Sub-Bar (only in Upcoming feed) */}
-        {feedTab === 'upcoming' && (
+        {/* Upcoming Drops Timing Sub-Bar (only in Upcoming feed when not searching/filtering) */}
+        {!isSearchOrFilterActive && feedTab === 'upcoming' && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -626,7 +728,7 @@ export default function DiscoverScreen() {
         )}
 
         {/* Streaming Providers Quick Bar */}
-        {feedTab === 'upcoming' && (
+        {!isSearchOrFilterActive && feedTab === 'upcoming' && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -790,6 +892,28 @@ export default function DiscoverScreen() {
               </Pressable>
             )}
 
+            {(multiFilter.selectedCountries || []).map((code) => (
+              <Pressable
+                key={code}
+                style={[styles.activeFilterChip, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}
+                onPress={() =>
+                  setMultiFilter((p) => ({
+                    ...p,
+                    selectedCountries: (p.selectedCountries || []).filter((c) => c !== code),
+                  }))
+                }>
+                <Image
+                  source={{ uri: `https://flagcdn.com/w40/${code.toLowerCase()}.png` }}
+                  style={{ width: 12, height: 12, borderRadius: 2 }}
+                  contentFit="cover"
+                />
+                <Text style={[styles.activeFilterChipText, { color: colors.primary, fontSize: 11 * textScale }]}>
+                  {getCountryName(code)}
+                </Text>
+                <Ionicons name="close" size={12} color={colors.primary} />
+              </Pressable>
+            ))}
+
             {multiFilter.minRating > 0 && (
               <Pressable
                 style={[styles.activeFilterChip, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}
@@ -837,6 +961,23 @@ export default function DiscoverScreen() {
                 <Ionicons name="close" size={12} color={colors.primary} />
               </Pressable>
             ))}
+
+            {multiFilter.sortBy !== DEFAULT_MULTI_DISCOVER_FILTER.sortBy && (
+              <Pressable
+                style={[styles.activeFilterChip, { backgroundColor: colors.primaryBg, borderColor: colors.primary }]}
+                onPress={() =>
+                  setMultiFilter((p) => ({
+                    ...p,
+                    sortBy: DEFAULT_MULTI_DISCOVER_FILTER.sortBy,
+                  }))
+                }>
+                <Ionicons name="swap-vertical-outline" size={11} color={colors.primary} />
+                <Text style={[styles.activeFilterChipText, { color: colors.primary, fontSize: 11 * textScale }]}>
+                  {getSortLabel(multiFilter.sortBy)}
+                </Text>
+                <Ionicons name="close" size={12} color={colors.primary} />
+              </Pressable>
+            )}
 
             <Pressable
               style={[styles.resetAllChip, { borderColor: colors.cardBorder }]}
@@ -916,7 +1057,13 @@ export default function DiscoverScreen() {
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            {feedTab === 'upcoming' ? 'Finding upcoming releases...' : 'Fetching trending media...'}
+            {searchQuery.trim()
+              ? 'Searching titles...'
+              : activeFilterCount > 0 || activeDiscoverFilter
+              ? 'Applying filters...'
+              : feedTab === 'trending'
+              ? 'Fetching trending media...'
+              : 'Finding upcoming releases...'}
           </Text>
         </View>
       ) : errorMessage ? (
@@ -971,13 +1118,17 @@ export default function DiscoverScreen() {
                 <Text style={[styles.listHeaderTitle, { color: colors.text, fontSize: 13 * headerScale }]}>
                   {activeDiscoverFilter
                     ? `Filtered by ${activeDiscoverFilter.name} (${items.length})`
+                    : searchQuery.trim() && activeFilterCount > 0
+                    ? `Filtered results for "${searchQuery.trim()}" (${items.length})`
                     : searchQuery.trim()
-                    ? `Results for "${searchQuery}" (${items.length})`
-                    : feedTab === 'upcoming'
-                    ? multiFilter.releaseWindow === 'all'
-                      ? `Upcoming Releases (${items.length})`
-                      : `Upcoming Releases: ${getReleaseWindowLabel(multiFilter.releaseWindow)} (${items.length})`
-                    : `Trending Today (${items.length})`}
+                    ? `Results for "${searchQuery.trim()}" (${items.length})`
+                    : activeFilterCount > 0
+                    ? `Filtered Results (${items.length})`
+                    : feedTab === 'trending'
+                    ? `Trending Today (${items.length})`
+                    : multiFilter.releaseWindow === 'all'
+                    ? `Upcoming Releases (${items.length})`
+                    : `Upcoming Releases: ${getReleaseWindowLabel(multiFilter.releaseWindow)} (${items.length})`}
                 </Text>
               </View>
             ) : null
@@ -998,18 +1149,17 @@ export default function DiscoverScreen() {
                 <Ionicons name="search-outline" size={48} color={colors.textMuted} />
                 <Text style={[styles.emptyTitle, { color: colors.text }]}>No titles found</Text>
                 <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
-                  {hasActiveCustomFilters
-                    ? 'Try selecting a different release window or resetting your filters'
-                    : searchQuery.trim()
-                    ? 'Try searching with a different keyword or media format'
+                  {searchQuery.trim() || hasActiveCustomFilters || activeDiscoverFilter
+                    ? 'Try clearing or adjusting your search query or filters'
                     : 'Pull down to refresh'}
                 </Text>
-                {hasActiveCustomFilters && (
+                {(hasActiveCustomFilters || searchQuery.trim().length > 0 || activeDiscoverFilter !== null) && (
                   <Pressable
                     style={[styles.emptyResetBtn, { backgroundColor: colors.primary }]}
                     onPress={() => {
                       setMultiFilter(DEFAULT_MULTI_DISCOVER_FILTER);
-                      setFeedTab('upcoming');
+                      setSearchQuery('');
+                      setActiveDiscoverFilter(null);
                     }}>
                     <Text style={styles.emptyResetBtnText}>Reset Filters</Text>
                   </Pressable>
@@ -1025,8 +1175,14 @@ export default function DiscoverScreen() {
         visible={filterModalVisible}
         filter={multiFilter}
         onClose={() => setFilterModalVisible(false)}
-        onApply={(updated) => setMultiFilter(updated)}
-        onReset={() => setMultiFilter(DEFAULT_MULTI_DISCOVER_FILTER)}
+        onApply={(updated) => {
+          setActiveDiscoverFilter(null);
+          setMultiFilter(updated);
+        }}
+        onReset={() => {
+          setActiveDiscoverFilter(null);
+          setMultiFilter(DEFAULT_MULTI_DISCOVER_FILTER);
+        }}
       />
 
       {/* Quick Release Reminder Modal */}

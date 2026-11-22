@@ -431,10 +431,11 @@ export const DEFAULT_MULTI_DISCOVER_FILTER: MultiDiscoverFilter = {
   selectedProviders: [],
   selectedProviderDetails: [],
   selectedGenres: [],
+  selectedCountries: [],
   minRating: 0,
   selectedPeople: [],
   selectedCompanies: [],
-  sortBy: 'primary_release_date.asc',
+  sortBy: 'popularity.desc',
 };
 
 export const TMDB_GENRES: GenreInfo[] = [
