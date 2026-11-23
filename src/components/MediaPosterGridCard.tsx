@@ -24,7 +24,7 @@ export function MediaPosterGridCard({ item, width, onPress }: MediaPosterGridCar
   const posterUrl = TMDBService.getImageUrl(item.posterPath, 'w342');
   const statusConfig = STATUS_CONFIG[item.status];
   const isDualStatus = Boolean(
-    item.mediaType === 'tv' && item.status === 'completed' && item.isAlsoPlanned
+    item.status === 'completed' && item.isAlsoPlanned
   );
 
   const countdown = useMemo(() => {

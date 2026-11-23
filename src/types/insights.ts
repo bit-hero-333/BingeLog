@@ -495,7 +495,7 @@ export const INSIGHT_WIDGET_DEFINITIONS: Record<InsightWidgetId, InsightWidgetDe
   season_anticipation: {
     id: 'season_anticipation',
     title: 'Season Anticipation & Rewatch Queue',
-    subtitle: 'Completed TV shows queued on Plan to Watch for new seasons or rewatching',
+    subtitle: 'Completed movies & TV shows queued on Plan to Watch for new seasons or rewatching',
     category: 'habits_loyalty',
     icon: 'hourglass-outline',
     color: '#a855f7',

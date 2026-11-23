@@ -201,7 +201,7 @@ export default function MyListScreen() {
       if (counts[i.status] !== undefined) {
         counts[i.status]++;
       }
-      if (i.mediaType === 'tv' && i.status === 'completed' && i.isAlsoPlanned) {
+      if (i.status === 'completed' && i.isAlsoPlanned) {
         counts.plan_to_watch++;
       }
     });
@@ -241,7 +241,7 @@ export default function MyListScreen() {
     if (selectedStatus !== 'all') {
       if (selectedStatus === 'plan_to_watch') {
         result = result.filter(
-          (i) => i.status === 'plan_to_watch' || (i.mediaType === 'tv' && i.status === 'completed' && Boolean(i.isAlsoPlanned))
+          (i) => i.status === 'plan_to_watch' || (i.status === 'completed' && Boolean(i.isAlsoPlanned))
         );
       } else {
         result = result.filter((i) => i.status === selectedStatus);
@@ -316,7 +316,10 @@ export default function MyListScreen() {
     try {
       // Find active titles that need sync
       const activeTitles = trackedItems.filter(
-        (i) => i.status === 'watching' || i.status === 'plan_to_watch'
+        (i) =>
+          i.status === 'watching' ||
+          i.status === 'plan_to_watch' ||
+          (i.status === 'completed' && Boolean(i.isAlsoPlanned))
       );
 
       if (activeTitles.length === 0) {

@@ -94,6 +94,7 @@ function BingeRouletteModalContent({
   const [rollingCandidate, setRollingCandidate] = useState<TrackedItem | null>(null);
   const [rollHistory, setRollHistory] = useState<number[]>([]);
   const [statusUpdatedSuccess, setStatusUpdatedSuccess] = useState(false);
+  const [startedAsRewatch, setStartedAsRewatch] = useState(false);
 
   // Animation values
   const [pulseAnim] = useState(() => new Animated.Value(1));
@@ -131,7 +132,7 @@ function BingeRouletteModalContent({
   // Total released plan to watch items in entire library
   const totalReleasedPlanToWatchCount = useMemo(() => {
     return trackedItems.filter((i) => {
-      const isDualPlanned = i.mediaType === 'tv' && i.status === 'completed' && Boolean(i.isAlsoPlanned);
+      const isDualPlanned = i.status === 'completed' && Boolean(i.isAlsoPlanned);
       const matchesStatus = includeOnHold
         ? i.status === 'plan_to_watch' || i.status === 'on_hold' || isDualPlanned
         : i.status === 'plan_to_watch' || isDualPlanned;
@@ -146,7 +147,7 @@ function BingeRouletteModalContent({
       if (isTrackedItemUnreleased(item, selectedTimezone)) return false;
 
       // 1. Status Filter
-      const isDualPlanned = item.mediaType === 'tv' && item.status === 'completed' && Boolean(item.isAlsoPlanned);
+      const isDualPlanned = item.status === 'completed' && Boolean(item.isAlsoPlanned);
       if (includeOnHold) {
         if (item.status !== 'plan_to_watch' && item.status !== 'on_hold' && !isDualPlanned) return false;
       } else {
@@ -194,6 +195,7 @@ function BingeRouletteModalContent({
     triggerHaptic('selection');
     setIsRolling(true);
     setStatusUpdatedSuccess(false);
+    setStartedAsRewatch(false);
 
     // Filter candidates not yet seen in current session
     let unseen = candidateItems.filter((i) => !rollHistory.includes(i.id));
@@ -240,20 +242,40 @@ function BingeRouletteModalContent({
   }, [selectedItem, candidateItems]);
 
   const displayItem = isRolling ? rollingCandidate || settledItem : settledItem;
+  const isQueuedMovieRewatch = Boolean(
+    displayItem &&
+      displayItem.mediaType === 'movie' &&
+      displayItem.status === 'completed' &&
+      displayItem.isAlsoPlanned
+  );
 
-  // Handle "Start Watching" action
+  // Handle "Start Watching" or "Start Rewatch" action
   const handleStartWatching = async () => {
     if (!displayItem) return;
     triggerHaptic('success');
-    const updated: TrackedItem = {
-      ...displayItem,
-      status: 'watching',
-      isAlsoPlanned: false,
-      startedAt: displayItem.startedAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    const isMovieRewatch = isQueuedMovieRewatch;
+    const updated: TrackedItem = isMovieRewatch
+      ? {
+          ...displayItem,
+          status: 'watching',
+          isAlsoPlanned: false,
+          rewatchCount: (displayItem.rewatchCount || 0) + 1,
+          minutesWatched: 0,
+          secondsWatched: 0,
+          startedAt: new Date().toISOString(),
+          finishedAt: null,
+          updatedAt: new Date().toISOString(),
+        }
+      : {
+          ...displayItem,
+          status: 'watching',
+          isAlsoPlanned: false,
+          startedAt: displayItem.startedAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
     await saveItem(updated);
     setSelectedItem(updated);
+    setStartedAsRewatch(isMovieRewatch);
     setStatusUpdatedSuccess(true);
   };
 
@@ -632,7 +654,7 @@ function BingeRouletteModalContent({
                       </View>
                     ) : null}
 
-                    {displayItem.mediaType === 'tv' && displayItem.status === 'completed' && displayItem.isAlsoPlanned ? (
+                    {displayItem.status === 'completed' && displayItem.isAlsoPlanned ? (
                       <View style={[styles.metaBadge, { backgroundColor: 'rgba(168, 85, 247, 0.15)', borderColor: '#a855f7', borderWidth: 1 }]}>
                         <Ionicons name="repeat" size={11} color="#c084fc" />
                         <Text style={[styles.metaBadgeText, { color: '#c084fc', fontSize: 10.5 * textScale, fontWeight: '700' }]}>
@@ -711,7 +733,9 @@ function BingeRouletteModalContent({
                 <View style={[styles.successBanner, { backgroundColor: `${primaryColor}1A`, borderColor: colors.primary }]}>
                   <Ionicons name="checkmark-circle" size={15} color={colors.primary} />
                   <Text style={[styles.successBannerText, { color: colors.primary, fontSize: 11.5 * textScale }]}>
-                    Added to currently Watching!
+                    {startedAsRewatch
+                      ? 'Rewatch started! Moved to Watching.'
+                      : 'Added to currently Watching!'}
                   </Text>
                 </View>
               )}
@@ -730,9 +754,13 @@ function BingeRouletteModalContent({
                     style={[styles.actionBtnPrimary, { backgroundColor: colors.primary }]}
                     onPress={handleStartWatching}
                     disabled={isRolling}>
-                    <Ionicons name="play" size={15 * textScale} color="#ffffff" />
+                    <Ionicons
+                      name={isQueuedMovieRewatch ? 'refresh' : 'play'}
+                      size={15 * textScale}
+                      color="#ffffff"
+                    />
                     <Text style={[styles.actionBtnPrimaryText, { color: '#ffffff', fontSize: 12.5 * textScale }]}>
-                      Start Watching
+                      {isQueuedMovieRewatch ? 'Start Rewatch' : 'Start Watching'}
                     </Text>
                   </Pressable>
                 )}

@@ -161,7 +161,7 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
     id: 'dual_focus',
     name: 'Dual Focus',
-    description: 'Track ongoing series simultaneously in Watching and Planned.',
+    description: 'Track movies and series simultaneously in Completed and Plan to Watch.',
     category: 'milestones',
     iconName: 'swap-horizontal-outline',
     metricLabel: 'Dual Titles',
@@ -1035,7 +1035,9 @@ export const AchievementsEngine = {
 
     // Precompute common item filters
     const completedItems = items.filter((i) => i.status === 'completed');
-    const planItems = items.filter((i) => i.status === 'plan_to_watch');
+    const planItems = items.filter(
+      (i) => i.status === 'plan_to_watch' || (i.status === 'completed' && Boolean(i.isAlsoPlanned))
+    );
 
     // Build raw metric calculator per achievement
     const intermediateValues: Record<string, { value: number; contributing: ContributingMediaItem[]; subtext?: string }> = {};
@@ -1151,6 +1153,10 @@ export const AchievementsEngine = {
               mediaType: p.mediaType,
               title: p.title,
               posterPath: p.posterPath,
+              detailText:
+                p.status === 'completed' && p.isAlsoPlanned
+                  ? 'Completed + Plan'
+                  : 'Plan to Watch',
             });
           });
           subtext = `${val} titles in Plan to Watch list`;
@@ -1158,7 +1164,7 @@ export const AchievementsEngine = {
         }
 
         case 'dual_focus': {
-          const duals = items.filter((i) => i.isAlsoPlanned);
+          const duals = items.filter((i) => i.status === 'completed' && Boolean(i.isAlsoPlanned));
           val = duals.length;
           duals.forEach((d) => {
             contributing.push({
@@ -1166,9 +1172,10 @@ export const AchievementsEngine = {
               mediaType: d.mediaType,
               title: d.title,
               posterPath: d.posterPath,
+              detailText: d.mediaType === 'movie' ? 'Movie • Completed + Plan' : 'TV • Completed + Plan',
             });
           });
-          subtext = `${val} titles active across watching & planned`;
+          subtext = `${val} title${val === 1 ? '' : 's'} active in Completed + Plan`;
           break;
         }
 
@@ -1178,8 +1185,13 @@ export const AchievementsEngine = {
             if (item.mediaType === 'movie') {
               const rt = item.runtimeMinutes && item.runtimeMinutes > 0 ? item.runtimeMinutes : 100;
               const rewatches = item.rewatchCount || 0;
-              if (item.status === 'completed') mins += rt * (1 + rewatches);
-              else if (item.status === 'watching') mins += item.minutesWatched || Math.round(rt * 0.4);
+              if (item.status === 'completed') {
+                mins += rt * (1 + rewatches);
+              } else if (rewatches > 0) {
+                mins += rt * rewatches + (item.minutesWatched || 0);
+              } else if (item.status === 'watching') {
+                mins += item.minutesWatched || Math.round(rt * 0.4);
+              }
             } else {
               const eps = (item.watchedEpisodeKeys && item.watchedEpisodeKeys.length > 0)
                 ? item.watchedEpisodeKeys.length

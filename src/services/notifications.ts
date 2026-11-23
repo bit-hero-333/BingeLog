@@ -45,7 +45,6 @@ export function isItemReminderActive(
   }
 
   if (
-    item.mediaType === 'tv' &&
     item.status === 'completed' &&
     item.isAlsoPlanned &&
     statuses.plan_to_watch

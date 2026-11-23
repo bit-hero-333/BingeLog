@@ -1057,7 +1057,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
           break;
         case 'completed':
           completed++;
-          if (item.mediaType === 'tv' && item.isAlsoPlanned) {
+          if (item.isAlsoPlanned) {
             planToWatch++;
           }
           break;

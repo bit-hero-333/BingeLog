@@ -78,8 +78,7 @@ function ReleaseReminderSheetContent({
       ? Boolean(
           deviceNotificationsEnabled &&
             (notificationStatuses[existingRecord.status] ||
-              (existingRecord.mediaType === 'tv' &&
-                existingRecord.status === 'completed' &&
+              (existingRecord.status === 'completed' &&
                 existingRecord.isAlsoPlanned &&
                 notificationStatuses.plan_to_watch))
         )

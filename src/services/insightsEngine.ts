@@ -64,6 +64,21 @@ export interface WidgetSurfaceData {
   highlightItems?: { id: number; title: string; subtitle: string; posterPath: string | null }[];
 }
 
+function getMovieWatchedMinutes(item: TrackedItem): number {
+  const rt = item.runtimeMinutes && item.runtimeMinutes > 0 ? item.runtimeMinutes : 100;
+  const rewatches = item.rewatchCount || 0;
+  if (item.status === 'completed') {
+    return rt * (1 + rewatches);
+  }
+  if (rewatches > 0) {
+    return rt * rewatches + (item.minutesWatched || 0);
+  }
+  if (item.status === 'watching') {
+    return item.minutesWatched || Math.round(rt * 0.4);
+  }
+  return item.minutesWatched || 0;
+}
+
 export const InsightsEngine = {
   /**
    * Lazily computes high-level surface data for a single widget.
@@ -77,10 +92,7 @@ export const InsightsEngine = {
         let tvMins = 0;
         for (const item of items) {
           if (item.mediaType === 'movie') {
-            const rt = item.runtimeMinutes && item.runtimeMinutes > 0 ? item.runtimeMinutes : 100;
-            const rewatches = item.rewatchCount || 0;
-            if (item.status === 'completed') movieMins += rt * (1 + rewatches);
-            else if (item.status === 'watching') movieMins += item.minutesWatched || Math.round(rt * 0.4);
+            movieMins += getMovieWatchedMinutes(item);
           } else {
             const eps = (item.watchedEpisodeKeys && item.watchedEpisodeKeys.length > 0)
               ? item.watchedEpisodeKeys.length
@@ -131,18 +143,26 @@ export const InsightsEngine = {
         let backlogMins = 0;
         let backlogCount = 0;
         for (const item of items) {
-          if (item.status === 'plan_to_watch' || item.status === 'watching') {
-            backlogCount++;
+          const isDualPlanned = item.status === 'completed' && Boolean(item.isAlsoPlanned);
+          if (item.status === 'plan_to_watch' || item.status === 'watching' || isDualPlanned) {
             if (item.mediaType === 'movie') {
+              backlogCount++;
               const rt = item.runtimeMinutes && item.runtimeMinutes > 0 ? item.runtimeMinutes : 105;
-              const watched = item.minutesWatched || 0;
-              backlogMins += Math.max(0, rt - watched);
+              if (isDualPlanned) {
+                backlogMins += rt;
+              } else {
+                const watched = item.minutesWatched || 0;
+                backlogMins += Math.max(0, rt - watched);
+              }
             } else {
               const totalEps = item.totalEpisodes || 12;
               const watchedEps = item.watchedEpisodeKeys?.length || item.currentProgress || 0;
               const remainingEps = Math.max(0, totalEps - watchedEps);
-              const epDuration = item.runtimeMinutes && item.runtimeMinutes > 0 ? item.runtimeMinutes : 42;
-              backlogMins += remainingEps * epDuration;
+              if (!isDualPlanned || remainingEps > 0) {
+                backlogCount++;
+                const epDuration = item.runtimeMinutes && item.runtimeMinutes > 0 ? item.runtimeMinutes : 42;
+                backlogMins += remainingEps * epDuration;
+              }
             }
           }
         }
@@ -164,8 +184,7 @@ export const InsightsEngine = {
         for (const item of items) {
           let mins = 0;
           if (item.mediaType === 'movie') {
-            const rt = item.runtimeMinutes && item.runtimeMinutes > 0 ? item.runtimeMinutes : 100;
-            mins = rt * (1 + (item.rewatchCount || 0));
+            mins = getMovieWatchedMinutes(item);
           } else {
             const eps = item.watchedEpisodeKeys?.length || item.currentProgress || 0;
             const epDuration = item.runtimeMinutes && item.runtimeMinutes > 0 ? item.runtimeMinutes : 42;
@@ -250,8 +269,7 @@ export const InsightsEngine = {
         let totalMins = 0;
         for (const item of items) {
           if (item.mediaType === 'movie') {
-            const rt = item.runtimeMinutes || 100;
-            if (item.status === 'completed') totalMins += rt * (1 + (item.rewatchCount || 0));
+            totalMins += getMovieWatchedMinutes(item);
           } else {
             const eps = item.watchedEpisodeKeys?.length || item.currentProgress || 0;
             const dur = item.runtimeMinutes || 42;
@@ -638,12 +656,19 @@ export const InsightsEngine = {
         const counts: Record<string, number> = {
           watching: 0, plan_to_watch: 0, completed: 0, on_hold: 0, dropped: 0,
         };
-        for (const item of items) counts[item.status] = (counts[item.status] || 0) + 1;
+        let dualCount = 0;
+        for (const item of items) {
+          counts[item.status] = (counts[item.status] || 0) + 1;
+          if (item.status === 'completed' && item.isAlsoPlanned) {
+            counts.plan_to_watch++;
+            dualCount++;
+          }
+        }
         return {
           widgetId,
           primaryValue: `${counts.completed} Completed • ${counts.watching} Watching`,
           primaryLabel: 'Library Tracking States',
-          secondaryValue: `Plan: ${counts.plan_to_watch} • On Hold: ${counts.on_hold} • Dropped: ${counts.dropped}`,
+          secondaryValue: `Plan: ${counts.plan_to_watch}${dualCount > 0 ? ` (${dualCount} dual)` : ''} • On Hold: ${counts.on_hold} • Dropped: ${counts.dropped}`,
         };
       }
 
@@ -660,11 +685,18 @@ export const InsightsEngine = {
             topRewatched = item;
           }
         }
+        const queuedRewatches = items.filter(
+          (i) => i.status === 'completed' && Boolean(i.isAlsoPlanned)
+        ).length;
         return {
           widgetId,
           primaryValue: `${totalRewatches} Total Rewatches`,
           primaryLabel: 'Rewatch Index',
-          secondaryValue: topRewatched ? `Most repeated: ${topRewatched.title} (${maxCount}x)` : 'No rewatches logged',
+          secondaryValue: topRewatched
+            ? `Most repeated: ${topRewatched.title} (${maxCount}x)`
+            : queuedRewatches > 0
+            ? `${queuedRewatches} title${queuedRewatches === 1 ? '' : 's'} queued for rewatch`
+            : 'No rewatches logged',
           badgeText: totalRewatches > 0 ? `${totalRewatches}x` : undefined,
           badgeType: 'primary',
         };
@@ -800,17 +832,37 @@ export const InsightsEngine = {
       // 39. Season Anticipation & Rewatch Queue
       case 'season_anticipation': {
         const dualItems = items.filter(
-          (i) => i.mediaType === 'tv' && i.status === 'completed' && Boolean(i.isAlsoPlanned)
+          (i) => i.status === 'completed' && Boolean(i.isAlsoPlanned)
         );
         const count = dualItems.length;
-        const withUpcoming = dualItems.filter(
-          (i) => i.nextAirDate || i.nextEpisode?.airDate
-        ).length;
+        const todayStr = new Date().toISOString().substring(0, 10);
+        const movieDualCount = dualItems.filter((i) => i.mediaType === 'movie').length;
+        const tvDualCount = dualItems.filter((i) => i.mediaType === 'tv').length;
+        const withUpcoming = dualItems.filter((i) => {
+          if (i.mediaType === 'tv') {
+            return Boolean(i.nextAirDate || i.nextEpisode?.airDate);
+          }
+          const mDate = i.regionalReleaseDate || i.releaseDate;
+          return Boolean(mDate && mDate >= todayStr);
+        }).length;
+
+        let secondaryValue = 'Queue completed titles for rewatching or new seasons';
+        if (movieDualCount > 0 && tvDualCount > 0) {
+          secondaryValue = `${movieDualCount} movie${movieDualCount === 1 ? '' : 's'} • ${tvDualCount} TV show${tvDualCount === 1 ? '' : 's'}${withUpcoming > 0 ? ` • ${withUpcoming} upcoming` : ''}`;
+        } else if (movieDualCount > 0) {
+          secondaryValue = `${movieDualCount} movie${movieDualCount === 1 ? '' : 's'} queued for rewatch`;
+        } else if (tvDualCount > 0) {
+          secondaryValue =
+            withUpcoming > 0
+              ? `${withUpcoming} announced release date(s)`
+              : 'Awaiting premiere dates';
+        }
+
         return {
           widgetId,
-          primaryValue: `${count} Shows`,
-          primaryLabel: 'Queued for Next Season',
-          secondaryValue: withUpcoming > 0 ? `${withUpcoming} announced release date(s)` : 'Awaiting premiere dates',
+          primaryValue: `${count} ${count === 1 ? 'Title' : 'Titles'}`,
+          primaryLabel: 'Completed + Plan Queue',
+          secondaryValue,
         };
       }
 
@@ -915,9 +967,7 @@ export const InsightsEngine = {
         let tvMins = 0;
         for (const item of items) {
           if (item.mediaType === 'movie') {
-            const rt = item.runtimeMinutes || 100;
-            if (item.status === 'completed') movieMins += rt * (1 + (item.rewatchCount || 0));
-            else if (item.status === 'watching') movieMins += item.minutesWatched || Math.round(rt * 0.4);
+            movieMins += getMovieWatchedMinutes(item);
           } else {
             const eps = item.watchedEpisodeKeys?.length || item.currentProgress || 0;
             const dur = item.runtimeMinutes || 42;
@@ -932,7 +982,7 @@ export const InsightsEngine = {
         const contributing: DrillDownContributingItem[] = items
           .map((i) => {
             const rt = i.mediaType === 'movie'
-              ? (i.runtimeMinutes || 100) * (1 + (i.rewatchCount || 0))
+              ? getMovieWatchedMinutes(i)
               : (i.watchedEpisodeKeys?.length || i.currentProgress || 0) * (i.runtimeMinutes || 42);
             return { item: i, rt };
           })
@@ -951,7 +1001,9 @@ export const InsightsEngine = {
             highlightMetric: formatMinutes(rt).formatted,
             extraInfo: i.mediaType === 'tv'
               ? `${i.watchedEpisodeKeys?.length || i.currentProgress || 0} eps watched`
-              : `${(i.rewatchCount || 0) + 1}x watched`,
+              : i.status === 'completed' || (i.rewatchCount || 0) > 0
+              ? `${(i.rewatchCount || 0) + (i.status === 'completed' ? 1 : 0)}x watched`
+              : `${i.minutesWatched || 0}m watched`,
           }));
 
         return {
@@ -1017,25 +1069,34 @@ export const InsightsEngine = {
       // 3. Watchlist Debt
       case 'watchlist_debt': {
         const pending = items
-          .filter((i) => i.status === 'plan_to_watch' || i.status === 'watching')
+          .filter((i) => {
+            const isDualPlanned = i.status === 'completed' && Boolean(i.isAlsoPlanned);
+            return i.status === 'plan_to_watch' || i.status === 'watching' || isDualPlanned;
+          })
           .map((i) => {
+            const isDualPlanned = i.status === 'completed' && Boolean(i.isAlsoPlanned);
             let rt = 0;
             if (i.mediaType === 'movie') {
-              const total = i.runtimeMinutes || 105;
-              const watched = i.minutesWatched || 0;
-              rt = Math.max(0, total - watched);
+              const total = i.runtimeMinutes && i.runtimeMinutes > 0 ? i.runtimeMinutes : 105;
+              if (isDualPlanned) {
+                rt = total;
+              } else {
+                const watched = i.minutesWatched || 0;
+                rt = Math.max(0, total - watched);
+              }
             } else {
               const totalEps = i.totalEpisodes || 12;
               const watchedEps = i.watchedEpisodeKeys?.length || i.currentProgress || 0;
               const remainingEps = Math.max(0, totalEps - watchedEps);
-              const epDuration = i.runtimeMinutes || 42;
+              const epDuration = i.runtimeMinutes && i.runtimeMinutes > 0 ? i.runtimeMinutes : 42;
               rt = remainingEps * epDuration;
             }
-            return { item: i, rt };
+            return { item: i, rt, isDualPlanned };
           })
+          .filter(({ isDualPlanned, rt }) => !isDualPlanned || rt > 0)
           .sort((a, b) => b.rt - a.rt);
 
-        const list: DrillDownContributingItem[] = pending.slice(0, 30).map(({ item: i, rt }) => ({
+        const list: DrillDownContributingItem[] = pending.slice(0, 30).map(({ item: i, rt, isDualPlanned }) => ({
           id: i.id,
           title: i.title,
           mediaType: i.mediaType,
@@ -1045,7 +1106,14 @@ export const InsightsEngine = {
           userScore: i.userScore,
           voteAverage: i.voteAverage,
           highlightMetric: formatMinutes(rt).formatted,
-          extraInfo: i.status === 'watching' ? 'In Progress' : 'Plan to Watch',
+          extraInfo:
+            i.status === 'watching'
+              ? 'In Progress'
+              : isDualPlanned
+              ? i.mediaType === 'movie'
+                ? 'Planned Rewatch'
+                : 'Upcoming / Planned'
+              : 'Plan to Watch',
         }));
 
         const totalMins = pending.reduce((acc, p) => acc + p.rt, 0);
@@ -1072,8 +1140,7 @@ export const InsightsEngine = {
           .map((i) => {
             let mins = 0;
             if (i.mediaType === 'movie') {
-              const rt = i.runtimeMinutes || 100;
-              mins = rt * (1 + (i.rewatchCount || 0));
+              mins = getMovieWatchedMinutes(i);
             } else {
               const eps = i.watchedEpisodeKeys?.length || i.currentProgress || 0;
               const epDur = i.runtimeMinutes || 42;
@@ -1097,7 +1164,9 @@ export const InsightsEngine = {
           highlightMetric: formatMinutes(mins).formatted,
           extraInfo: i.mediaType === 'tv'
             ? `${i.watchedEpisodeKeys?.length || i.currentProgress || 0} eps watched`
-            : `${(i.rewatchCount || 0) + 1}x watched`,
+            : i.status === 'completed' || (i.rewatchCount || 0) > 0
+            ? `${(i.rewatchCount || 0) + (i.status === 'completed' ? 1 : 0)}x watched`
+            : `${i.minutesWatched || 0}m watched`,
         }));
 
         return {
@@ -1213,8 +1282,7 @@ export const InsightsEngine = {
           .map((i) => {
             let mins = 0;
             if (i.mediaType === 'movie') {
-              const rt = i.runtimeMinutes || 100;
-              if (i.status === 'completed') mins = rt * (1 + (i.rewatchCount || 0));
+              mins = getMovieWatchedMinutes(i);
             } else {
               const eps = i.watchedEpisodeKeys?.length || i.currentProgress || 0;
               const dur = i.runtimeMinutes || 42;
@@ -2114,12 +2182,22 @@ export const InsightsEngine = {
           status: i.status,
           userScore: i.userScore,
           voteAverage: i.voteAverage,
-          highlightMetric: i.status.replace('_', ' ').toUpperCase(),
+          highlightMetric:
+            i.status === 'completed' && i.isAlsoPlanned
+              ? 'COMPLETED + PLAN'
+              : i.status.replace('_', ' ').toUpperCase(),
           extraInfo: `Score: ${i.userScore > 0 ? `${i.userScore}/10` : 'Unrated'}`,
         }));
 
         const counts: Record<string, number> = { completed: 0, watching: 0, plan_to_watch: 0, on_hold: 0, dropped: 0 };
-        for (const item of items) counts[item.status] = (counts[item.status] || 0) + 1;
+        let dualCount = 0;
+        for (const item of items) {
+          counts[item.status] = (counts[item.status] || 0) + 1;
+          if (item.status === 'completed' && item.isAlsoPlanned) {
+            counts.plan_to_watch++;
+            dualCount++;
+          }
+        }
 
         return {
           widgetId,
@@ -2130,7 +2208,11 @@ export const InsightsEngine = {
           summaryHighlights: [
             { label: 'Completed', value: String(counts.completed) },
             { label: 'Currently Watching', value: String(counts.watching) },
-            { label: 'Plan to Watch', value: String(counts.plan_to_watch) },
+            {
+              label: 'Plan to Watch',
+              value: String(counts.plan_to_watch),
+              hint: dualCount > 0 ? `${dualCount} also completed` : undefined,
+            },
           ],
           items: list,
           notes: 'Full library distribution organized by tracking status across all five states.',
@@ -2142,21 +2224,34 @@ export const InsightsEngine = {
         const rewatched = items
           .filter((i) => (i.rewatchCount || 0) > 0)
           .sort((a, b) => (b.rewatchCount || 0) - (a.rewatchCount || 0));
+        const queuedRewatches = items.filter(
+          (i) => i.status === 'completed' && Boolean(i.isAlsoPlanned)
+        );
+        const sourceList =
+          rewatched.length > 0
+            ? rewatched
+            : queuedRewatches.length > 0
+            ? queuedRewatches
+            : items.filter((i) => i.status === 'completed');
 
-        const list: DrillDownContributingItem[] = (rewatched.length > 0 ? rewatched : items.filter((i) => i.status === 'completed'))
+        const list: DrillDownContributingItem[] = sourceList
           .slice(0, 30)
-          .map((i) => ({
-            id: i.id,
-            title: i.title,
-            mediaType: i.mediaType,
-            posterPath: i.posterPath,
-            releaseYear: i.releaseYear,
-            status: i.status,
-            userScore: i.userScore,
-            voteAverage: i.voteAverage,
-            highlightMetric: `${(i.rewatchCount || 0) + 1}x Watched`,
-            extraInfo: i.rewatchCount ? `${i.rewatchCount} rewatches logged` : 'First watch',
-          }));
+          .map((i) => {
+            const isQueued = i.status === 'completed' && Boolean(i.isAlsoPlanned);
+            const baseExtra = i.rewatchCount ? `${i.rewatchCount} rewatches logged` : 'First watch';
+            return {
+              id: i.id,
+              title: i.title,
+              mediaType: i.mediaType,
+              posterPath: i.posterPath,
+              releaseYear: i.releaseYear,
+              status: i.status,
+              userScore: i.userScore,
+              voteAverage: i.voteAverage,
+              highlightMetric: `${(i.rewatchCount || 0) + 1}x Watched`,
+              extraInfo: isQueued ? `${baseExtra} • Queued for rewatch` : baseExtra,
+            };
+          });
 
         const totalRewatches = items.reduce((acc, i) => acc + (i.rewatchCount || 0), 0);
 
@@ -2169,10 +2264,14 @@ export const InsightsEngine = {
           summaryHighlights: [
             { label: 'Total Rewatches', value: `${totalRewatches}x` },
             { label: 'Most Repeated', value: rewatched[0] ? rewatched[0].title : 'None' },
-            { label: 'Rewatched Titles', value: String(rewatched.length) },
+            {
+              label: 'Rewatched Titles',
+              value: String(rewatched.length),
+              hint: queuedRewatches.length > 0 ? `${queuedRewatches.length} queued` : undefined,
+            },
           ],
           items: list,
-          notes: 'Titles you have enjoyed more than once, with repeat viewing counts.',
+          notes: 'Titles you have enjoyed more than once, with repeat viewing counts and queued rewatches.',
         };
       }
 
@@ -2272,18 +2371,29 @@ export const InsightsEngine = {
           return statusVal(b.status) - statusVal(a.status);
         });
 
-        const list: DrillDownContributingItem[] = sorted.slice(0, 30).map((i) => ({
-          id: i.id,
-          title: i.title,
-          mediaType: i.mediaType,
-          posterPath: i.posterPath,
-          releaseYear: i.releaseYear,
-          status: i.status,
-          userScore: i.userScore,
-          voteAverage: i.voteAverage,
-          highlightMetric: i.status === 'completed' ? 'Finished' : (i.status === 'watching' ? 'Started' : 'Planned'),
-          extraInfo: `Status: ${i.status.replace('_', ' ')}`,
-        }));
+        const list: DrillDownContributingItem[] = sorted.slice(0, 30).map((i) => {
+          const isDual = i.status === 'completed' && Boolean(i.isAlsoPlanned);
+          return {
+            id: i.id,
+            title: i.title,
+            mediaType: i.mediaType,
+            posterPath: i.posterPath,
+            releaseYear: i.releaseYear,
+            status: i.status,
+            userScore: i.userScore,
+            voteAverage: i.voteAverage,
+            highlightMetric: isDual
+              ? 'Completed + Plan'
+              : i.status === 'completed'
+              ? 'Finished'
+              : i.status === 'watching'
+              ? 'Started'
+              : 'Planned',
+            extraInfo: isDual
+              ? 'Completed & queued for rewatch'
+              : `Status: ${i.status.replace('_', ' ')}`,
+          };
+        });
 
         const plan = items.filter((i) => i.status === 'plan_to_watch').length;
         const watchingOrDone = items.filter((i) => i.status === 'watching' || i.status === 'completed').length;
@@ -2557,19 +2667,37 @@ export const InsightsEngine = {
       // 39. Season Anticipation & Rewatch Queue
       case 'season_anticipation': {
         const dualItems = items.filter(
-          (i) => i.mediaType === 'tv' && i.status === 'completed' && Boolean(i.isAlsoPlanned)
+          (i) => i.status === 'completed' && Boolean(i.isAlsoPlanned)
         );
+        const todayStr = new Date().toISOString().substring(0, 10);
+        const getUpcomingDate = (i: TrackedItem): string | undefined => {
+          if (i.mediaType === 'tv') {
+            return i.nextAirDate || i.nextEpisode?.airDate || undefined;
+          }
+          const mDate = i.regionalReleaseDate || i.releaseDate;
+          return mDate && mDate >= todayStr ? mDate : undefined;
+        };
+
         const sorted = dualItems.slice().sort((a, b) => {
-          const dateA = a.nextAirDate || a.nextEpisode?.airDate;
-          const dateB = b.nextAirDate || b.nextEpisode?.airDate;
+          const dateA = getUpcomingDate(a);
+          const dateB = getUpcomingDate(b);
           if (dateA && dateB) return dateA.localeCompare(dateB);
           if (dateA) return -1;
           if (dateB) return 1;
-          return b.userScore - a.userScore;
+          if (b.userScore !== a.userScore) return b.userScore - a.userScore;
+          return (b.rewatchCount || 0) - (a.rewatchCount || 0);
         });
 
         const list: DrillDownContributingItem[] = sorted.slice(0, 30).map((i) => {
-          const airDate = i.nextAirDate || i.nextEpisode?.airDate;
+          const upcomingDate = getUpcomingDate(i);
+          let highlightMetric = 'Awaiting Air Date';
+          if (upcomingDate) {
+            highlightMetric = `Next: ${formatSimpleDate(upcomingDate)}`;
+          } else if (i.mediaType === 'movie') {
+            highlightMetric = (i.rewatchCount || 0) > 0
+              ? `Rewatch #${(i.rewatchCount || 0) + 1}`
+              : 'Queued for Rewatch';
+          }
           return {
             id: i.id,
             title: i.title,
@@ -2579,12 +2707,13 @@ export const InsightsEngine = {
             status: 'completed',
             userScore: i.userScore,
             voteAverage: i.voteAverage,
-            highlightMetric: airDate ? `Next: ${formatSimpleDate(airDate)}` : 'Awaiting Air Date',
+            highlightMetric,
             extraInfo: i.userScore > 0 ? `Rated ${i.userScore}/10 • Completed & Planned` : 'Completed & Planned',
           };
         });
 
-        const withDates = dualItems.filter((i) => i.nextAirDate || i.nextEpisode?.airDate).length;
+        const movieDualCount = dualItems.filter((i) => i.mediaType === 'movie').length;
+        const tvDualCount = dualItems.filter((i) => i.mediaType === 'tv').length;
         const avgScore =
           dualItems.filter((i) => i.userScore > 0).length > 0
             ? (
@@ -2600,12 +2729,12 @@ export const InsightsEngine = {
           icon: def.icon,
           color: def.color,
           summaryHighlights: [
-            { label: 'Anticipated Shows', value: String(dualItems.length) },
-            { label: 'Announced Air Dates', value: String(withDates) },
+            { label: 'Queued Titles', value: String(dualItems.length) },
+            { label: 'Movies / TV Split', value: `${movieDualCount} / ${tvDualCount}` },
             { label: 'Average User Score', value: avgScore !== '-' ? `${avgScore} / 10` : 'Unrated' },
           ],
           items: list,
-          notes: 'Completed TV shows kept in Plan to Watch for upcoming seasons or scheduled rewatches.',
+          notes: 'Completed movies and TV shows kept in Plan to Watch for upcoming seasons or scheduled rewatches.',
         };
       }
 

@@ -186,7 +186,7 @@ export interface TrackedItem {
   // Viewing Progress & Rewatch Tracking (Movies & TV Shows)
   rewatchCount?: number;
 
-  // TV Dual-Tracking (Completed & Plan to Watch simultaneously)
+  // Dual-Tracking (Completed & Plan to Watch simultaneously — Movies & TV Shows)
   isAlsoPlanned?: boolean;
 
   // Movie Tracking Fields

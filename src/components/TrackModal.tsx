@@ -923,6 +923,7 @@ function TrackModalFormContent({
     setWatchedSeasonsHistory({});
     if (status === 'completed') {
       setStatus('watching');
+      setIsAlsoPlanned(false);
       setFinishedAt('');
       setFinishedTime('');
     }
@@ -930,9 +931,12 @@ function TrackModalFormContent({
 
   // TV Show fresh rewatch flow
   const handleStartTvRewatch = () => {
+    const dualQueueNote = isAlsoPlanned
+      ? ' It will also clear the Plan to Watch queue flag while you are watching.'
+      : '';
     Alert.alert(
       'Start New Rewatch Run',
-      `Starting a rewatch will increment your total rewatch count to ${rewatchCount + 1} and reset your current watched episodes to 0 so you can track your new run from Episode 1.\n\nYour score, reviews, and completion history are preserved. Ready to begin?`,
+      `Starting a rewatch will increment your total rewatch count to ${rewatchCount + 1} and reset your current watched episodes to 0 so you can track your new run from Episode 1.${dualQueueNote}\n\nYour score, reviews, and completion history are preserved. Ready to begin?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -941,6 +945,7 @@ function TrackModalFormContent({
           onPress: () => {
             triggerHaptic('success');
             setRewatchCount((c) => c + 1);
+            setIsAlsoPlanned(false);
             setStatus('watching');
             setWatchedKeys(new Set<string>());
             setWatchedEpisodesHistory({});
@@ -957,9 +962,12 @@ function TrackModalFormContent({
 
   // Movie fresh rewatch flow
   const handleStartMovieRewatch = () => {
+    const dualQueueNote = isAlsoPlanned
+      ? ' It will also clear the Plan to Watch queue flag while you are watching.'
+      : '';
     Alert.alert(
       'Start Movie Rewatch',
-      `Starting a rewatch will increment your rewatch count to ${rewatchCount + 1} and reset watched minutes to 0m so you can track your rewatch run.\n\nYour score and review are preserved. Ready to begin?`,
+      `Starting a rewatch will increment your rewatch count to ${rewatchCount + 1} and reset watched minutes to 0m so you can track your rewatch run.${dualQueueNote}\n\nYour score and review are preserved. Ready to begin?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -968,6 +976,7 @@ function TrackModalFormContent({
           onPress: () => {
             triggerHaptic('success');
             setRewatchCount((c) => c + 1);
+            setIsAlsoPlanned(false);
             setStatus('watching');
             setMinutesWatched(0);
             setSecondsWatched(0);
@@ -979,6 +988,50 @@ function TrackModalFormContent({
         },
       ]
     );
+  };
+
+  // Rewatch counter + button: upgrades Plan to Watch titles seamlessly to Completed + Plan
+  const handleIncrementRewatch = () => {
+    triggerHaptic('selection');
+    setRewatchCount((c) => c + 1);
+    if (status === 'plan_to_watch') {
+      setStatus('completed');
+      setIsAlsoPlanned(true);
+      if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+      if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
+      if (mediaType === 'tv') {
+        handleMarkEntireShowWatched();
+      } else if (mediaType === 'movie' && runtimeMinutes) {
+        setMinutesWatched(runtimeMinutes);
+        setSecondsWatched(runtimeMinutes * 60);
+      }
+    } else if (!status) {
+      setStatus('completed');
+      if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+      if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
+      if (mediaType === 'tv') {
+        handleMarkEntireShowWatched();
+      } else if (mediaType === 'movie' && runtimeMinutes) {
+        setMinutesWatched(runtimeMinutes);
+        setSecondsWatched(runtimeMinutes * 60);
+      }
+    }
+  };
+
+  // 1-tap finish for a title queued under Completed + Plan
+  const handleCompletePlannedRewatch = () => {
+    triggerHaptic('success');
+    setRewatchCount((c) => c + 1);
+    setIsAlsoPlanned(false);
+    setStatus('completed');
+    if (mediaType === 'tv') {
+      handleMarkEntireShowWatched();
+    } else if (mediaType === 'movie' && runtimeMinutes) {
+      setMinutesWatched(runtimeMinutes);
+      setSecondsWatched(runtimeMinutes * 60);
+    }
+    setFinishedAt(getTodayFormatted(dateFormat));
+    setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
   };
 
   // Status Change with Date and Progress Sync
@@ -1032,68 +1085,71 @@ function TrackModalFormContent({
     }
   };
 
-  // Status Button Press with Dual Completed + Plan support for TV
+  // Status Button Press with Dual Completed + Plan support for Movies & TV
   const handleStatusButtonPress = (st: MediaStatus) => {
-    if (mediaType === 'tv') {
-      const isDualActive = status === 'completed' && isAlsoPlanned;
+    const isDualActive = status === 'completed' && isAlsoPlanned;
 
-      // Case 1: Already in dual state (Completed + Plan to Watch)
-      if (isDualActive) {
-        if (st === 'completed') {
-          // Remove Completed -> leaves only Plan to Watch
-          triggerHaptic('selection');
-          setStatus('plan_to_watch');
-          setIsAlsoPlanned(false);
-          setFinishedAt('');
-          setFinishedTime('');
-          return;
-        }
-        if (st === 'plan_to_watch') {
-          // Remove Plan to Watch -> leaves only Completed
-          triggerHaptic('selection');
-          setIsAlsoPlanned(false);
-          return;
-        }
-        // Any other status (Watching, On-Hold, Dropped) clears dual and switches cleanly
-        handleStatusChange(st);
+    // Case 1: Already in dual state (Completed + Plan to Watch)
+    if (isDualActive) {
+      if (st === 'completed') {
+        // Remove Completed -> leaves only Plan to Watch
+        triggerHaptic('selection');
+        setStatus('plan_to_watch');
+        setIsAlsoPlanned(false);
+        setFinishedAt('');
+        setFinishedTime('');
         return;
       }
-
-      // Case 2: On Completed (not dual)
-      if (status === 'completed') {
-        if (st === 'plan_to_watch') {
-          // Activate dual state
-          triggerHaptic('selection');
-          setIsAlsoPlanned(true);
-          return;
-        }
-        if (st === 'completed') {
-          triggerHaptic('selection');
-          return;
-        }
-        handleStatusChange(st);
+      if (st === 'plan_to_watch') {
+        // Remove Plan to Watch -> leaves only Completed
+        triggerHaptic('selection');
+        setIsAlsoPlanned(false);
         return;
       }
+      // Any other status (Watching, On-Hold, Dropped) clears dual and switches cleanly
+      handleStatusChange(st);
+      return;
+    }
 
-      // Case 3: On Plan to Watch (not dual)
-      if (status === 'plan_to_watch') {
-        if (st === 'completed') {
-          // Activate dual state
-          triggerHaptic('selection');
-          setStatus('completed');
-          setIsAlsoPlanned(true);
-          if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
-          if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
+    // Case 2: On Completed (not dual)
+    if (status === 'completed') {
+      if (st === 'plan_to_watch') {
+        // Activate dual state
+        triggerHaptic('selection');
+        setIsAlsoPlanned(true);
+        return;
+      }
+      if (st === 'completed') {
+        triggerHaptic('selection');
+        return;
+      }
+      handleStatusChange(st);
+      return;
+    }
+
+    // Case 3: On Plan to Watch (not dual)
+    if (status === 'plan_to_watch') {
+      if (st === 'completed') {
+        // Activate dual state
+        triggerHaptic('selection');
+        setStatus('completed');
+        setIsAlsoPlanned(true);
+        if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
+        if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
+        if (mediaType === 'tv') {
           handleMarkEntireShowWatched();
-          return;
+        } else if (mediaType === 'movie' && runtimeMinutes) {
+          setMinutesWatched(runtimeMinutes);
+          setSecondsWatched(runtimeMinutes * 60);
         }
-        if (st === 'plan_to_watch') {
-          triggerHaptic('selection');
-          return;
-        }
-        handleStatusChange(st);
         return;
       }
+      if (st === 'plan_to_watch') {
+        triggerHaptic('selection');
+        return;
+      }
+      handleStatusChange(st);
+      return;
     }
 
     // Normal single status change
@@ -1174,7 +1230,7 @@ function TrackModalFormContent({
         mediaType === 'tv' && Object.keys(watchedSeasonsHistory).length > 0
           ? watchedSeasonsHistory
           : undefined,
-      isAlsoPlanned: mediaType === 'tv' && status === 'completed' ? Boolean(isAlsoPlanned) : undefined,
+      isAlsoPlanned: status === 'completed' ? Boolean(isAlsoPlanned) : undefined,
 
       // Movie
       runtimeMinutes,
@@ -1462,8 +1518,7 @@ function TrackModalFormContent({
   const isStatusAlertEnabled =
     Boolean(notificationStatuses[effectiveStatusForAlert]) ||
     Boolean(
-      mediaType === 'tv' &&
-        effectiveStatusForAlert === 'completed' &&
+      effectiveStatusForAlert === 'completed' &&
         isAlsoPlanned &&
         notificationStatuses.plan_to_watch
     );
@@ -1479,7 +1534,7 @@ function TrackModalFormContent({
       const updated: TrackedItem = {
         ...existingRecord,
         status: status || existingRecord.status,
-        isAlsoPlanned: mediaType === 'tv' && (status || existingRecord.status) === 'completed' ? Boolean(isAlsoPlanned) : undefined,
+        isAlsoPlanned: (status || existingRecord.status) === 'completed' ? Boolean(isAlsoPlanned) : undefined,
         releaseDate:
           detailedInfo?.releaseDate ||
           existingRecord.releaseDate ||
@@ -1516,6 +1571,7 @@ function TrackModalFormContent({
         totalEpisodes: totalEpisodes || undefined,
         totalSeasons: totalSeasons || undefined,
         runtimeMinutes: runtimeMinutes || undefined,
+        isAlsoPlanned: nextStatus === 'completed' ? Boolean(isAlsoPlanned) : undefined,
         addedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         releaseDate: effectiveMovieDate,
@@ -1542,7 +1598,7 @@ function TrackModalFormContent({
       const updated: TrackedItem = {
         ...existingRecord,
         status: status || existingRecord.status,
-        isAlsoPlanned: mediaType === 'tv' && (status || existingRecord.status) === 'completed' ? Boolean(isAlsoPlanned) : undefined,
+        isAlsoPlanned: (status || existingRecord.status) === 'completed' ? Boolean(isAlsoPlanned) : undefined,
         releaseDate:
           detailedInfo?.releaseDate ||
           existingRecord.releaseDate ||
@@ -2944,7 +3000,7 @@ function TrackModalFormContent({
           <View style={styles.statusHeaderRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Status</Text>
-              {mediaType === 'tv' && status === 'completed' && isAlsoPlanned && (
+              {status === 'completed' && isAlsoPlanned && (
                 <View style={styles.dualStatusHeaderBadge}>
                   <View style={[styles.statusColorPipSmall, { backgroundColor: '#3b82f6' }]} />
                   <View style={[styles.statusColorPipSmall, { backgroundColor: '#a855f7' }]} />
@@ -2960,7 +3016,7 @@ function TrackModalFormContent({
           <View style={styles.statusGrid}>
             {(Object.keys(STATUS_CONFIG) as MediaStatus[]).map((st) => {
               const config = STATUS_CONFIG[st];
-              const isDualPlannedButton = mediaType === 'tv' && status === 'completed' && isAlsoPlanned && st === 'plan_to_watch';
+              const isDualPlannedButton = status === 'completed' && isAlsoPlanned && st === 'plan_to_watch';
               const isSelected = status === st || isDualPlannedButton;
               return (
                 <Pressable
@@ -2997,8 +3053,8 @@ function TrackModalFormContent({
             })}
           </View>
 
-          {/* TV Dual-Tracking Option for Completed & Planned */}
-          {mediaType === 'tv' && status === 'completed' && (
+          {/* Dual-Tracking Option for Completed & Planned (Movies & TV Shows) */}
+          {status === 'completed' && (
             <Pressable
               style={[
                 styles.dualStatusCard,
@@ -3033,7 +3089,9 @@ function TrackModalFormContent({
                     )}
                   </View>
                   <Text style={[styles.dualStatusCardDesc, { color: colors.textSecondary }]}>
-                    Keep completed stats while queueing up for upcoming seasons or future rewatching.
+                    {mediaType === 'tv'
+                      ? 'Keep completed stats while queueing up for upcoming seasons or future rewatching.'
+                      : 'Keep completed stats while queueing this movie on Plan to Watch for a future rewatch.'}
                   </Text>
                 </View>
                 <Switch
@@ -3049,8 +3107,8 @@ function TrackModalFormContent({
             </Pressable>
           )}
 
-          {/* Prompt when on Plan to Watch for TV */}
-          {mediaType === 'tv' && status === 'plan_to_watch' && (
+          {/* Prompt when on Plan to Watch (Movies & TV Shows) */}
+          {status === 'plan_to_watch' && (
             <Pressable
               style={[
                 styles.dualStatusPromptCard,
@@ -3064,16 +3122,25 @@ function TrackModalFormContent({
                 setStatus('completed');
                 setIsAlsoPlanned(true);
                 if (!finishedAt) setFinishedAt(getTodayFormatted(dateFormat));
-          if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
-                handleMarkEntireShowWatched();
+                if (!finishedTime) setFinishedTime(formatTimeWithSeconds(new Date(), timeFormat));
+                if (mediaType === 'tv') {
+                  handleMarkEntireShowWatched();
+                } else if (mediaType === 'movie' && runtimeMinutes) {
+                  setMinutesWatched(runtimeMinutes);
+                  setSecondsWatched(runtimeMinutes * 60);
+                }
               }}>
               <Ionicons name="checkmark-done-circle-outline" size={20} color="#3b82f6" />
               <View style={{ flex: 1, marginHorizontal: 8 }}>
                 <Text style={[styles.dualStatusPromptTitle, { color: colors.text }]}>
-                  Finished current seasons?
+                  {mediaType === 'tv'
+                    ? 'Finished current seasons?'
+                    : 'Already watched & planning a rewatch?'}
                 </Text>
                 <Text style={[styles.dualStatusPromptDesc, { color: colors.textSecondary }]}>
-                  Mark as both Completed and Plan to Watch at the same time.
+                  {mediaType === 'tv'
+                    ? 'Mark as both Completed and Plan to Watch at the same time.'
+                    : 'Keep it in Plan to Watch while also counting it as Completed.'}
                 </Text>
               </View>
               <Ionicons name="arrow-forward" size={16} color="#3b82f6" />
@@ -3156,6 +3223,18 @@ function TrackModalFormContent({
                     onPress={handleResetAllEpisodes}>
                     <Text style={[styles.quickPillText, { color: colors.textSecondary }]}>Reset (0)</Text>
                   </Pressable>
+                  {status === 'completed' && isAlsoPlanned && (
+                    <Pressable
+                      style={[
+                        styles.quickPill,
+                        { backgroundColor: 'rgba(168, 85, 247, 0.14)', borderColor: '#a855f7' },
+                      ]}
+                      onPress={handleCompletePlannedRewatch}>
+                      <Text style={[styles.quickPillText, { color: '#c084fc', fontWeight: '700' }]}>
+                        Complete Planned Rewatch (+1)
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
 
                 {/* TV Rewatch Counter */}
@@ -3180,10 +3259,7 @@ function TrackModalFormContent({
                     </Pressable>
                     <Pressable
                       style={[styles.rewatchMiniBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                      onPress={() => {
-                        triggerHaptic('selection');
-                        setRewatchCount((c) => c + 1);
-                      }}>
+                      onPress={handleIncrementRewatch}>
                       <Ionicons name="add" size={14} color={colors.text} />
                     </Pressable>
                     <Pressable
@@ -3617,6 +3693,18 @@ function TrackModalFormContent({
                 ) : null}
               </>
             ) : null}
+            {status === 'completed' && isAlsoPlanned && (
+              <Pressable
+                style={[
+                  styles.quickPill,
+                  { backgroundColor: 'rgba(168, 85, 247, 0.14)', borderColor: '#a855f7' },
+                ]}
+                onPress={handleCompletePlannedRewatch}>
+                <Text style={[styles.quickPillText, { color: '#c084fc', fontWeight: '700' }]}>
+                  Complete Planned Rewatch (+1)
+                </Text>
+              </Pressable>
+            )}
           </View>
 
           {/* Rewatch Counter */}
@@ -3641,10 +3729,7 @@ function TrackModalFormContent({
               </Pressable>
               <Pressable
                 style={[styles.rewatchMiniBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                onPress={() => {
-                  triggerHaptic('selection');
-                  setRewatchCount((c) => c + 1);
-                }}>
+                onPress={handleIncrementRewatch}>
                 <Ionicons name="add" size={14} color={colors.text} />
               </Pressable>
               <Pressable
@@ -5095,6 +5180,7 @@ const styles = StyleSheet.create({
   },
   quickActionsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'center',
     gap: 8,
     marginTop: 12,

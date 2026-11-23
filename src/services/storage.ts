@@ -745,10 +745,15 @@ export const StorageService = {
           const key = `${i.mediaType}_${i.id}`;
           const current = map.get(key);
           if (current) {
+            const nextStatus = i.status || current.status;
             map.set(key, {
               ...current,
               ...i,
               rewatchCount: Math.max(current.rewatchCount || 0, i.rewatchCount || 0) || undefined,
+              isAlsoPlanned:
+                nextStatus === 'completed'
+                  ? Boolean(i.isAlsoPlanned ?? current.isAlsoPlanned)
+                  : undefined,
               updatedAt: new Date().toISOString(),
             });
           } else {

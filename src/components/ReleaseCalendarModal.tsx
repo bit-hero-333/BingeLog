@@ -308,9 +308,7 @@ export function ReleaseCalendarModal({
     };
 
     for (const item of trackedItems) {
-      const isDualStatus = Boolean(
-        item.mediaType === 'tv' && item.status === 'completed' && item.isAlsoPlanned
-      );
+      const isDualStatus = Boolean(item.status === 'completed' && item.isAlsoPlanned);
 
       if (statusFilter !== 'all') {
         const matches =
@@ -332,7 +330,7 @@ export function ReleaseCalendarModal({
               ? `${item.regionalReleaseType} Release`
               : 'Movie Release',
             statusColor: String(statusColor),
-            isDualStatus: false,
+            isDualStatus,
           });
         }
       } else {

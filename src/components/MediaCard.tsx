@@ -54,7 +54,6 @@ export function MediaCard({
 
   const isDualStatus = Boolean(
     currentTracked &&
-    currentTracked.mediaType === 'tv' &&
     currentTracked.status === 'completed' &&
     currentTracked.isAlsoPlanned
   );
