@@ -272,13 +272,13 @@ export default function AchievementsScreen() {
             setRoadmapModalVisible(true);
           }}>
           <View style={styles.trophyBannerTop}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={styles.trophyBannerLeft}>
               <Text style={[styles.bannerScoreTitle, { color: colors.text, fontSize: 12.5 * textScale }]}>
                 Overall Progress
               </Text>
               <Ionicons name="information-circle-outline" size={14} color={colors.textSecondary} />
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={styles.trophyBannerRight}>
               <Text style={[styles.bannerScoreValue, { color: '#FFD700', fontSize: 13 * textScale }]}>
                 {statsSummary.completionScorePercent}% Completed
               </Text>
@@ -473,7 +473,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     marginBottom: 8,
+  },
+  trophyBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    flexShrink: 1,
+  },
+  trophyBannerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
   },
   bannerScoreTitle: {
     fontWeight: '700',
@@ -607,13 +621,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     marginBottom: 5,
   },
   progressCurrentText: {
     fontWeight: '600',
+    flex: 1,
+    flexShrink: 1,
   },
   progressPercentText: {
     fontWeight: '700',
+    flexShrink: 0,
+    textAlign: 'right',
   },
   statusBarTrack: {
     height: 6,

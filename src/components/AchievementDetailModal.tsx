@@ -414,10 +414,12 @@ const styles = StyleSheet.create({
   progressMetricText: {
     fontWeight: '700',
     flex: 1,
+    flexShrink: 1,
   },
   progressPercentBadge: {
     fontWeight: '800',
     textAlign: 'right',
+    flexShrink: 0,
   },
   progressBarTrack: {
     height: 8,
@@ -444,6 +446,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     paddingVertical: 7,
     paddingHorizontal: 8,
   },
@@ -451,6 +454,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
+    flexShrink: 1,
   },
   ladderDot: {
     width: 16,
@@ -465,6 +470,7 @@ const styles = StyleSheet.create({
   },
   ladderRight: {
     alignItems: 'flex-end',
+    flexShrink: 0,
   },
   ladderThreshold: {
     fontWeight: '600',

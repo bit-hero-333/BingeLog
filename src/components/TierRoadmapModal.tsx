@@ -185,7 +185,7 @@ export function TierRoadmapModal({
                         <View style={[styles.breakdownIconWrap, { backgroundColor: cfg.glow }]}>
                           <TierTrophyIcon tier={tier} size={20} />
                         </View>
-                        <View>
+                        <View style={styles.breakdownLabelCol}>
                           <Text style={[styles.breakdownTierLabel, { color: cfg.color, fontSize: 13 * textScale }]}>
                             {cfg.label}
                           </Text>
@@ -218,7 +218,7 @@ export function TierRoadmapModal({
                     <View style={[styles.breakdownIconWrap, { backgroundColor: 'rgba(71, 85, 105, 0.15)' }]}>
                       <Ionicons name="lock-closed" size={18} color="#64748b" />
                     </View>
-                    <View>
+                    <View style={styles.breakdownLabelCol}>
                       <Text style={[styles.breakdownTierLabel, { color: '#94a3b8', fontSize: 13 * textScale }]}>
                         Locked (Unearned)
                       </Text>
@@ -366,6 +366,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
@@ -373,6 +374,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flex: 1,
+    flexShrink: 1,
+  },
+  breakdownLabelCol: {
+    flex: 1,
+    flexShrink: 1,
   },
   breakdownIconWrap: {
     width: 34,
@@ -391,6 +398,7 @@ const styles = StyleSheet.create({
   breakdownRight: {
     alignItems: 'flex-end',
     width: 100,
+    flexShrink: 0,
   },
   breakdownCountText: {
     fontWeight: '700',
