@@ -262,12 +262,12 @@ export function AchievementDetailModal({
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.galleryScroll}>
-                  {contributingItems.map((item) => {
+                  {contributingItems.map((item, idx) => {
                     const posterUrl = TMDBService.getImageUrl(item.posterPath, 'w185');
 
                     return (
                       <Pressable
-                        key={`${item.mediaType}_${item.id}`}
+                        key={`${item.mediaType}_${item.id}_${idx}`}
                         style={[styles.contributingCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}
                         onPress={() => {
                           if (onSelectMedia) {

@@ -52,6 +52,8 @@ interface EpisodeDetailModalProps {
   existingRecord?: TrackedItem;
   onSaveReminder?: (config: ItemReminderConfig) => void;
   onRemoveReminder?: () => void;
+  userRating?: number;
+  onUpdateRating?: (rating: number | null) => void;
 }
 
 interface EpisodeDetailContentProps {
@@ -69,7 +71,22 @@ interface EpisodeDetailContentProps {
   existingRecord?: TrackedItem;
   onSaveReminder?: (config: ItemReminderConfig) => void;
   onRemoveReminder?: () => void;
+  userRating?: number;
+  onUpdateRating?: (rating: number | null) => void;
 }
+
+const EPISODE_SCORE_LABELS: Record<number, string> = {
+  1: 'Appalling',
+  2: 'Horrible',
+  3: 'Very Bad',
+  4: 'Bad',
+  5: 'Average',
+  6: 'Fine',
+  7: 'Good',
+  8: 'Very Good',
+  9: 'Great',
+  10: 'Masterpiece',
+};
 
 function EpisodeDetailContent({
   tvId,
@@ -86,6 +103,8 @@ function EpisodeDetailContent({
   existingRecord,
   onSaveReminder,
   onRemoveReminder,
+  userRating = 0,
+  onUpdateRating,
 }: EpisodeDetailContentProps) {
   const {
     apiKey,
@@ -105,6 +124,9 @@ function EpisodeDetailContent({
   const [showReminderModal, setShowReminderModal] = useState<boolean>(false);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [showTimePicker, setShowTimePicker] = useState<boolean>(false);
+  const currentEpisodeKey = `s${seasonNumber}_e${episodeNumber}`;
+  const [expandedRatingKey, setExpandedRatingKey] = useState<string | null>(null);
+  const showRatingPicker = expandedRatingKey === currentEpisodeKey;
   const originCountry = existingRecord?.originCountry || (item as any)?.originCountry || (item as any)?.origin_country?.[0];
 
   useEffect(() => {
@@ -179,29 +201,64 @@ function EpisodeDetailContent({
           </View>
         ) : null}
 
-        {/* Action Row: Watched Status & Quick Info */}
+        {/* Action Row: Watched Status, Compact Rating Toggle & Quick Info */}
         <View style={styles.actionRow}>
-          <Pressable
-            style={[
-              styles.watchButton,
-              isWatched
-                ? { backgroundColor: colors.success, borderColor: colors.success }
-                : { backgroundColor: colors.card, borderColor: colors.cardBorder },
-            ]}
-            onPress={onToggleWatched}>
-            <Ionicons
-              name={isWatched ? 'checkmark-circle' : 'ellipse-outline'}
-              size={20}
-              color={isWatched ? '#ffffff' : colors.textSecondary}
-            />
-            <Text
+          <View style={styles.primaryActionsWrap}>
+            <Pressable
               style={[
-                styles.watchButtonText,
-                { color: isWatched ? '#ffffff' : colors.text },
-              ]}>
-              {isWatched ? 'Watched' : 'Mark as Watched'}
-            </Text>
-          </Pressable>
+                styles.watchButton,
+                isWatched
+                  ? { backgroundColor: colors.success, borderColor: colors.success }
+                  : { backgroundColor: colors.card, borderColor: colors.cardBorder },
+              ]}
+              onPress={onToggleWatched}>
+              <Ionicons
+                name={isWatched ? 'checkmark-circle' : 'ellipse-outline'}
+                size={20}
+                color={isWatched ? '#ffffff' : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.watchButtonText,
+                  { color: isWatched ? '#ffffff' : colors.text },
+                ]}>
+                {isWatched ? 'Watched' : 'Mark as Watched'}
+              </Text>
+            </Pressable>
+
+            {onUpdateRating ? (
+              <Pressable
+                style={[
+                  styles.ratingToggleBtn,
+                  userRating > 0
+                    ? {
+                        backgroundColor: 'rgba(251, 191, 36, 0.16)',
+                        borderColor: 'rgba(251, 191, 36, 0.45)',
+                      }
+                    : {
+                        backgroundColor: colors.card,
+                        borderColor: colors.cardBorder,
+                      },
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setExpandedRatingKey(showRatingPicker ? null : currentEpisodeKey);
+                }}>
+                <Ionicons
+                  name={userRating > 0 ? 'star' : 'star-outline'}
+                  size={15}
+                  color={userRating > 0 ? '#fbbf24' : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.ratingToggleText,
+                    { color: userRating > 0 ? '#fbbf24' : colors.text },
+                  ]}>
+                  {userRating > 0 ? `${userRating}/10` : 'Rate'}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
 
           {/* Quick Badges */}
           <View style={styles.badgesRow}>
@@ -252,6 +309,64 @@ function EpisodeDetailContent({
             ) : null}
           </View>
         </View>
+
+        {/* Inline Compact 1-10 Rating Strip (only expanded on tap) */}
+        {showRatingPicker && onUpdateRating && (
+          <View
+            style={[
+              styles.ratingPickerCard,
+              { backgroundColor: colors.card, borderColor: colors.cardBorder },
+            ]}>
+            <View style={styles.ratingPickerHeader}>
+              <Text style={[styles.ratingPickerLabel, { color: colors.text }]} numberOfLines={1}>
+                {userRating > 0
+                  ? `Your Rating: ${userRating}/10 - ${EPISODE_SCORE_LABELS[userRating] || ''}`
+                  : 'Rate Episode (1-10)'}
+              </Text>
+              {userRating > 0 ? (
+                <Pressable
+                  style={styles.ratingClearBtn}
+                  hitSlop={8}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    onUpdateRating(null);
+                    setExpandedRatingKey(null);
+                  }}>
+                  <Text style={[styles.ratingClearText, { color: colors.danger }]}>Clear</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            <View style={styles.ratingScaleRow}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((scoreValue) => {
+                const isSelected = userRating === scoreValue;
+                return (
+                  <Pressable
+                    key={`ep-score-${scoreValue}`}
+                    style={[
+                      styles.ratingScorePill,
+                      isSelected
+                        ? { backgroundColor: '#fbbf24', borderColor: '#fbbf24' }
+                        : { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      onUpdateRating(scoreValue);
+                      setExpandedRatingKey(null);
+                    }}>
+                    <Text
+                      style={[
+                        styles.ratingScorePillText,
+                        { color: isSelected ? '#0f172a' : colors.textSecondary },
+                      ]}>
+                      {scoreValue}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* Completion Date & Time Status Card (Granular Watch Tracking) */}
         {isWatched && (
@@ -650,6 +765,68 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     flexWrap: 'wrap',
     gap: 10,
+  },
+  primaryActionsWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  ratingToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  ratingToggleText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  ratingPickerCard: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+  },
+  ratingPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  ratingPickerLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    flex: 1,
+  },
+  ratingClearBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  ratingClearText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  ratingScaleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingScorePill: {
+    flex: 1,
+    height: 30,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ratingScorePillText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
   releaseAlertCard: {
     flexDirection: 'row',

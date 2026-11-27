@@ -247,6 +247,7 @@ export function compressPayloadForQr(payload: SyncPayload): string {
       ohs: item.onHoldStartedAt,
       eh: item.watchedEpisodesHistory,
       sh: item.watchedSeasonsHistory,
+      er: item.episodeRatings && Object.keys(item.episodeRatings).length > 0 ? item.episodeRatings : undefined,
     })),
     s: payload.settings,
   };
@@ -295,6 +296,7 @@ export function decompressQrPayload(compressedStr: string): SyncPayload | null {
         onHoldStartedAt: (item as any).ohs,
         watchedEpisodesHistory: (item as any).eh,
         watchedSeasonsHistory: (item as any).sh,
+        episodeRatings: (item as any).er,
       }));
 
       return {
@@ -387,8 +389,10 @@ export function compareLibraries(
 
       const isStatusChange = inc.status !== existing.status;
       const isScoreChange = inc.userScore !== existing.userScore;
+      const isEpisodeRatingDiff =
+        JSON.stringify(inc.episodeRatings || {}) !== JSON.stringify(existing.episodeRatings || {});
 
-      if (hasProgressDiff || isStatusChange || isScoreChange) {
+      if (hasProgressDiff || isStatusChange || isScoreChange || isEpisodeRatingDiff) {
         updatedItemsCount++;
         updatedItemsTitles.push(inc.title);
       } else {
@@ -440,6 +444,11 @@ export function mergeLibraries(
         ...(inc.watchedSeasonsHistory || {}),
       };
 
+      const mergedEpisodeRatings = {
+        ...(existing.episodeRatings || {}),
+        ...(inc.episodeRatings || {}),
+      };
+
       const progress = Math.max(
         existing.currentProgress || 0,
         inc.currentProgress || 0,
@@ -473,6 +482,7 @@ export function mergeLibraries(
         watchedEpisodeKeys: mergedWatchedKeys.size > 0 ? Array.from(mergedWatchedKeys) : undefined,
         watchedEpisodesHistory: Object.keys(mergedEpisodesHistory).length > 0 ? mergedEpisodesHistory : undefined,
         watchedSeasonsHistory: Object.keys(mergedSeasonsHistory).length > 0 ? mergedSeasonsHistory : undefined,
+        episodeRatings: Object.keys(mergedEpisodeRatings).length > 0 ? mergedEpisodeRatings : undefined,
         minutesWatched: minutes > 0 ? minutes : undefined,
         rewatchCount: rewatch > 0 ? rewatch : undefined,
         startedAt: inc.startedAt || existing.startedAt,

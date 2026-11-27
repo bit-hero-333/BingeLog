@@ -392,6 +392,9 @@ function TrackModalFormContent({
   const [watchedSeasonsHistory, setWatchedSeasonsHistory] = useState<Record<number, WatchedHistoryRecord>>(
     existingRecord?.watchedSeasonsHistory || {}
   );
+  const [episodeRatings, setEpisodeRatings] = useState<Record<string, number>>(
+    existingRecord?.episodeRatings || {}
+  );
 
   // Selected season for details sheet
   const [selectedSeasonForDetail, setSelectedSeasonForDetail] = useState<{
@@ -1230,6 +1233,10 @@ function TrackModalFormContent({
         mediaType === 'tv' && Object.keys(watchedSeasonsHistory).length > 0
           ? watchedSeasonsHistory
           : undefined,
+      episodeRatings:
+        mediaType === 'tv' && Object.keys(episodeRatings).length > 0
+          ? episodeRatings
+          : undefined,
       isAlsoPlanned: status === 'completed' ? Boolean(isAlsoPlanned) : undefined,
 
       // Movie
@@ -1530,10 +1537,13 @@ function TrackModalFormContent({
 
   const handleSaveReminder = (config: ItemReminderConfig) => {
     setReminderConfig(config);
+    const savedEpisodeRatings =
+      mediaType === 'tv' && Object.keys(episodeRatings).length > 0 ? episodeRatings : undefined;
     if (existingRecord) {
       const updated: TrackedItem = {
         ...existingRecord,
         status: status || existingRecord.status,
+        episodeRatings: savedEpisodeRatings,
         isAlsoPlanned: (status || existingRecord.status) === 'completed' ? Boolean(isAlsoPlanned) : undefined,
         releaseDate:
           detailedInfo?.releaseDate ||
@@ -1570,6 +1580,7 @@ function TrackModalFormContent({
         userScore: score,
         totalEpisodes: totalEpisodes || undefined,
         totalSeasons: totalSeasons || undefined,
+        episodeRatings: savedEpisodeRatings,
         runtimeMinutes: runtimeMinutes || undefined,
         isAlsoPlanned: nextStatus === 'completed' ? Boolean(isAlsoPlanned) : undefined,
         addedAt: new Date().toISOString(),
@@ -1595,9 +1606,12 @@ function TrackModalFormContent({
     };
     setReminderConfig(disabledConfig);
     if (existingRecord) {
+      const savedEpisodeRatings =
+        mediaType === 'tv' && Object.keys(episodeRatings).length > 0 ? episodeRatings : undefined;
       const updated: TrackedItem = {
         ...existingRecord,
         status: status || existingRecord.status,
+        episodeRatings: savedEpisodeRatings,
         isAlsoPlanned: (status || existingRecord.status) === 'completed' ? Boolean(isAlsoPlanned) : undefined,
         releaseDate:
           detailedInfo?.releaseDate ||
@@ -3516,6 +3530,15 @@ function TrackModalFormContent({
                                   </View>
 
                                   <View style={styles.episodeRight}>
+                                    {(episodeRatings[epKey] || 0) > 0 && (
+                                      <View style={styles.epRowRatingBadge}>
+                                        <Ionicons name="star" size={10} color="#fbbf24" />
+                                        <Text style={styles.epRowRatingText}>
+                                          {episodeRatings[epKey]}
+                                        </Text>
+                                      </View>
+                                    )}
+
                                     <View
                                       style={[
                                         styles.watchedBadge,
@@ -4519,6 +4542,22 @@ function TrackModalFormContent({
           existingRecord={existingRecord}
           onSaveReminder={handleSaveReminder}
           onRemoveReminder={handleRemoveReminder}
+          userRating={
+            episodeRatings[
+              `s${selectedEpisodeForDetail.sNum}_e${selectedEpisodeForDetail.epNum}`
+            ] || 0
+          }
+          onUpdateRating={(newRating) => {
+            const epKey = `s${selectedEpisodeForDetail.sNum}_e${selectedEpisodeForDetail.epNum}`;
+            setEpisodeRatings((prev) => {
+              if (newRating && newRating >= 1 && newRating <= 10) {
+                return { ...prev, [epKey]: newRating };
+              }
+              const next = { ...prev };
+              delete next[epKey];
+              return next;
+            });
+          }}
         />
       )}
 
@@ -4575,6 +4614,7 @@ function TrackModalFormContent({
           onToggleEpisodeWatched={(epNum) => {
             handleToggleEpisode(selectedSeasonForDetail.sNum, epNum);
           }}
+          episodeRatings={episodeRatings}
           onClose={() => setSelectedSeasonForDetail(null)}
           item={item}
           existingRecord={existingRecord}
@@ -5355,6 +5395,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  epRowRatingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(251, 191, 36, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.35)',
+  },
+  epRowRatingText: {
+    color: '#fbbf24',
+    fontSize: 10,
+    fontWeight: '800',
   },
   episodeInfoBtn: {
     padding: 3,

@@ -45,6 +45,7 @@ interface SeasonDetailModalProps {
   existingRecord?: TrackedItem;
   watchedEpisodeKeys?: Set<string>;
   onToggleEpisodeWatched?: (episodeNumber: number) => void;
+  episodeRatings?: Record<string, number>;
 }
 
 type SeasonDetailContentProps = Omit<SeasonDetailModalProps, 'visible'>;
@@ -63,6 +64,7 @@ function SeasonDetailContent({
   existingRecord,
   watchedEpisodeKeys,
   onToggleEpisodeWatched,
+  episodeRatings,
 }: SeasonDetailContentProps) {
   const {
     apiKey,
@@ -334,6 +336,7 @@ function SeasonDetailContent({
             episodesList.map((ep) => {
               const epKey = `s${seasonNumber}_e${ep.episodeNumber}`;
               const isEpWatched = watchedEpisodeKeys ? watchedEpisodeKeys.has(epKey) : false;
+              const epRating = episodeRatings?.[epKey] || 0;
 
               return (
                 <Pressable
@@ -383,6 +386,13 @@ function SeasonDetailContent({
                       ) : null}
                     </View>
                   </View>
+
+                  {epRating > 0 ? (
+                    <View style={styles.episodeRatingBadge}>
+                      <Ionicons name="star" size={10} color="#fbbf24" />
+                      <Text style={styles.episodeRatingBadgeText}>{epRating}</Text>
+                    </View>
+                  ) : null}
 
                   <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                 </Pressable>
@@ -690,5 +700,22 @@ const styles = StyleSheet.create({
   },
   episodeMeta: {
     fontSize: 11,
+  },
+  episodeRatingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(251, 191, 36, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.35)',
+    marginRight: 6,
+  },
+  episodeRatingBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#fbbf24',
   },
 });

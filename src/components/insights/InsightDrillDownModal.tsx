@@ -155,7 +155,7 @@ function InsightDrillDownModalContent({
                 CONTRIBUTING TITLES ({payload.items.length})
               </Text>
 
-              {payload.items.map((item) => {
+              {payload.items.map((item, idx) => {
                 const posterUrl = item.posterPath
                   ? TMDBService.getImageUrl(item.posterPath, 'w92')
                   : null;
@@ -168,7 +168,7 @@ function InsightDrillDownModalContent({
 
                 return (
                   <Pressable
-                    key={`${item.mediaType}_${item.id}`}
+                    key={item.uniqueKey || `${item.mediaType}_${item.id}_${idx}`}
                     style={[
                       styles.itemRow,
                       { backgroundColor: colors.card, borderColor: colors.cardBorder },

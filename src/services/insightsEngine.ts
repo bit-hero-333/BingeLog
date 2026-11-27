@@ -51,6 +51,41 @@ export function formatSimpleDate(isoString?: string | null): string {
   }
 }
 
+export interface RatedEpisodeEntry {
+  item: TrackedItem;
+  epKey: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  code: string;
+  episodeName?: string;
+  rating: number;
+}
+
+export function getAllRatedEpisodes(items: TrackedItem[]): RatedEpisodeEntry[] {
+  const entries: RatedEpisodeEntry[] = [];
+  for (const item of items) {
+    if (item.mediaType !== 'tv' || !item.episodeRatings) continue;
+    for (const [epKey, rawRating] of Object.entries(item.episodeRatings)) {
+      if (typeof rawRating !== 'number' || rawRating < 1 || rawRating > 10) continue;
+      const m = epKey.match(/^s(\d+)_e(\d+)$/);
+      const seasonNumber = m ? parseInt(m[1], 10) : 1;
+      const episodeNumber = m ? parseInt(m[2], 10) : 1;
+      const season = item.seasons?.find((s) => s.seasonNumber === seasonNumber);
+      const epInfo = season?.episodes?.find((e) => e.episodeNumber === episodeNumber);
+      entries.push({
+        item,
+        epKey,
+        seasonNumber,
+        episodeNumber,
+        code: seasonNumber === 0 ? `Special E${episodeNumber}` : `S${seasonNumber} E${episodeNumber}`,
+        episodeName: epInfo?.name,
+        rating: rawRating,
+      });
+    }
+  }
+  return entries;
+}
+
 export interface WidgetSurfaceData {
   widgetId: InsightWidgetId;
   primaryValue: string;
@@ -343,6 +378,12 @@ export const InsightsEngine = {
           }
         }
 
+        const ratedEps = getAllRatedEpisodes(items);
+        const epAvg =
+          ratedEps.length > 0
+            ? (ratedEps.reduce((sum, e) => sum + e.rating, 0) / ratedEps.length).toFixed(2)
+            : null;
+
         const userAvg = userCount > 0 ? (userSum / userCount).toFixed(2) : '0.00';
         const tmdbAvg = tmdbCount > 0 ? (tmdbSum / tmdbCount).toFixed(2) : '0.00';
 
@@ -350,8 +391,13 @@ export const InsightsEngine = {
           widgetId,
           primaryValue: userAvg,
           primaryLabel: 'Your Average Score',
-          secondaryValue: `TMDB Community Consensus: ${tmdbAvg}`,
-          badgeText: `${userCount} rated`,
+          secondaryValue: epAvg
+            ? `TMDB Consensus: ${tmdbAvg} • Ep Avg: ${epAvg}/10`
+            : `TMDB Community Consensus: ${tmdbAvg}`,
+          badgeText:
+            ratedEps.length > 0
+              ? `${userCount} titles • ${ratedEps.length} eps`
+              : `${userCount} rated`,
           badgeType: 'primary',
         };
       }
@@ -361,10 +407,16 @@ export const InsightsEngine = {
         const counts: Record<number, number> = {
           10: 0, 9: 0, 8: 0, 7: 0, 6: 0, 5: 0, 4: 0, 3: 0, 2: 0, 1: 0,
         };
+        let titleRatedCount = 0;
         for (const item of items) {
           if (item.userScore >= 1 && item.userScore <= 10) {
             counts[item.userScore]++;
+            titleRatedCount++;
           }
+        }
+        const ratedEps = getAllRatedEpisodes(items);
+        for (const ep of ratedEps) {
+          counts[ep.rating] = (counts[ep.rating] || 0) + 1;
         }
         const chart = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((s) => ({
           label: String(s),
@@ -374,6 +426,10 @@ export const InsightsEngine = {
           widgetId,
           primaryValue: '1-10 Ratings Spectrum',
           primaryLabel: 'Score Distribution',
+          secondaryValue:
+            ratedEps.length > 0
+              ? `${titleRatedCount} titles • ${ratedEps.length} episodes`
+              : `${titleRatedCount} rated titles`,
           chartData: chart,
         };
       }
@@ -429,12 +485,21 @@ export const InsightsEngine = {
       // 13. Perfect 10s
       case 'perfect_tens': {
         const tens = items.filter((i) => i.userScore === 10);
+        const epTens = getAllRatedEpisodes(items).filter((e) => e.rating === 10);
+        const totalTens = tens.length + epTens.length;
+        const recentLabel =
+          tens.length > 0
+            ? `Recent: ${tens[tens.length - 1].title}`
+            : epTens.length > 0
+            ? `Recent Ep: ${epTens[epTens.length - 1].item.title} (${epTens[epTens.length - 1].code})`
+            : 'No 10/10 awarded yet';
         return {
           widgetId,
-          primaryValue: `${tens.length} Masterpieces`,
+          primaryValue: `${totalTens} Masterpieces`,
           primaryLabel: 'Perfect 10 Hall of Fame',
-          secondaryValue: tens.length > 0 ? `Recent: ${tens[tens.length - 1].title}` : 'No 10/10 awarded yet',
-          badgeText: `${tens.length} titles`,
+          secondaryValue: recentLabel,
+          badgeText:
+            epTens.length > 0 ? `${tens.length} titles • ${epTens.length} eps` : `${tens.length} titles`,
           badgeType: 'success',
         };
       }
@@ -466,9 +531,11 @@ export const InsightsEngine = {
 
       // 16. Rating Spread
       case 'rating_spread': {
-        const scores = items.filter((i) => i.userScore > 0).map((i) => i.userScore);
+        const titleScores = items.filter((i) => i.userScore > 0).map((i) => i.userScore);
+        const epScores = getAllRatedEpisodes(items).map((e) => e.rating);
+        const scores = [...titleScores, ...epScores];
         if (scores.length < 2) {
-          return { widgetId, primaryValue: 'N/A', primaryLabel: 'Rating Spread', secondaryValue: 'Rate at least 2 titles' };
+          return { widgetId, primaryValue: 'N/A', primaryLabel: 'Rating Spread', secondaryValue: 'Rate at least 2 titles or episodes' };
         }
         const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
         const variance = scores.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / scores.length;
@@ -477,7 +544,10 @@ export const InsightsEngine = {
           widgetId,
           primaryValue: `±${stdDev}`,
           primaryLabel: 'Standard Deviation',
-          secondaryValue: `Across ${scores.length} user ratings`,
+          secondaryValue:
+            epScores.length > 0
+              ? `Across ${titleScores.length} titles • ${epScores.length} episodes`
+              : `Across ${titleScores.length} user ratings`,
         };
       }
 
@@ -799,13 +869,17 @@ export const InsightsEngine = {
           if (item.notes && item.notes.trim().length > 0) withNotes++;
           if (item.reminder?.enabled) withReminders++;
         }
+        const ratedEpsCount = getAllRatedEpisodes(items).length;
         const total = items.length;
         const scorePct = total > 0 ? Math.round((scored / total) * 100) : 0;
         return {
           widgetId,
           primaryValue: `${scorePct}% Scored`,
           primaryLabel: 'Library Metadata Completeness',
-          secondaryValue: `${withNotes} notes • ${withReminders} notification alerts`,
+          secondaryValue:
+            ratedEpsCount > 0
+              ? `${withNotes} notes • ${withReminders} alerts • ${ratedEpsCount} rated eps`
+              : `${withNotes} notes • ${withReminders} notification alerts`,
         };
       }
 
@@ -938,6 +1012,87 @@ export const InsightsEngine = {
             title: m.itemTitle,
             subtitle: `${m.title} • ${formatSimpleDate(m.iso)}`,
             posterPath: m.posterPath,
+          })),
+        };
+      }
+
+      // 41. Episode Ratings Overview
+      case 'episode_ratings': {
+        const ratedEps = getAllRatedEpisodes(items);
+        if (ratedEps.length === 0) {
+          return {
+            widgetId,
+            primaryValue: '--',
+            primaryLabel: 'Episode Ratings Avg',
+            secondaryValue: 'Rate individual episodes in any TV show',
+            badgeText: '0 rated eps',
+            badgeType: 'info',
+          };
+        }
+        const avg = (ratedEps.reduce((sum, e) => sum + e.rating, 0) / ratedEps.length).toFixed(2);
+        const showCount = new Set(ratedEps.map((e) => e.item.id)).size;
+        const tenCount = ratedEps.filter((e) => e.rating === 10).length;
+        return {
+          widgetId,
+          primaryValue: `${avg}/10`,
+          primaryLabel: 'Episode Ratings Avg',
+          secondaryValue: `${ratedEps.length} eps across ${showCount} show${showCount === 1 ? '' : 's'}`,
+          badgeText: tenCount > 0 ? `${tenCount} 10/10s` : `${ratedEps.length} eps`,
+          badgeType: 'primary',
+        };
+      }
+
+      // 42. Top Shows by Episode Average
+      case 'highest_rated_shows_by_eps': {
+        const ratedEps = getAllRatedEpisodes(items);
+        const byShow = new Map<number, { item: TrackedItem; sum: number; count: number; tens: number }>();
+        for (const ep of ratedEps) {
+          const cur = byShow.get(ep.item.id);
+          if (cur) {
+            cur.sum += ep.rating;
+            cur.count++;
+            if (ep.rating === 10) cur.tens++;
+          } else {
+            byShow.set(ep.item.id, {
+              item: ep.item,
+              sum: ep.rating,
+              count: 1,
+              tens: ep.rating === 10 ? 1 : 0,
+            });
+          }
+        }
+        const ranked = Array.from(byShow.values())
+          .map((s) => ({ ...s, avg: s.sum / s.count }))
+          .sort((a, b) => {
+            if (Math.abs(b.avg - a.avg) > 0.001) return b.avg - a.avg;
+            if (b.count !== a.count) return b.count - a.count;
+            return a.item.title.localeCompare(b.item.title);
+          });
+
+        if (ranked.length === 0) {
+          return {
+            widgetId,
+            primaryValue: '--',
+            primaryLabel: 'Top Show by Ep Avg',
+            secondaryValue: 'Rate TV episodes to rank series',
+            badgeText: '0 shows',
+            badgeType: 'info',
+          };
+        }
+
+        const top = ranked[0];
+        return {
+          widgetId,
+          primaryValue: top.item.title,
+          primaryLabel: 'Top Show by Ep Avg',
+          secondaryValue: `${top.avg.toFixed(2)}/10 avg • ${top.count} ep${top.count === 1 ? '' : 's'}`,
+          badgeText: `${ranked.length} show${ranked.length === 1 ? '' : 's'}`,
+          badgeType: 'success',
+          highlightItems: ranked.slice(0, 3).map((r) => ({
+            id: r.item.id,
+            title: r.item.title,
+            subtitle: `${r.avg.toFixed(2)}/10 • ${r.count} eps`,
+            posterPath: r.item.posterPath,
           })),
         };
       }
@@ -1373,6 +1528,7 @@ export const InsightsEngine = {
         const rated = items
           .filter((i) => i.userScore > 0)
           .sort((a, b) => b.userScore - a.userScore);
+        const ratedEps = getAllRatedEpisodes(items);
 
         const list: DrillDownContributingItem[] = rated.slice(0, 30).map((i) => ({
           id: i.id,
@@ -1390,6 +1546,10 @@ export const InsightsEngine = {
         const userAvg = rated.length > 0 ? (rated.reduce((a, b) => a + b.userScore, 0) / rated.length).toFixed(2) : '0.00';
         const tmdbItems = rated.filter((i) => i.voteAverage && i.voteAverage > 0);
         const tmdbAvg = tmdbItems.length > 0 ? (tmdbItems.reduce((a, b) => a + (b.voteAverage || 0), 0) / tmdbItems.length).toFixed(2) : '0.00';
+        const epAvg =
+          ratedEps.length > 0
+            ? (ratedEps.reduce((sum, e) => sum + e.rating, 0) / ratedEps.length).toFixed(2)
+            : null;
 
         return {
           widgetId,
@@ -1398,12 +1558,13 @@ export const InsightsEngine = {
           icon: def.icon,
           color: def.color,
           summaryHighlights: [
-            { label: 'Your Avg Score', value: `${userAvg}/10` },
-            { label: 'TMDB Avg Score', value: `${tmdbAvg}/10` },
-            { label: 'Total Rated', value: String(rated.length) },
+            { label: 'Titles Avg', value: `${userAvg}/10` },
+            { label: 'TMDB Avg', value: `${tmdbAvg}/10` },
+            ...(epAvg ? [{ label: 'Episodes Avg', value: `${epAvg}/10 (${ratedEps.length})` }] : []),
+            { label: 'Rated Titles', value: String(rated.length) },
           ],
           items: list,
-          notes: 'Every rated title sorted from your personal highest rating to lowest rating.',
+          notes: 'Every rated title sorted from your highest rating to lowest, plus overall episode rating average.',
         };
       }
 
@@ -1412,6 +1573,7 @@ export const InsightsEngine = {
         const rated = items
           .filter((i) => i.userScore > 0)
           .sort((a, b) => b.userScore - a.userScore);
+        const ratedEps = getAllRatedEpisodes(items);
 
         const list: DrillDownContributingItem[] = rated.slice(0, 30).map((i) => ({
           id: i.id,
@@ -1428,6 +1590,7 @@ export const InsightsEngine = {
 
         const modeMap: Record<number, number> = {};
         for (const item of rated) modeMap[item.userScore] = (modeMap[item.userScore] || 0) + 1;
+        for (const ep of ratedEps) modeMap[ep.rating] = (modeMap[ep.rating] || 0) + 1;
         const topScore = Object.entries(modeMap).sort((a, b) => b[1] - a[1])[0];
 
         return {
@@ -1438,11 +1601,11 @@ export const InsightsEngine = {
           color: def.color,
           summaryHighlights: [
             { label: 'Favorite Score', value: topScore ? `${topScore[0]}/10 (${topScore[1]}x)` : 'None' },
-            { label: 'Rated Count', value: String(rated.length) },
-            { label: 'Unrated Titles', value: String(items.length - rated.length) },
+            { label: 'Rated Titles', value: String(rated.length) },
+            { label: 'Rated Episodes', value: String(ratedEps.length) },
           ],
           items: list,
-          notes: 'Distribution of your personal scores across the full 1 to 10 rating scale.',
+          notes: 'Combined distribution of your personal scores across titles and individual TV episodes (1 to 10 scale).',
         };
       }
 
@@ -1530,7 +1693,7 @@ export const InsightsEngine = {
 
       // 13. Perfect 10 Hall of Fame
       case 'perfect_tens': {
-        const tens = items
+        const tens: DrillDownContributingItem[] = items
           .filter((i) => i.userScore === 10)
           .map((i) => {
             const genres = getItemGenres(i);
@@ -1547,8 +1710,27 @@ export const InsightsEngine = {
               voteAverage: i.voteAverage,
               highlightMetric: '10/10',
               extraInfo: genreStr,
+              uniqueKey: `title_10_${i.mediaType}_${i.id}`,
             };
           });
+
+        const epTens = getAllRatedEpisodes(items)
+          .filter((e) => e.rating === 10)
+          .map((e) => ({
+            id: e.item.id,
+            title: `${e.item.title} (${e.code})`,
+            mediaType: e.item.mediaType,
+            posterPath: e.item.posterPath,
+            releaseYear: e.item.releaseYear,
+            status: e.item.status,
+            userScore: e.item.userScore,
+            voteAverage: e.item.voteAverage,
+            highlightMetric: '10/10',
+            extraInfo: e.episodeName || 'Episode Masterpiece',
+            uniqueKey: `ep_10_${e.item.id}_${e.epKey}`,
+          }));
+
+        const allTens = [...tens, ...epTens];
 
         return {
           widgetId,
@@ -1557,12 +1739,13 @@ export const InsightsEngine = {
           icon: def.icon,
           color: def.color,
           summaryHighlights: [
-            { label: 'Total 10s', value: String(tens.length) },
-            { label: 'Masterpiece Tier', value: `${items.length > 0 ? ((tens.length / items.length) * 100).toFixed(1) : 0}% of library` },
-            { label: 'Latest Awarded', value: tens[tens.length - 1] ? tens[tens.length - 1].title : 'None' },
+            { label: 'Total 10s', value: String(allTens.length) },
+            { label: 'Titles', value: String(tens.length) },
+            ...(epTens.length > 0 ? [{ label: 'Episodes', value: String(epTens.length) }] : []),
+            { label: 'Latest Awarded', value: allTens[allTens.length - 1] ? allTens[allTens.length - 1].title : 'None' },
           ],
-          items: tens,
-          notes: 'Every media item you awarded a perfect 10/10 rating.',
+          items: allTens.slice(0, 50),
+          notes: 'Every movie, TV show, and individual episode you awarded a perfect 10/10 rating.',
         };
       }
 
@@ -1651,12 +1834,14 @@ export const InsightsEngine = {
       // 16. Rating Spread
       case 'rating_spread': {
         const rated = items.filter((i) => i.userScore > 0);
-        const mean = rated.length > 0 ? rated.reduce((a, b) => a + b.userScore, 0) / rated.length : 0;
+        const ratedEps = getAllRatedEpisodes(items);
+        const allScores = [...rated.map((i) => i.userScore), ...ratedEps.map((e) => e.rating)];
+        const mean = allScores.length > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
         const sorted = rated
           .map((i) => ({ item: i, dev: Math.abs(i.userScore - mean) }))
           .sort((a, b) => b.dev - a.dev);
 
-        const list: DrillDownContributingItem[] = sorted.slice(0, 30).map(({ item: i, dev }) => ({
+        const list: DrillDownContributingItem[] = sorted.slice(0, 30).map(({ item: i }) => ({
           id: i.id,
           title: i.title,
           mediaType: i.mediaType,
@@ -1669,9 +1854,8 @@ export const InsightsEngine = {
           extraInfo: `Δ ${(i.userScore >= mean ? '+' : '')}${(i.userScore - mean).toFixed(1)} from mean`,
         }));
 
-        const scores = rated.map((i) => i.userScore);
-        const min = scores.length > 0 ? Math.min(...scores) : 0;
-        const max = scores.length > 0 ? Math.max(...scores) : 0;
+        const min = allScores.length > 0 ? Math.min(...allScores) : 0;
+        const max = allScores.length > 0 ? Math.max(...allScores) : 0;
 
         return {
           widgetId,
@@ -1682,10 +1866,10 @@ export const InsightsEngine = {
           summaryHighlights: [
             { label: 'Lowest Score', value: `${min}/10` },
             { label: 'Highest Score', value: `${max}/10` },
-            { label: 'Score Range', value: `${max - min} pts spread` },
+            { label: 'Score Range', value: `${max - min} pts (${rated.length} titles${ratedEps.length > 0 ? `, ${ratedEps.length} eps` : ''})` },
           ],
           items: list,
-          notes: 'Titles ranked by how far their rating diverges from your overall personal mean rating.',
+          notes: 'Titles ranked by how far their rating diverges from your overall personal mean across titles and episodes.',
         };
       }
 
@@ -2575,6 +2759,7 @@ export const InsightsEngine = {
         });
 
         const scoredCount = items.filter((i) => i.userScore > 0).length;
+        const ratedEpsCount = getAllRatedEpisodes(items).length;
         const healthPct = items.length > 0 ? Math.round((scoredCount / items.length) * 100) : 0;
 
         return {
@@ -2585,7 +2770,8 @@ export const InsightsEngine = {
           color: def.color,
           summaryHighlights: [
             { label: 'Health Score', value: `${healthPct}%` },
-            { label: 'Rated Ratio', value: `${scoredCount}/${items.length}` },
+            { label: 'Rated Titles', value: `${scoredCount}/${items.length}` },
+            ...(ratedEpsCount > 0 ? [{ label: 'Rated Episodes', value: String(ratedEpsCount) }] : []),
             { label: 'Needs Rating', value: String(items.length - scoredCount) },
           ],
           items: list,
@@ -2831,6 +3017,129 @@ export const InsightsEngine = {
           ],
           items: contributing,
           notes: 'Chronological timeline of all recorded episode, season, and media completions.',
+        };
+      }
+
+      // 41. Episode Ratings Overview
+      case 'episode_ratings': {
+        const ratedEps = getAllRatedEpisodes(items).slice().sort((a, b) => {
+          if (b.rating !== a.rating) return b.rating - a.rating;
+          const tCmp = a.item.title.localeCompare(b.item.title);
+          if (tCmp !== 0) return tCmp;
+          if (a.seasonNumber !== b.seasonNumber) return a.seasonNumber - b.seasonNumber;
+          return a.episodeNumber - b.episodeNumber;
+        });
+        const avg =
+          ratedEps.length > 0
+            ? (ratedEps.reduce((sum, e) => sum + e.rating, 0) / ratedEps.length).toFixed(2)
+            : '0.00';
+        const showCount = new Set(ratedEps.map((e) => e.item.id)).size;
+        const tenCount = ratedEps.filter((e) => e.rating === 10).length;
+
+        const scoreBuckets: Record<number, number> = {};
+        for (let s = 1; s <= 10; s++) scoreBuckets[s] = 0;
+        for (const ep of ratedEps) scoreBuckets[ep.rating] = (scoreBuckets[ep.rating] || 0) + 1;
+
+        const customBreakdown = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+          .filter((s) => scoreBuckets[s] > 0)
+          .map((s) => ({
+            label: `${s}/10 Episodes`,
+            value: scoreBuckets[s],
+            percentage: ratedEps.length > 0 ? Math.round((scoreBuckets[s] / ratedEps.length) * 100) : 0,
+            color: s >= 8 ? '#fbbf24' : s >= 5 ? '#38bdf8' : '#f43f5e',
+          }));
+
+        const list: DrillDownContributingItem[] = ratedEps.slice(0, 30).map((e) => ({
+          id: e.item.id,
+          title: `${e.item.title} (${e.code})`,
+          mediaType: e.item.mediaType,
+          posterPath: e.item.posterPath,
+          releaseYear: e.item.releaseYear,
+          status: e.item.status,
+          userScore: e.item.userScore,
+          voteAverage: e.item.voteAverage,
+          highlightMetric: `${e.rating}/10`,
+          extraInfo: e.episodeName || `${e.code}`,
+          uniqueKey: `ep_rate_${e.item.id}_${e.epKey}`,
+        }));
+
+        return {
+          widgetId,
+          title: def.title,
+          subtitle: def.subtitle,
+          icon: def.icon,
+          color: def.color,
+          summaryHighlights: [
+            { label: 'Avg Episode Score', value: ratedEps.length > 0 ? `${avg}/10` : '--' },
+            { label: 'Rated Episodes', value: String(ratedEps.length) },
+            { label: 'Shows Covered', value: String(showCount) },
+            { label: '10/10 Episodes', value: String(tenCount) },
+          ],
+          customBreakdown,
+          items: list,
+          notes: 'Breakdown of all individual TV episode scores across the 1 to 10 rating scale.',
+        };
+      }
+
+      // 42. Top Shows by Episode Average
+      case 'highest_rated_shows_by_eps': {
+        const ratedEps = getAllRatedEpisodes(items);
+        const byShow = new Map<number, { item: TrackedItem; sum: number; count: number; tens: number }>();
+        for (const ep of ratedEps) {
+          const cur = byShow.get(ep.item.id);
+          if (cur) {
+            cur.sum += ep.rating;
+            cur.count++;
+            if (ep.rating === 10) cur.tens++;
+          } else {
+            byShow.set(ep.item.id, {
+              item: ep.item,
+              sum: ep.rating,
+              count: 1,
+              tens: ep.rating === 10 ? 1 : 0,
+            });
+          }
+        }
+        const ranked = Array.from(byShow.values())
+          .map((s) => ({ ...s, avg: s.sum / s.count }))
+          .sort((a, b) => {
+            if (Math.abs(b.avg - a.avg) > 0.001) return b.avg - a.avg;
+            if (b.count !== a.count) return b.count - a.count;
+            return a.item.title.localeCompare(b.item.title);
+          });
+
+        const mostRatedShow = ranked.slice().sort((a, b) => b.count - a.count)[0];
+
+        const list: DrillDownContributingItem[] = ranked.map((s) => ({
+          id: s.item.id,
+          title: s.item.title,
+          mediaType: s.item.mediaType,
+          posterPath: s.item.posterPath,
+          releaseYear: s.item.releaseYear,
+          status: s.item.status,
+          userScore: s.item.userScore,
+          voteAverage: s.item.voteAverage,
+          highlightMetric: `${s.avg.toFixed(2)}/10`,
+          extraInfo: `${s.count} ep${s.count === 1 ? '' : 's'}${s.item.userScore > 0 ? ` • Series: ${s.item.userScore}/10` : ''}`,
+          uniqueKey: `ep_avg_show_${s.item.id}`,
+        }));
+
+        return {
+          widgetId,
+          title: def.title,
+          subtitle: def.subtitle,
+          icon: def.icon,
+          color: def.color,
+          summaryHighlights: [
+            { label: 'Ranked Shows', value: String(ranked.length) },
+            { label: 'Top Ep Avg', value: ranked[0] ? `${ranked[0].avg.toFixed(2)}/10` : '--' },
+            {
+              label: 'Most Ep Ratings',
+              value: mostRatedShow ? `${mostRatedShow.item.title} (${mostRatedShow.count})` : 'None',
+            },
+          ],
+          items: list,
+          notes: 'TV series ranked by the mathematical mean of their individually rated episodes.',
         };
       }
 

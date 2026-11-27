@@ -422,10 +422,10 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
     id: 'seasoned_critic',
     name: 'Seasoned Critic',
-    description: 'Assign personal star scores to media in your library.',
+    description: 'Assign personal star scores to titles and TV episodes in your library.',
     category: 'ratings',
     iconName: 'star-half-outline',
-    metricLabel: 'Rated Titles',
+    metricLabel: 'Rated Entries',
     thresholds: {
       bronze: 25,
       silver: 75,
@@ -439,7 +439,7 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
     id: 'the_perfect_ten',
     name: 'The Perfect Ten',
-    description: 'Bestow pristine 10/10 master ratings upon your favorites.',
+    description: 'Bestow pristine 10/10 master ratings upon favorite titles and episodes.',
     category: 'ratings',
     iconName: 'star-outline',
     metricLabel: 'Tens Given',
@@ -456,7 +456,7 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
     id: 'tough_crowd',
     name: 'Tough Crowd',
-    description: 'Hand out honest, unsparing ratings under 5/10.',
+    description: 'Hand out honest, unsparing ratings under 5/10 to titles or episodes.',
     category: 'ratings',
     iconName: 'thumbs-down-outline',
     metricLabel: 'Low Scores',
@@ -524,7 +524,7 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
     id: 'golden_standard',
     name: 'Golden Standard',
-    description: 'Curate excellent titles evaluated at an 8/10 or higher.',
+    description: 'Curate excellent titles and episodes evaluated at an 8/10 or higher.',
     category: 'ratings',
     iconName: 'medal-outline',
     metricLabel: 'Greats (8+)',
@@ -536,6 +536,57 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
       ruby: 700,
       emerald: 1500,
       diamond: 3000,
+    },
+  },
+  {
+    id: 'episode_critic',
+    name: 'Episode Critic',
+    description: 'Assign personal 1-10 ratings to individual TV episodes.',
+    category: 'ratings',
+    iconName: 'list-outline',
+    metricLabel: 'Rated Eps',
+    thresholds: {
+      bronze: 10,
+      silver: 50,
+      gold: 150,
+      platinum: 400,
+      ruby: 1000,
+      emerald: 2500,
+      diamond: 5000,
+    },
+  },
+  {
+    id: 'peak_television',
+    name: 'Peak Television',
+    description: 'Award a perfect 10/10 score to unforgettable individual TV episodes.',
+    category: 'ratings',
+    iconName: 'sparkles-outline',
+    metricLabel: '10/10 Eps',
+    thresholds: {
+      bronze: 3,
+      silver: 10,
+      gold: 25,
+      platinum: 60,
+      ruby: 150,
+      emerald: 350,
+      diamond: 750,
+    },
+  },
+  {
+    id: 'season_reviewer',
+    name: 'Season Reviewer',
+    description: 'Rate every single episode across complete regular TV seasons.',
+    category: 'ratings',
+    iconName: 'albums-outline',
+    metricLabel: 'Rated Seasons',
+    thresholds: {
+      bronze: 1,
+      silver: 3,
+      gold: 10,
+      platinum: 25,
+      ruby: 60,
+      emerald: 120,
+      diamond: 250,
     },
   },
 
@@ -1575,60 +1626,119 @@ export const AchievementsEngine = {
         }
 
         case 'seasoned_critic': {
-          const rated = items.filter((i) => i.userScore > 0);
-          val = rated.length;
-          rated.slice(0, 40).forEach((r) => {
-            contributing.push({
-              id: r.id,
-              mediaType: r.mediaType,
-              title: r.title,
-              posterPath: r.posterPath,
-              userScore: r.userScore,
-            });
+          let titleCount = 0;
+          let epCount = 0;
+          items.forEach((r) => {
+            const hasTitleRating = r.userScore > 0;
+            const epRatings = r.mediaType === 'tv' && r.episodeRatings
+              ? Object.values(r.episodeRatings).filter((v) => typeof v === 'number' && v >= 1 && v <= 10).length
+              : 0;
+            if (hasTitleRating) titleCount++;
+            epCount += epRatings;
+            if ((hasTitleRating || epRatings > 0) && contributing.length < 40) {
+              contributing.push({
+                id: r.id,
+                mediaType: r.mediaType,
+                title: r.title,
+                posterPath: r.posterPath,
+                userScore: hasTitleRating ? r.userScore : undefined,
+                detailText:
+                  epRatings > 0
+                    ? hasTitleRating
+                      ? `${r.userScore}/10 • ${epRatings} ep${epRatings === 1 ? '' : 's'}`
+                      : `${epRatings} rated ep${epRatings === 1 ? '' : 's'}`
+                    : undefined,
+              });
+            }
           });
-          subtext = `${val} titles awarded personal star ratings`;
+          val = titleCount + epCount;
+          subtext =
+            epCount > 0
+              ? `${titleCount} titles + ${epCount} episodes rated`
+              : `${val} titles awarded personal star ratings`;
           break;
         }
 
         case 'the_perfect_ten': {
-          const tens = items.filter((i) => i.userScore === 10);
-          val = tens.length;
-          tens.slice(0, 40).forEach((t) => {
-            contributing.push({
-              id: t.id,
-              mediaType: t.mediaType,
-              title: t.title,
-              posterPath: t.posterPath,
-              userScore: 10,
-            });
+          let titleTenCount = 0;
+          let epTenCount = 0;
+          items.forEach((t) => {
+            const hasTitleTen = t.userScore === 10;
+            const epTens = t.mediaType === 'tv' && t.episodeRatings
+              ? Object.values(t.episodeRatings).filter((v) => v === 10).length
+              : 0;
+            if (hasTitleTen) titleTenCount++;
+            epTenCount += epTens;
+            if ((hasTitleTen || epTens > 0) && contributing.length < 40) {
+              contributing.push({
+                id: t.id,
+                mediaType: t.mediaType,
+                title: t.title,
+                posterPath: t.posterPath,
+                userScore: hasTitleTen ? 10 : undefined,
+                detailText:
+                  epTens > 0
+                    ? hasTitleTen
+                      ? `10/10 • ${epTens} ep 10s`
+                      : `${epTens} ep${epTens === 1 ? '' : 's'} at 10/10`
+                    : undefined,
+              });
+            }
           });
-          subtext = `${val} titles given pristine 10/10 scores`;
+          val = titleTenCount + epTenCount;
+          subtext =
+            epTenCount > 0
+              ? `${titleTenCount} titles + ${epTenCount} episodes rated 10/10`
+              : `${val} titles given pristine 10/10 scores`;
           break;
         }
 
         case 'tough_crowd': {
-          const lowScores = items.filter((i) => i.userScore > 0 && i.userScore < 5);
-          val = lowScores.length;
-          lowScores.slice(0, 40).forEach((l) => {
-            contributing.push({
-              id: l.id,
-              mediaType: l.mediaType,
-              title: l.title,
-              posterPath: l.posterPath,
-              userScore: l.userScore,
-            });
+          let titleLowCount = 0;
+          let epLowCount = 0;
+          items.forEach((l) => {
+            const hasTitleLow = l.userScore > 0 && l.userScore < 5;
+            const epLows = l.mediaType === 'tv' && l.episodeRatings
+              ? Object.values(l.episodeRatings).filter((v) => typeof v === 'number' && v > 0 && v < 5).length
+              : 0;
+            if (hasTitleLow) titleLowCount++;
+            epLowCount += epLows;
+            if ((hasTitleLow || epLows > 0) && contributing.length < 40) {
+              contributing.push({
+                id: l.id,
+                mediaType: l.mediaType,
+                title: l.title,
+                posterPath: l.posterPath,
+                userScore: hasTitleLow ? l.userScore : undefined,
+                detailText:
+                  epLows > 0
+                    ? hasTitleLow
+                      ? `${l.userScore}/10 • ${epLows} low ep${epLows === 1 ? '' : 's'}`
+                      : `${epLows} ep${epLows === 1 ? '' : 's'} under 5/10`
+                    : undefined,
+              });
+            }
           });
-          subtext = `${val} titles scored below 5/10`;
+          val = titleLowCount + epLowCount;
+          subtext =
+            epLowCount > 0
+              ? `${titleLowCount} titles + ${epLowCount} episodes scored below 5/10`
+              : `${val} titles scored below 5/10`;
           break;
         }
 
         case 'balanced_palette': {
           const distinctScores = new Set<number>();
           items.forEach((i) => {
-            if (i.userScore > 0) distinctScores.add(i.userScore);
+            if (i.userScore >= 1 && i.userScore <= 10) distinctScores.add(i.userScore);
+            if (i.mediaType === 'tv' && i.episodeRatings) {
+              Object.values(i.episodeRatings).forEach((v) => {
+                if (typeof v === 'number' && v >= 1 && v <= 10) distinctScores.add(v);
+              });
+            }
           });
           val = distinctScores.size;
-          subtext = `${val} distinct scores used from 1 to 10`;
+          subtext = `${val} distinct scores used from 1 to 10 (titles & episodes)`;
           break;
         }
 
@@ -1644,10 +1754,10 @@ export const AchievementsEngine = {
               title: h.title,
               posterPath: h.posterPath,
               userScore: h.userScore,
-              detailText: `You: ${h.userScore}★ | TMDB: ${h.voteAverage?.toFixed(1)}★`,
+              detailText: `You: ${h.userScore}/10 | TMDB: ${h.voteAverage?.toFixed(1)}/10`,
             });
           });
-          subtext = `${val} scores divergent by 2+ stars from TMDB`;
+          subtext = `${val} scores divergent by 2+ points from TMDB`;
           break;
         }
 
@@ -1668,18 +1778,129 @@ export const AchievementsEngine = {
         }
 
         case 'golden_standard': {
-          const greats = items.filter((i) => i.userScore >= 8);
-          val = greats.length;
-          greats.slice(0, 40).forEach((g) => {
+          let titleHighCount = 0;
+          let epHighCount = 0;
+          items.forEach((g) => {
+            const hasTitleHigh = g.userScore >= 8;
+            const epHighs = g.mediaType === 'tv' && g.episodeRatings
+              ? Object.values(g.episodeRatings).filter((v) => typeof v === 'number' && v >= 8).length
+              : 0;
+            if (hasTitleHigh) titleHighCount++;
+            epHighCount += epHighs;
+            if ((hasTitleHigh || epHighs > 0) && contributing.length < 40) {
+              contributing.push({
+                id: g.id,
+                mediaType: g.mediaType,
+                title: g.title,
+                posterPath: g.posterPath,
+                userScore: hasTitleHigh ? g.userScore : undefined,
+                detailText:
+                  epHighs > 0
+                    ? hasTitleHigh
+                      ? `${g.userScore}/10 • ${epHighs} ep 8+`
+                      : `${epHighs} ep${epHighs === 1 ? '' : 's'} scored 8+`
+                    : undefined,
+              });
+            }
+          });
+          val = titleHighCount + epHighCount;
+          subtext =
+            epHighCount > 0
+              ? `${titleHighCount} titles + ${epHighCount} episodes scored 8/10 or higher`
+              : `${val} titles scored 8/10 or higher`;
+          break;
+        }
+
+        case 'episode_critic': {
+          const showEntries: { item: TrackedItem; count: number }[] = [];
+          let totalEps = 0;
+          items.forEach((i) => {
+            if (i.mediaType !== 'tv' || !i.episodeRatings) return;
+            const count = Object.values(i.episodeRatings).filter(
+              (v) => typeof v === 'number' && v >= 1 && v <= 10
+            ).length;
+            if (count > 0) {
+              totalEps += count;
+              showEntries.push({ item: i, count });
+            }
+          });
+          showEntries.sort((a, b) => b.count - a.count);
+          val = totalEps;
+          showEntries.slice(0, 40).forEach(({ item: s, count }) => {
             contributing.push({
-              id: g.id,
-              mediaType: g.mediaType,
-              title: g.title,
-              posterPath: g.posterPath,
-              userScore: g.userScore,
+              id: s.id,
+              mediaType: s.mediaType,
+              title: s.title,
+              posterPath: s.posterPath,
+              detailText: `${count} rated ep${count === 1 ? '' : 's'}`,
             });
           });
-          subtext = `${val} titles scored 8/10 or higher`;
+          subtext = `${val} episodes rated across ${showEntries.length} show${showEntries.length === 1 ? '' : 's'}`;
+          break;
+        }
+
+        case 'peak_television': {
+          const showEntries: { item: TrackedItem; count: number }[] = [];
+          let totalTenEps = 0;
+          items.forEach((i) => {
+            if (i.mediaType !== 'tv' || !i.episodeRatings) return;
+            const count = Object.values(i.episodeRatings).filter((v) => v === 10).length;
+            if (count > 0) {
+              totalTenEps += count;
+              showEntries.push({ item: i, count });
+            }
+          });
+          showEntries.sort((a, b) => b.count - a.count);
+          val = totalTenEps;
+          showEntries.slice(0, 40).forEach(({ item: s, count }) => {
+            contributing.push({
+              id: s.id,
+              mediaType: s.mediaType,
+              title: s.title,
+              posterPath: s.posterPath,
+              detailText: `${count} ep${count === 1 ? '' : 's'} at 10/10`,
+            });
+          });
+          subtext = `${val} episodes rated 10/10 across ${showEntries.length} show${showEntries.length === 1 ? '' : 's'}`;
+          break;
+        }
+
+        case 'season_reviewer': {
+          const showEntries: { item: TrackedItem; count: number }[] = [];
+          let totalFullSeasons = 0;
+          items.forEach((i) => {
+            if (i.mediaType !== 'tv' || !i.episodeRatings || !i.seasons) return;
+            let showSeasons = 0;
+            for (const season of i.seasons) {
+              if (season.seasonNumber > 0 && season.episodeCount > 0) {
+                let allRated = true;
+                for (let epNum = 1; epNum <= season.episodeCount; epNum++) {
+                  const score = i.episodeRatings[`s${season.seasonNumber}_e${epNum}`];
+                  if (typeof score !== 'number' || score < 1 || score > 10) {
+                    allRated = false;
+                    break;
+                  }
+                }
+                if (allRated) showSeasons++;
+              }
+            }
+            if (showSeasons > 0) {
+              totalFullSeasons += showSeasons;
+              showEntries.push({ item: i, count: showSeasons });
+            }
+          });
+          showEntries.sort((a, b) => b.count - a.count);
+          val = totalFullSeasons;
+          showEntries.slice(0, 40).forEach(({ item: s, count }) => {
+            contributing.push({
+              id: s.id,
+              mediaType: s.mediaType,
+              title: s.title,
+              posterPath: s.posterPath,
+              detailText: `${count} full season${count === 1 ? '' : 's'}`,
+            });
+          });
+          subtext = `${val} complete season${val === 1 ? '' : 's'} fully rated`;
           break;
         }
 

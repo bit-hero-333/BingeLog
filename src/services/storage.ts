@@ -746,9 +746,15 @@ export const StorageService = {
           const current = map.get(key);
           if (current) {
             const nextStatus = i.status || current.status;
+            const mergedEpisodeRatings = {
+              ...(current.episodeRatings || {}),
+              ...(i.episodeRatings || {}),
+            };
             map.set(key, {
               ...current,
               ...i,
+              episodeRatings:
+                Object.keys(mergedEpisodeRatings).length > 0 ? mergedEpisodeRatings : undefined,
               rewatchCount: Math.max(current.rewatchCount || 0, i.rewatchCount || 0) || undefined,
               isAlsoPlanned:
                 nextStatus === 'completed'
