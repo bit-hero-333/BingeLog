@@ -48,6 +48,7 @@ import {
   getPosterScale,
   getProviderScale,
 } from '@/utils/sizing';
+import { computeCompleteShowRating } from '@/utils/ratings';
 import {
   formatDate,
   formatDateDisplay,
@@ -394,6 +395,20 @@ function TrackModalFormContent({
   );
   const [episodeRatings, setEpisodeRatings] = useState<Record<string, number>>(
     existingRecord?.episodeRatings || {}
+  );
+  const [seasonRatings, setSeasonRatings] = useState<Record<number, number>>(
+    existingRecord?.seasonRatings || {}
+  );
+  const completeShowRating = useMemo(
+    () =>
+      computeCompleteShowRating({
+        mediaType,
+        userScore: score,
+        seasons,
+        seasonRatings,
+        episodeRatings,
+      }),
+    [mediaType, score, seasons, seasonRatings, episodeRatings]
   );
 
   // Selected season for details sheet
@@ -1237,6 +1252,10 @@ function TrackModalFormContent({
         mediaType === 'tv' && Object.keys(episodeRatings).length > 0
           ? episodeRatings
           : undefined,
+      seasonRatings:
+        mediaType === 'tv' && Object.keys(seasonRatings).length > 0
+          ? seasonRatings
+          : undefined,
       isAlsoPlanned: status === 'completed' ? Boolean(isAlsoPlanned) : undefined,
 
       // Movie
@@ -1539,11 +1558,14 @@ function TrackModalFormContent({
     setReminderConfig(config);
     const savedEpisodeRatings =
       mediaType === 'tv' && Object.keys(episodeRatings).length > 0 ? episodeRatings : undefined;
+    const savedSeasonRatings =
+      mediaType === 'tv' && Object.keys(seasonRatings).length > 0 ? seasonRatings : undefined;
     if (existingRecord) {
       const updated: TrackedItem = {
         ...existingRecord,
         status: status || existingRecord.status,
         episodeRatings: savedEpisodeRatings,
+        seasonRatings: savedSeasonRatings,
         isAlsoPlanned: (status || existingRecord.status) === 'completed' ? Boolean(isAlsoPlanned) : undefined,
         releaseDate:
           detailedInfo?.releaseDate ||
@@ -1581,6 +1603,7 @@ function TrackModalFormContent({
         totalEpisodes: totalEpisodes || undefined,
         totalSeasons: totalSeasons || undefined,
         episodeRatings: savedEpisodeRatings,
+        seasonRatings: savedSeasonRatings,
         runtimeMinutes: runtimeMinutes || undefined,
         isAlsoPlanned: nextStatus === 'completed' ? Boolean(isAlsoPlanned) : undefined,
         addedAt: new Date().toISOString(),
@@ -1608,10 +1631,13 @@ function TrackModalFormContent({
     if (existingRecord) {
       const savedEpisodeRatings =
         mediaType === 'tv' && Object.keys(episodeRatings).length > 0 ? episodeRatings : undefined;
+      const savedSeasonRatings =
+        mediaType === 'tv' && Object.keys(seasonRatings).length > 0 ? seasonRatings : undefined;
       const updated: TrackedItem = {
         ...existingRecord,
         status: status || existingRecord.status,
         episodeRatings: savedEpisodeRatings,
+        seasonRatings: savedSeasonRatings,
         isAlsoPlanned: (status || existingRecord.status) === 'completed' ? Boolean(isAlsoPlanned) : undefined,
         releaseDate:
           detailedInfo?.releaseDate ||
@@ -1743,6 +1769,14 @@ function TrackModalFormContent({
                     </Text>
                   </View>
                 ) : null}
+
+                {completeShowRating && (
+                  <View style={styles.completeAvgBadge}>
+                    <Text style={[styles.completeAvgBadgeText, { fontSize: 10 * textScale }]} selectable={true}>
+                      {completeShowRating.formatted}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               {movieCountdown && (
@@ -3382,12 +3416,21 @@ function TrackModalFormContent({
                               )}
                             </View>
                             <Text style={[styles.seasonMetaText, { color: colors.textSecondary }]} selectable={true}>
-                              {seasonWatched} / {epCount} watched{sNum === 0 ? ' (Bonus)' : ''}
+                              {seasonWatched} / {epCount} watched{sNum === 0 ? ' (Excluded from AVG)' : ''}
                             </Text>
                           </View>
                         </View>
 
                         <View style={styles.seasonHeaderRight}>
+                          {(seasonRatings[sNum] || 0) > 0 && (
+                            <View style={styles.epRowRatingBadge}>
+                              <Ionicons name="star" size={10} color="#fbbf24" />
+                              <Text style={styles.epRowRatingText}>
+                                {seasonRatings[sNum]}
+                              </Text>
+                            </View>
+                          )}
+
                           <Pressable
                             style={[
                               styles.seasonInfoBtn,
@@ -4615,6 +4658,18 @@ function TrackModalFormContent({
             handleToggleEpisode(selectedSeasonForDetail.sNum, epNum);
           }}
           episodeRatings={episodeRatings}
+          userRating={seasonRatings[selectedSeasonForDetail.sNum] || 0}
+          onUpdateRating={(newRating) => {
+            const sNum = selectedSeasonForDetail.sNum;
+            setSeasonRatings((prev) => {
+              if (newRating && newRating >= 1 && newRating <= 10) {
+                return { ...prev, [sNum]: newRating };
+              }
+              const next = { ...prev };
+              delete next[sNum];
+              return next;
+            });
+          }}
           onClose={() => setSelectedSeasonForDetail(null)}
           item={item}
           existingRecord={existingRecord}
@@ -4934,6 +4989,19 @@ const styles = StyleSheet.create({
     color: '#f59e0b',
     fontSize: 11,
     fontWeight: '700',
+  },
+  completeAvgBadge: {
+    backgroundColor: '#fbbf24',
+    borderColor: '#f59e0b',
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  completeAvgBadgeText: {
+    color: '#451a03',
+    fontSize: 10,
+    fontWeight: '800',
   },
   loadingDetailsRow: {
     flexDirection: 'row',

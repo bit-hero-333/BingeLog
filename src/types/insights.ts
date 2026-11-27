@@ -31,6 +31,8 @@ export type InsightWidgetId =
   | 'rating_spread'
   | 'episode_ratings'
   | 'highest_rated_shows_by_eps'
+  | 'season_ratings'
+  | 'highest_rated_shows_by_seasons'
   // Cast, Studios & Genres
   | 'top_genres'
   | 'top_directors'
@@ -285,6 +287,28 @@ export const INSIGHT_WIDGET_DEFINITIONS: Record<InsightWidgetId, InsightWidgetDe
     subtitle: 'TV series ranked by average individual episode rating',
     category: 'ratings_tastes',
     icon: 'podium-outline',
+    color: '#fbbf24',
+    defaultSize: 'half',
+    defaultEnabled: true,
+    allowedSizes: ['half', 'full', 'compact'],
+  },
+  season_ratings: {
+    id: 'season_ratings',
+    title: 'Season Ratings',
+    subtitle: 'Average score, count, and top-rated TV seasons',
+    category: 'ratings_tastes',
+    icon: 'layers-outline',
+    color: '#f59e0b',
+    defaultSize: 'half',
+    defaultEnabled: true,
+    allowedSizes: ['half', 'full', 'compact'],
+  },
+  highest_rated_shows_by_seasons: {
+    id: 'highest_rated_shows_by_seasons',
+    title: 'Top Shows by Season Avg',
+    subtitle: 'TV series ranked by average individual season rating',
+    category: 'ratings_tastes',
+    icon: 'trophy-outline',
     color: '#fbbf24',
     defaultSize: 'half',
     defaultEnabled: true,
@@ -590,24 +614,26 @@ export const DEFAULT_INSIGHTS_LAYOUT: InsightWidgetConfig[] = [
   { id: 'watch_timeline', enabled: true, size: 'full', order: 22 },
   { id: 'episode_ratings', enabled: true, size: 'half', order: 23 },
   { id: 'highest_rated_shows_by_eps', enabled: true, size: 'half', order: 24 },
+  { id: 'season_ratings', enabled: true, size: 'half', order: 25 },
+  { id: 'highest_rated_shows_by_seasons', enabled: true, size: 'half', order: 26 },
   // Available but off by default for clean start
-  { id: 'avg_runtimes', enabled: false, size: 'half', order: 25 },
-  { id: 'binge_velocity', enabled: false, size: 'half', order: 26 },
-  { id: 'monthly_watch_time', enabled: false, size: 'full', order: 27 },
-  { id: 'guilty_pleasures', enabled: false, size: 'half', order: 28 },
-  { id: 'score_by_status', enabled: false, size: 'half', order: 29 },
-  { id: 'rating_spread', enabled: false, size: 'half', order: 30 },
-  { id: 'top_studios', enabled: false, size: 'half', order: 31 },
-  { id: 'franchise_progress', enabled: false, size: 'full', order: 32 },
-  { id: 'fresh_vs_catalog', enabled: false, size: 'half', order: 33 },
-  { id: 'country_origins', enabled: false, size: 'half', order: 34 },
-  { id: 'drop_analysis', enabled: false, size: 'half', order: 35 },
-  { id: 'limbo_shelf', enabled: false, size: 'half', order: 36 },
-  { id: 'watchlist_conversion', enabled: false, size: 'half', order: 37 },
-  { id: 'series_loyalty', enabled: false, size: 'half', order: 38 },
-  { id: 'library_health', enabled: false, size: 'half', order: 39 },
-  { id: 'streaming_mileage', enabled: false, size: 'half', order: 40 },
-  { id: 'subscription_value', enabled: false, size: 'full', order: 41 },
+  { id: 'avg_runtimes', enabled: false, size: 'half', order: 27 },
+  { id: 'binge_velocity', enabled: false, size: 'half', order: 28 },
+  { id: 'monthly_watch_time', enabled: false, size: 'full', order: 29 },
+  { id: 'guilty_pleasures', enabled: false, size: 'half', order: 30 },
+  { id: 'score_by_status', enabled: false, size: 'half', order: 31 },
+  { id: 'rating_spread', enabled: false, size: 'half', order: 32 },
+  { id: 'top_studios', enabled: false, size: 'half', order: 33 },
+  { id: 'franchise_progress', enabled: false, size: 'full', order: 34 },
+  { id: 'fresh_vs_catalog', enabled: false, size: 'half', order: 35 },
+  { id: 'country_origins', enabled: false, size: 'half', order: 36 },
+  { id: 'drop_analysis', enabled: false, size: 'half', order: 37 },
+  { id: 'limbo_shelf', enabled: false, size: 'half', order: 38 },
+  { id: 'watchlist_conversion', enabled: false, size: 'half', order: 39 },
+  { id: 'series_loyalty', enabled: false, size: 'half', order: 40 },
+  { id: 'library_health', enabled: false, size: 'half', order: 41 },
+  { id: 'streaming_mileage', enabled: false, size: 'half', order: 42 },
+  { id: 'subscription_value', enabled: false, size: 'full', order: 43 },
 ];
 
 export const INSIGHT_WIDGET_CATALOG: InsightWidgetDefinition[] = Object.values(INSIGHT_WIDGET_DEFINITIONS);

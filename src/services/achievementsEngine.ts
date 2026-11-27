@@ -3,6 +3,7 @@ import { TrackedItem, TMDB_GENRE_MAP } from '@/types/media';
 import { getCountryName } from '@/utils/country';
 import { StorageService } from '@/services/storage';
 import { TMDBService } from '@/services/tmdb';
+import { computeCompleteShowRating } from '@/utils/ratings';
 import {
   AchievementDefinition,
   AchievementProgress,
@@ -422,7 +423,7 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
     id: 'seasoned_critic',
     name: 'Seasoned Critic',
-    description: 'Assign personal star scores to titles and TV episodes in your library.',
+    description: 'Assign personal star scores to titles, seasons, and TV episodes in your library.',
     category: 'ratings',
     iconName: 'star-half-outline',
     metricLabel: 'Rated Entries',
@@ -439,7 +440,7 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
     id: 'the_perfect_ten',
     name: 'The Perfect Ten',
-    description: 'Bestow pristine 10/10 master ratings upon favorite titles and episodes.',
+    description: 'Bestow pristine 10/10 master ratings upon favorite titles, seasons, and episodes.',
     category: 'ratings',
     iconName: 'star-outline',
     metricLabel: 'Tens Given',
@@ -456,7 +457,7 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
     id: 'tough_crowd',
     name: 'Tough Crowd',
-    description: 'Hand out honest, unsparing ratings under 5/10 to titles or episodes.',
+    description: 'Hand out honest, unsparing ratings under 5/10 to titles, seasons, or episodes.',
     category: 'ratings',
     iconName: 'thumbs-down-outline',
     metricLabel: 'Low Scores',
@@ -524,7 +525,7 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
     id: 'golden_standard',
     name: 'Golden Standard',
-    description: 'Curate excellent titles and episodes evaluated at an 8/10 or higher.',
+    description: 'Curate excellent titles, seasons, and episodes evaluated at an 8/10 or higher.',
     category: 'ratings',
     iconName: 'medal-outline',
     metricLabel: 'Greats (8+)',
@@ -546,13 +547,14 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     iconName: 'list-outline',
     metricLabel: 'Rated Eps',
     thresholds: {
-      bronze: 10,
-      silver: 50,
-      gold: 150,
-      platinum: 400,
-      ruby: 1000,
-      emerald: 2500,
-      diamond: 5000,
+      bronze: 100,
+      silver: 500,
+      gold: 2000,
+      platinum: 7500,
+      ruby: 20000,
+      emerald: 50000,
+      diamond: 100000,
+      celestial: 1000000,
     },
   },
   {
@@ -563,13 +565,13 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     iconName: 'sparkles-outline',
     metricLabel: '10/10 Eps',
     thresholds: {
-      bronze: 3,
-      silver: 10,
-      gold: 25,
-      platinum: 60,
-      ruby: 150,
-      emerald: 350,
-      diamond: 750,
+      bronze: 50,
+      silver: 150,
+      gold: 400,
+      platinum: 1000,
+      ruby: 2000,
+      emerald: 3500,
+      diamond: 5000,
     },
   },
   {
@@ -580,13 +582,64 @@ export const ALL_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     iconName: 'albums-outline',
     metricLabel: 'Rated Seasons',
     thresholds: {
+      bronze: 25,
+      silver: 75,
+      gold: 200,
+      platinum: 500,
+      ruby: 1200,
+      emerald: 2500,
+      diamond: 5000,
+    },
+  },
+  {
+    id: 'season_critic',
+    name: 'Season Critic',
+    description: 'Assign personal 1-10 ratings to individual TV seasons.',
+    category: 'ratings',
+    iconName: 'layers-outline',
+    metricLabel: 'Rated Seasons',
+    thresholds: {
+      bronze: 10,
+      silver: 30,
+      gold: 75,
+      platinum: 175,
+      ruby: 400,
+      emerald: 800,
+      diamond: 1500,
+    },
+  },
+  {
+    id: 'peak_season',
+    name: 'Peak Season',
+    description: 'Award a perfect 10/10 score to standout TV seasons.',
+    category: 'ratings',
+    iconName: 'ribbon-outline',
+    metricLabel: '10/10 Seasons',
+    thresholds: {
+      bronze: 3,
+      silver: 10,
+      gold: 25,
+      platinum: 60,
+      ruby: 150,
+      emerald: 300,
+      diamond: 600,
+    },
+  },
+  {
+    id: 'complete_critic',
+    name: 'Complete Critic',
+    description: 'Rate a TV show along with every regular season and episode to unlock its full AVG score.',
+    category: 'ratings',
+    iconName: 'checkmark-done-outline',
+    metricLabel: 'Complete Shows',
+    thresholds: {
       bronze: 1,
-      silver: 3,
-      gold: 10,
-      platinum: 25,
-      ruby: 60,
-      emerald: 120,
-      diamond: 250,
+      silver: 5,
+      gold: 15,
+      platinum: 35,
+      ruby: 75,
+      emerald: 150,
+      diamond: 300,
     },
   },
 
@@ -1627,102 +1680,114 @@ export const AchievementsEngine = {
 
         case 'seasoned_critic': {
           let titleCount = 0;
+          let seasonCount = 0;
           let epCount = 0;
           items.forEach((r) => {
             const hasTitleRating = r.userScore > 0;
+            const sRatings = r.mediaType === 'tv' && r.seasonRatings
+              ? Object.values(r.seasonRatings).filter((v) => typeof v === 'number' && v >= 1 && v <= 10).length
+              : 0;
             const epRatings = r.mediaType === 'tv' && r.episodeRatings
               ? Object.values(r.episodeRatings).filter((v) => typeof v === 'number' && v >= 1 && v <= 10).length
               : 0;
             if (hasTitleRating) titleCount++;
+            seasonCount += sRatings;
             epCount += epRatings;
-            if ((hasTitleRating || epRatings > 0) && contributing.length < 40) {
+            if ((hasTitleRating || sRatings > 0 || epRatings > 0) && contributing.length < 40) {
+              const parts: string[] = [];
+              if (hasTitleRating) parts.push(`${r.userScore}/10`);
+              if (sRatings > 0) parts.push(`${sRatings}s`);
+              if (epRatings > 0) parts.push(`${epRatings}ep`);
               contributing.push({
                 id: r.id,
                 mediaType: r.mediaType,
                 title: r.title,
                 posterPath: r.posterPath,
                 userScore: hasTitleRating ? r.userScore : undefined,
-                detailText:
-                  epRatings > 0
-                    ? hasTitleRating
-                      ? `${r.userScore}/10 • ${epRatings} ep${epRatings === 1 ? '' : 's'}`
-                      : `${epRatings} rated ep${epRatings === 1 ? '' : 's'}`
-                    : undefined,
+                detailText: (sRatings > 0 || epRatings > 0) ? parts.join(' • ') : undefined,
               });
             }
           });
-          val = titleCount + epCount;
+          val = titleCount + seasonCount + epCount;
           subtext =
-            epCount > 0
-              ? `${titleCount} titles + ${epCount} episodes rated`
+            seasonCount > 0 || epCount > 0
+              ? `${titleCount} titles + ${seasonCount} seasons + ${epCount} eps rated`
               : `${val} titles awarded personal star ratings`;
           break;
         }
 
         case 'the_perfect_ten': {
           let titleTenCount = 0;
+          let seasonTenCount = 0;
           let epTenCount = 0;
           items.forEach((t) => {
             const hasTitleTen = t.userScore === 10;
+            const sTens = t.mediaType === 'tv' && t.seasonRatings
+              ? Object.values(t.seasonRatings).filter((v) => v === 10).length
+              : 0;
             const epTens = t.mediaType === 'tv' && t.episodeRatings
               ? Object.values(t.episodeRatings).filter((v) => v === 10).length
               : 0;
             if (hasTitleTen) titleTenCount++;
+            seasonTenCount += sTens;
             epTenCount += epTens;
-            if ((hasTitleTen || epTens > 0) && contributing.length < 40) {
+            if ((hasTitleTen || sTens > 0 || epTens > 0) && contributing.length < 40) {
+              const parts: string[] = [];
+              if (hasTitleTen) parts.push('Title 10/10');
+              if (sTens > 0) parts.push(`${sTens}s 10s`);
+              if (epTens > 0) parts.push(`${epTens}ep 10s`);
               contributing.push({
                 id: t.id,
                 mediaType: t.mediaType,
                 title: t.title,
                 posterPath: t.posterPath,
                 userScore: hasTitleTen ? 10 : undefined,
-                detailText:
-                  epTens > 0
-                    ? hasTitleTen
-                      ? `10/10 • ${epTens} ep 10s`
-                      : `${epTens} ep${epTens === 1 ? '' : 's'} at 10/10`
-                    : undefined,
+                detailText: (sTens > 0 || epTens > 0) ? parts.join(' • ') : undefined,
               });
             }
           });
-          val = titleTenCount + epTenCount;
+          val = titleTenCount + seasonTenCount + epTenCount;
           subtext =
-            epTenCount > 0
-              ? `${titleTenCount} titles + ${epTenCount} episodes rated 10/10`
+            seasonTenCount > 0 || epTenCount > 0
+              ? `${titleTenCount} titles + ${seasonTenCount} seasons + ${epTenCount} eps rated 10/10`
               : `${val} titles given pristine 10/10 scores`;
           break;
         }
 
         case 'tough_crowd': {
           let titleLowCount = 0;
+          let seasonLowCount = 0;
           let epLowCount = 0;
           items.forEach((l) => {
             const hasTitleLow = l.userScore > 0 && l.userScore < 5;
+            const sLows = l.mediaType === 'tv' && l.seasonRatings
+              ? Object.values(l.seasonRatings).filter((v) => typeof v === 'number' && v > 0 && v < 5).length
+              : 0;
             const epLows = l.mediaType === 'tv' && l.episodeRatings
               ? Object.values(l.episodeRatings).filter((v) => typeof v === 'number' && v > 0 && v < 5).length
               : 0;
             if (hasTitleLow) titleLowCount++;
+            seasonLowCount += sLows;
             epLowCount += epLows;
-            if ((hasTitleLow || epLows > 0) && contributing.length < 40) {
+            if ((hasTitleLow || sLows > 0 || epLows > 0) && contributing.length < 40) {
+              const parts: string[] = [];
+              if (hasTitleLow) parts.push(`${l.userScore}/10`);
+              if (sLows > 0) parts.push(`${sLows}s <5`);
+              if (epLows > 0) parts.push(`${epLows}ep <5`);
               contributing.push({
                 id: l.id,
                 mediaType: l.mediaType,
                 title: l.title,
                 posterPath: l.posterPath,
                 userScore: hasTitleLow ? l.userScore : undefined,
-                detailText:
-                  epLows > 0
-                    ? hasTitleLow
-                      ? `${l.userScore}/10 • ${epLows} low ep${epLows === 1 ? '' : 's'}`
-                      : `${epLows} ep${epLows === 1 ? '' : 's'} under 5/10`
-                    : undefined,
+                detailText: (sLows > 0 || epLows > 0) ? parts.join(' • ') : undefined,
               });
             }
           });
-          val = titleLowCount + epLowCount;
+          val = titleLowCount + seasonLowCount + epLowCount;
           subtext =
-            epLowCount > 0
-              ? `${titleLowCount} titles + ${epLowCount} episodes scored below 5/10`
+            seasonLowCount > 0 || epLowCount > 0
+              ? `${titleLowCount} titles + ${seasonLowCount} seasons + ${epLowCount} eps below 5/10`
               : `${val} titles scored below 5/10`;
           break;
         }
@@ -1731,6 +1796,11 @@ export const AchievementsEngine = {
           const distinctScores = new Set<number>();
           items.forEach((i) => {
             if (i.userScore >= 1 && i.userScore <= 10) distinctScores.add(i.userScore);
+            if (i.mediaType === 'tv' && i.seasonRatings) {
+              Object.values(i.seasonRatings).forEach((v) => {
+                if (typeof v === 'number' && v >= 1 && v <= 10) distinctScores.add(v);
+              });
+            }
             if (i.mediaType === 'tv' && i.episodeRatings) {
               Object.values(i.episodeRatings).forEach((v) => {
                 if (typeof v === 'number' && v >= 1 && v <= 10) distinctScores.add(v);
@@ -1738,7 +1808,7 @@ export const AchievementsEngine = {
             }
           });
           val = distinctScores.size;
-          subtext = `${val} distinct scores used from 1 to 10 (titles & episodes)`;
+          subtext = `${val} distinct scores used from 1 to 10 (titles, seasons & episodes)`;
           break;
         }
 
@@ -1779,34 +1849,38 @@ export const AchievementsEngine = {
 
         case 'golden_standard': {
           let titleHighCount = 0;
+          let seasonHighCount = 0;
           let epHighCount = 0;
           items.forEach((g) => {
             const hasTitleHigh = g.userScore >= 8;
+            const sHighs = g.mediaType === 'tv' && g.seasonRatings
+              ? Object.values(g.seasonRatings).filter((v) => typeof v === 'number' && v >= 8).length
+              : 0;
             const epHighs = g.mediaType === 'tv' && g.episodeRatings
               ? Object.values(g.episodeRatings).filter((v) => typeof v === 'number' && v >= 8).length
               : 0;
             if (hasTitleHigh) titleHighCount++;
+            seasonHighCount += sHighs;
             epHighCount += epHighs;
-            if ((hasTitleHigh || epHighs > 0) && contributing.length < 40) {
+            if ((hasTitleHigh || sHighs > 0 || epHighs > 0) && contributing.length < 40) {
+              const parts: string[] = [];
+              if (hasTitleHigh) parts.push(`${g.userScore}/10`);
+              if (sHighs > 0) parts.push(`${sHighs}s 8+`);
+              if (epHighs > 0) parts.push(`${epHighs}ep 8+`);
               contributing.push({
                 id: g.id,
                 mediaType: g.mediaType,
                 title: g.title,
                 posterPath: g.posterPath,
                 userScore: hasTitleHigh ? g.userScore : undefined,
-                detailText:
-                  epHighs > 0
-                    ? hasTitleHigh
-                      ? `${g.userScore}/10 • ${epHighs} ep 8+`
-                      : `${epHighs} ep${epHighs === 1 ? '' : 's'} scored 8+`
-                    : undefined,
+                detailText: (sHighs > 0 || epHighs > 0) ? parts.join(' • ') : undefined,
               });
             }
           });
-          val = titleHighCount + epHighCount;
+          val = titleHighCount + seasonHighCount + epHighCount;
           subtext =
-            epHighCount > 0
-              ? `${titleHighCount} titles + ${epHighCount} episodes scored 8/10 or higher`
+            seasonHighCount > 0 || epHighCount > 0
+              ? `${titleHighCount} titles + ${seasonHighCount} seasons + ${epHighCount} eps scored 8+`
               : `${val} titles scored 8/10 or higher`;
           break;
         }
@@ -1901,6 +1975,83 @@ export const AchievementsEngine = {
             });
           });
           subtext = `${val} complete season${val === 1 ? '' : 's'} fully rated`;
+          break;
+        }
+
+        case 'season_critic': {
+          const showEntries: { item: TrackedItem; count: number }[] = [];
+          let totalSeasons = 0;
+          items.forEach((i) => {
+            if (i.mediaType !== 'tv' || !i.seasonRatings) return;
+            const count = Object.values(i.seasonRatings).filter(
+              (v) => typeof v === 'number' && v >= 1 && v <= 10
+            ).length;
+            if (count > 0) {
+              totalSeasons += count;
+              showEntries.push({ item: i, count });
+            }
+          });
+          showEntries.sort((a, b) => b.count - a.count);
+          val = totalSeasons;
+          showEntries.slice(0, 40).forEach(({ item: s, count }) => {
+            contributing.push({
+              id: s.id,
+              mediaType: s.mediaType,
+              title: s.title,
+              posterPath: s.posterPath,
+              detailText: `${count} rated season${count === 1 ? '' : 's'}`,
+            });
+          });
+          subtext = `${val} seasons rated across ${showEntries.length} show${showEntries.length === 1 ? '' : 's'}`;
+          break;
+        }
+
+        case 'peak_season': {
+          const showEntries: { item: TrackedItem; count: number }[] = [];
+          let totalTenSeasons = 0;
+          items.forEach((i) => {
+            if (i.mediaType !== 'tv' || !i.seasonRatings) return;
+            const count = Object.values(i.seasonRatings).filter((v) => v === 10).length;
+            if (count > 0) {
+              totalTenSeasons += count;
+              showEntries.push({ item: i, count });
+            }
+          });
+          showEntries.sort((a, b) => b.count - a.count);
+          val = totalTenSeasons;
+          showEntries.slice(0, 40).forEach(({ item: s, count }) => {
+            contributing.push({
+              id: s.id,
+              mediaType: s.mediaType,
+              title: s.title,
+              posterPath: s.posterPath,
+              detailText: `${count} season${count === 1 ? '' : 's'} at 10/10`,
+            });
+          });
+          subtext = `${val} seasons rated 10/10 across ${showEntries.length} show${showEntries.length === 1 ? '' : 's'}`;
+          break;
+        }
+
+        case 'complete_critic': {
+          const completeEntries: { item: TrackedItem; formatted: string; avg: number }[] = [];
+          items.forEach((i) => {
+            const res = computeCompleteShowRating(i);
+            if (res) {
+              completeEntries.push({ item: i, formatted: res.formatted, avg: res.average });
+            }
+          });
+          completeEntries.sort((a, b) => b.avg - a.avg);
+          val = completeEntries.length;
+          completeEntries.slice(0, 40).forEach(({ item: s, formatted }) => {
+            contributing.push({
+              id: s.id,
+              mediaType: s.mediaType,
+              title: s.title,
+              posterPath: s.posterPath,
+              detailText: formatted,
+            });
+          });
+          subtext = `${val} TV series with every show, season & episode rated`;
           break;
         }
 
@@ -2282,7 +2433,9 @@ export const AchievementsEngine = {
 
       // Determine current tier
       let currentTier: AchievementTier = 'locked';
-      if (val >= th.diamond) currentTier = 'diamond';
+      const hasCelestial = th.celestial !== undefined;
+      if (hasCelestial && val >= th.celestial!) currentTier = 'celestial';
+      else if (val >= th.diamond) currentTier = 'diamond';
       else if (val >= th.emerald) currentTier = 'emerald';
       else if (val >= th.ruby) currentTier = 'ruby';
       else if (val >= th.platinum) currentTier = 'platinum';
@@ -2290,7 +2443,14 @@ export const AchievementsEngine = {
       else if (val >= th.silver) currentTier = 'silver';
       else if (val >= th.bronze) currentTier = 'bronze';
 
-      if (currentTier === 'gold' || currentTier === 'platinum' || currentTier === 'ruby' || currentTier === 'emerald' || currentTier === 'diamond') {
+      if (
+        currentTier === 'gold' ||
+        currentTier === 'platinum' ||
+        currentTier === 'ruby' ||
+        currentTier === 'emerald' ||
+        currentTier === 'diamond' ||
+        currentTier === 'celestial'
+      ) {
         highTierCount++;
       }
 
@@ -2327,14 +2487,23 @@ export const AchievementsEngine = {
         nextTier = 'diamond';
         nextTierTarget = th.diamond;
         prevTarget = th.emerald;
+      } else if (currentTier === 'diamond' && hasCelestial) {
+        nextTier = 'celestial';
+        nextTierTarget = th.celestial!;
+        prevTarget = th.diamond;
+      } else if (currentTier === 'celestial') {
+        nextTier = null;
+        nextTierTarget = th.celestial!;
+        prevTarget = th.diamond;
       } else {
         nextTier = null;
         nextTierTarget = th.diamond;
         prevTarget = th.emerald;
       }
 
+      const isMaxed = currentTier === 'celestial' || (currentTier === 'diamond' && !hasCelestial);
       let progressPercent = 0;
-      if (currentTier === 'diamond') {
+      if (isMaxed) {
         progressPercent = 1;
       } else if (nextTierTarget > prevTarget) {
         progressPercent = Math.min(1, Math.max(0, (val - prevTarget) / (nextTierTarget - prevTarget)));
@@ -2344,7 +2513,7 @@ export const AchievementsEngine = {
       const currentTimestamps = storedTimestamps[def.id] || {};
       for (const t of TIER_ORDER) {
         const threshold = th[t];
-        if (val >= threshold && !currentTimestamps[t]) {
+        if (threshold !== undefined && val >= threshold && !currentTimestamps[t]) {
           currentTimestamps[t] = nowIso;
           timestampsModified = true;
         }
@@ -2359,7 +2528,7 @@ export const AchievementsEngine = {
         nextTier,
         nextTierTarget,
         progressPercent,
-        isMaxed: currentTier === 'diamond',
+        isMaxed,
         unlockedAt: currentTimestamps,
         contributingItems: inter.contributing,
         contributingSubtext: inter.subtext,
@@ -2372,7 +2541,8 @@ export const AchievementsEngine = {
     const gcTh = grandChampDef.thresholds;
 
     let gcTier: AchievementTier = 'locked';
-    if (grandVal >= gcTh.diamond) gcTier = 'diamond';
+    if (gcTh.celestial !== undefined && grandVal >= gcTh.celestial) gcTier = 'celestial';
+    else if (grandVal >= gcTh.diamond) gcTier = 'diamond';
     else if (grandVal >= gcTh.emerald) gcTier = 'emerald';
     else if (grandVal >= gcTh.ruby) gcTier = 'ruby';
     else if (grandVal >= gcTh.platinum) gcTier = 'platinum';
@@ -2390,12 +2560,19 @@ export const AchievementsEngine = {
     else if (gcTier === 'platinum') { gcNext = 'ruby'; gcTarget = gcTh.ruby; gcPrev = gcTh.platinum; }
     else if (gcTier === 'ruby') { gcNext = 'emerald'; gcTarget = gcTh.emerald; gcPrev = gcTh.ruby; }
     else if (gcTier === 'emerald') { gcNext = 'diamond'; gcTarget = gcTh.diamond; gcPrev = gcTh.emerald; }
+    else if (gcTier === 'diamond' && gcTh.celestial !== undefined) {
+      gcNext = 'celestial';
+      gcTarget = gcTh.celestial;
+      gcPrev = gcTh.diamond;
+    }
 
-    const gcPercent = gcTier === 'diamond' ? 1 : Math.min(1, Math.max(0, (grandVal - gcPrev) / (gcTarget - gcPrev)));
+    const gcMaxed = gcTier === 'celestial' || (gcTier === 'diamond' && gcTh.celestial === undefined);
+    const gcPercent = gcMaxed ? 1 : Math.min(1, Math.max(0, (grandVal - gcPrev) / (gcTarget - gcPrev)));
 
     const gcTimestamps = storedTimestamps.grand_champion || {};
     for (const t of TIER_ORDER) {
-      if (grandVal >= gcTh[t] && !gcTimestamps[t]) {
+      const threshold = gcTh[t];
+      if (threshold !== undefined && grandVal >= threshold && !gcTimestamps[t]) {
         gcTimestamps[t] = nowIso;
         timestampsModified = true;
       }
@@ -2410,7 +2587,7 @@ export const AchievementsEngine = {
       nextTier: gcNext,
       nextTierTarget: gcTarget,
       progressPercent: gcPercent,
-      isMaxed: gcTier === 'diamond',
+      isMaxed: gcMaxed,
       unlockedAt: gcTimestamps,
       contributingSubtext: `${grandVal} achievements reached Gold or higher`,
     });
@@ -2429,10 +2606,14 @@ export const AchievementsEngine = {
       ruby: 0,
       emerald: 0,
       diamond: 0,
+      celestial: 0,
     };
 
     let totalTierPoints = 0;
-    const maxPossiblePoints = progressList.length * 7;
+    const maxPossiblePoints = progressList.reduce(
+      (sum, p) => sum + (p.definition.thresholds.celestial !== undefined ? 8 : 7),
+      0
+    );
 
     for (const p of progressList) {
       tierCounts[p.currentTier]++;
@@ -2440,7 +2621,7 @@ export const AchievementsEngine = {
     }
 
     const unlockedCount = progressList.filter((p) => p.currentTier !== 'locked').length;
-    const maxedCount = tierCounts.diamond;
+    const maxedCount = progressList.filter((p) => p.isMaxed).length;
     const completionScorePercent = Math.round((totalTierPoints / maxPossiblePoints) * 100);
 
     return {

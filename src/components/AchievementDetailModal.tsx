@@ -157,7 +157,9 @@ export function AchievementDetailModal({
                     styles.progressPercentBadge,
                     { color: nextTierConfig ? nextTierConfig.color : currentTierConfig.color, fontSize: 12 * textScale },
                   ]}>
-                  {achievement.isMaxed ? 'Diamond Mastered' : `${Math.round(progressPercent * 100)}%`}
+                  {achievement.isMaxed
+                    ? (currentTier === 'celestial' ? 'Celestial Mastered' : 'Diamond Mastered')
+                    : `${Math.round(progressPercent * 100)}%`}
                 </Text>
               </View>
 
@@ -174,16 +176,16 @@ export function AchievementDetailModal({
               </View>
             </View>
 
-            {/* 7-Tier Milestone Ladder */}
+            {/* Milestone Ladder */}
             <View style={styles.ladderSection}>
               <Text style={[styles.sectionHeading, { color: colors.text, fontSize: 14 * headerScale }]}>
                 Milestone Tiers
               </Text>
 
               <View style={[styles.ladderCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-                {TIER_ORDER.map((tier: EarnedTier) => {
+                {TIER_ORDER.filter((tier: EarnedTier) => definition.thresholds[tier] !== undefined).map((tier: EarnedTier) => {
                   const cfg = TIER_CONFIG[tier];
-                  const threshold = definition.thresholds[tier];
+                  const threshold = definition.thresholds[tier] ?? 0;
                   const isEarned = TIER_CONFIG[currentTier].order >= cfg.order;
                   const isNext = nextTier === tier;
                   const unlockDate = formatUnlockDate(unlockedAt[tier]);

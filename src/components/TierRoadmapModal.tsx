@@ -44,6 +44,19 @@ export function TierTrophyIcon({
     return <Ionicons name="trophy" size={size} color={cfg.color} />;
   }
 
+  // Celestial Prestige Tier: Pearl-white & liquid-gold halo trophy
+  if (tier === 'celestial') {
+    const badgeSize = Math.round(size * 0.5);
+    return (
+      <View style={[styles.compositeWrapper, { width: size, height: size }]}>
+        <Ionicons name="trophy" size={size} color="#F59E0B" />
+        <View style={[styles.gemOverlay, { width: badgeSize, height: badgeSize }]}>
+          <Ionicons name="sparkles" size={badgeSize} color="#FFFBEB" />
+        </View>
+      </View>
+    );
+  }
+
   // Gemstone tiers: Ruby, Emerald, Diamond (Composite layered icon: Trophy base with shining gem)
   const gemSize = Math.round(size * 0.52);
 
@@ -160,7 +173,7 @@ export function TierRoadmapModal({
               </Text>
 
               <View style={[styles.breakdownCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-                {/* 7 Earned Tiers in reverse order: Diamond down to Bronze */}
+                {/* Earned Tiers in reverse order: Highest Prestige down to Bronze */}
                 {[...TIER_ORDER].reverse().map((tier: EarnedTier) => {
                   const cfg = TIER_CONFIG[tier];
                   const count = statsSummary.tierCounts[tier] || 0;

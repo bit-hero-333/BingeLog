@@ -248,6 +248,7 @@ export function compressPayloadForQr(payload: SyncPayload): string {
       eh: item.watchedEpisodesHistory,
       sh: item.watchedSeasonsHistory,
       er: item.episodeRatings && Object.keys(item.episodeRatings).length > 0 ? item.episodeRatings : undefined,
+      sr: item.seasonRatings && Object.keys(item.seasonRatings).length > 0 ? item.seasonRatings : undefined,
     })),
     s: payload.settings,
   };
@@ -297,6 +298,7 @@ export function decompressQrPayload(compressedStr: string): SyncPayload | null {
         watchedEpisodesHistory: (item as any).eh,
         watchedSeasonsHistory: (item as any).sh,
         episodeRatings: (item as any).er,
+        seasonRatings: (item as any).sr,
       }));
 
       return {
@@ -391,8 +393,10 @@ export function compareLibraries(
       const isScoreChange = inc.userScore !== existing.userScore;
       const isEpisodeRatingDiff =
         JSON.stringify(inc.episodeRatings || {}) !== JSON.stringify(existing.episodeRatings || {});
+      const isSeasonRatingDiff =
+        JSON.stringify(inc.seasonRatings || {}) !== JSON.stringify(existing.seasonRatings || {});
 
-      if (hasProgressDiff || isStatusChange || isScoreChange || isEpisodeRatingDiff) {
+      if (hasProgressDiff || isStatusChange || isScoreChange || isEpisodeRatingDiff || isSeasonRatingDiff) {
         updatedItemsCount++;
         updatedItemsTitles.push(inc.title);
       } else {
@@ -449,6 +453,11 @@ export function mergeLibraries(
         ...(inc.episodeRatings || {}),
       };
 
+      const mergedSeasonRatings = {
+        ...(existing.seasonRatings || {}),
+        ...(inc.seasonRatings || {}),
+      };
+
       const progress = Math.max(
         existing.currentProgress || 0,
         inc.currentProgress || 0,
@@ -483,6 +492,7 @@ export function mergeLibraries(
         watchedEpisodesHistory: Object.keys(mergedEpisodesHistory).length > 0 ? mergedEpisodesHistory : undefined,
         watchedSeasonsHistory: Object.keys(mergedSeasonsHistory).length > 0 ? mergedSeasonsHistory : undefined,
         episodeRatings: Object.keys(mergedEpisodeRatings).length > 0 ? mergedEpisodeRatings : undefined,
+        seasonRatings: Object.keys(mergedSeasonRatings).length > 0 ? mergedSeasonRatings : undefined,
         minutesWatched: minutes > 0 ? minutes : undefined,
         rewatchCount: rewatch > 0 ? rewatch : undefined,
         startedAt: inc.startedAt || existing.startedAt,

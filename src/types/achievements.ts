@@ -6,7 +6,8 @@ export type AchievementTier =
   | 'platinum'
   | 'ruby'
   | 'emerald'
-  | 'diamond';
+  | 'diamond'
+  | 'celestial';
 
 export type AchievementCategory =
   | 'all'
@@ -74,6 +75,12 @@ export const TIER_CONFIG: Record<AchievementTier, TierVisualConfig> = {
     glow: 'rgba(184, 216, 231, 0.35)',
     order: 7,
   },
+  celestial: {
+    label: 'Celestial',
+    color: '#FDE68A',
+    glow: 'rgba(251, 191, 36, 0.32)',
+    order: 8,
+  },
 };
 
 export type EarnedTier = Exclude<AchievementTier, 'locked'>;
@@ -86,6 +93,7 @@ export const TIER_ORDER: EarnedTier[] = [
   'ruby',
   'emerald',
   'diamond',
+  'celestial',
 ];
 
 export interface TierThresholds {
@@ -96,6 +104,7 @@ export interface TierThresholds {
   ruby: number;
   emerald: number;
   diamond: number;
+  celestial?: number;
 }
 
 export interface AchievementDefinition {

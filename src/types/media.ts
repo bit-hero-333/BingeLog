@@ -183,6 +183,7 @@ export interface TrackedItem {
   watchedEpisodesHistory?: Record<string, WatchedHistoryRecord>; // Episode key -> { completedAt }
   watchedSeasonsHistory?: Record<number, WatchedHistoryRecord>; // Season number -> { completedAt }
   episodeRatings?: Record<string, number>; // Episode key ("s1_e1") -> integer 1 to 10 (omitted when unrated)
+  seasonRatings?: Record<number, number>; // Season number -> integer 1 to 10 (omitted when unrated)
 
   // Viewing Progress & Rewatch Tracking (Movies & TV Shows)
   rewatchCount?: number;

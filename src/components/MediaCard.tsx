@@ -8,6 +8,7 @@ import { formatDateDisplay, getRelativeTime, formatRuntime, getCountdownInfo } f
 import { useAppTheme } from '@/context/ThemeContext';
 import { useMedia } from '@/context/MediaContext';
 import { getTextScale, getHeaderScale, getPosterScale } from '@/utils/sizing';
+import { computeCompleteShowRating } from '@/utils/ratings';
 
 interface MediaCardProps {
   item: TMDBMediaItem | TrackedItem;
@@ -56,6 +57,11 @@ export function MediaCard({
     currentTracked &&
     currentTracked.status === 'completed' &&
     currentTracked.isAlsoPlanned
+  );
+
+  const completeShowRating = useMemo(
+    () => (currentTracked ? computeCompleteShowRating(currentTracked) : null),
+    [currentTracked]
   );
 
   const statusConfig = currentTracked ? STATUS_CONFIG[currentTracked.status] : null;
@@ -272,6 +278,14 @@ export function MediaCard({
                 <View style={styles.userScoreTag}>
                   <Ionicons name="star" size={11 * textScale} color="#fbbf24" />
                   <Text style={[styles.userScoreText, { fontSize: 11 * textScale }]}>{currentTracked.userScore}/10</Text>
+                </View>
+              )}
+
+              {completeShowRating && (
+                <View style={styles.completeAvgBadge}>
+                  <Text style={[styles.completeAvgBadgeText, { fontSize: 10 * textScale }]}>
+                    {completeShowRating.formatted}
+                  </Text>
                 </View>
               )}
 
@@ -520,6 +534,19 @@ const styles = StyleSheet.create({
     color: '#fbbf24',
     fontSize: 11,
     fontWeight: '700',
+  },
+  completeAvgBadge: {
+    backgroundColor: '#fbbf24',
+    borderColor: '#f59e0b',
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  completeAvgBadgeText: {
+    color: '#451a03',
+    fontSize: 10,
+    fontWeight: '800',
   },
   rewatchChip: {
     flexDirection: 'row',

@@ -172,9 +172,9 @@ export default function AchievementsScreen() {
               </View>
             </View>
 
-            {/* 7-Pip Progression Ladder */}
+            {/* Dynamic Gem Progression Ladder */}
             <View style={styles.gemLadderRow}>
-              {TIER_ORDER.map((tier) => {
+              {TIER_ORDER.filter((tier) => definition.thresholds[tier] !== undefined).map((tier) => {
                 const cfg = TIER_CONFIG[tier];
                 const isEarned = TIER_CONFIG[currentTier].order >= cfg.order;
                 return (
@@ -208,7 +208,7 @@ export default function AchievementsScreen() {
               {contributingSubtext || `${currentValue.toLocaleString()} / ${nextTierTarget.toLocaleString()} ${definition.metricLabel}`}
             </Text>
             <Text style={[styles.progressPercentText, { color: targetColor, fontSize: 11 * textScale }]}>
-              {isMaxed ? 'Diamond Mastered' : `${Math.round(progressPercent * 100)}%`}
+              {isMaxed ? (currentTier === 'celestial' ? 'Celestial Mastered' : 'Diamond Mastered') : `${Math.round(progressPercent * 100)}%`}
             </Text>
           </View>
 

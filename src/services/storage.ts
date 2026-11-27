@@ -750,11 +750,17 @@ export const StorageService = {
               ...(current.episodeRatings || {}),
               ...(i.episodeRatings || {}),
             };
+            const mergedSeasonRatings = {
+              ...(current.seasonRatings || {}),
+              ...(i.seasonRatings || {}),
+            };
             map.set(key, {
               ...current,
               ...i,
               episodeRatings:
                 Object.keys(mergedEpisodeRatings).length > 0 ? mergedEpisodeRatings : undefined,
+              seasonRatings:
+                Object.keys(mergedSeasonRatings).length > 0 ? mergedSeasonRatings : undefined,
               rewatchCount: Math.max(current.rewatchCount || 0, i.rewatchCount || 0) || undefined,
               isAlsoPlanned:
                 nextStatus === 'completed'

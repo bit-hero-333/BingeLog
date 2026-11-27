@@ -120,6 +120,18 @@ export const METALLIC_PALETTES: Record<AchievementTier, MetallicPalette> = {
     ringShadow: '#243C50',
     iconColor: '#FFFFFF',
   },
+  celestial: {
+    highlight: '#FFFFFF',
+    sheen: '#FFFDF7',
+    core: '#F8FAFC',
+    dark: '#E2E8F0',
+    deepShadow: '#CBD5E1',
+    glow: 'rgba(251, 191, 36, 0.95)',
+    ringHighlight: '#FFFBEB',
+    ringBase: '#F59E0B',
+    ringShadow: '#B45309',
+    iconColor: '#B45309',
+  },
 };
 
 interface MetallicAchievementBadgeProps {
@@ -211,10 +223,26 @@ export function MetallicAchievementBadge({
           <Svg width={size} height={size}>
             <Defs>
               <RadialGradient id="breathingHaloGrad" cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor={palette.core} stopOpacity="0.85" />
-                <Stop offset="45%" stopColor={palette.core} stopOpacity="0.60" />
-                <Stop offset="75%" stopColor={palette.sheen} stopOpacity="0.30" />
-                <Stop offset="100%" stopColor={palette.core} stopOpacity="0" />
+                <Stop
+                  offset="0%"
+                  stopColor={tier === 'celestial' ? '#FDE68A' : palette.core}
+                  stopOpacity="0.90"
+                />
+                <Stop
+                  offset="45%"
+                  stopColor={tier === 'celestial' ? '#F59E0B' : palette.core}
+                  stopOpacity="0.62"
+                />
+                <Stop
+                  offset="75%"
+                  stopColor={tier === 'celestial' ? '#FBBF24' : palette.sheen}
+                  stopOpacity="0.32"
+                />
+                <Stop
+                  offset="100%"
+                  stopColor={tier === 'celestial' ? '#F59E0B' : palette.core}
+                  stopOpacity="0"
+                />
               </RadialGradient>
             </Defs>
             <Circle cx={cx} cy={cy} r={size * 0.48} fill="url(#breathingHaloGrad)" />
@@ -242,6 +270,19 @@ export function MetallicAchievementBadge({
               <Stop offset="100%" stopColor={palette.deepShadow} stopOpacity="1" />
             </RadialGradient>
           </Defs>
+
+          {/* Celestial Outer Golden Halo Ring */}
+          {tier === 'celestial' && (
+            <Circle
+              cx={cx}
+              cy={cy}
+              r={rRing + (showGlow ? 4 : 2)}
+              fill="none"
+              stroke="#FDE68A"
+              strokeWidth={showGlow ? 1.5 : 1}
+              strokeOpacity={0.8}
+            />
+          )}
 
           {/* Inner Metallic Dish */}
           <Circle
